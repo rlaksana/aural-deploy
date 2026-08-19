@@ -436,6 +436,202 @@ export const interviewRouter = router({
       return interview;
     }),
 
+  createWithQuestions: protectedProcedure
+    .input(
+      z.object({
+        projectId: z.string().optional(),
+        title: z.string().min(1),
+        description: z.string().optional(),
+        objective: z.string().optional(),
+        assessmentCriteria: z
+          .array(z.object({ name: z.string().min(1), description: z.string().min(1) }))
+          .optional(),
+        chatEnabled: z.boolean().default(true),
+        voiceEnabled: z.boolean().default(false),
+        videoEnabled: z.boolean().default(false),
+        aiName: z.string().default("Aural"),
+        aiTone: z
+          .enum(["CASUAL", "PROFESSIONAL", "FORMAL", "FRIENDLY"])
+          .default("PROFESSIONAL"),
+        followUpDepth: z
+          .enum(["LIGHT", "MODERATE", "DEEP"])
+          .default("MODERATE"),
+        language: z.string().default("en"),
+        timeLimitMinutes: z.number().int().min(1).optional(),
+        antiCheatingEnabled: z.boolean().default(false),
+        questions: z
+          .array(
+            z.object({
+              text: z.string().min(1),
+              type: z.enum([
+                "OPEN_ENDED",
+                "SINGLE_CHOICE",
+                "MULTIPLE_CHOICE",
+                "CODING",
+                "WHITEBOARD",
+                "RESEARCH",
+              ]),
+              description: z.string().nullable().optional(),
+              options: z
+                .object({
+                  options: z.array(z.string().min(1)).min(2).max(6),
+                  allowMultiple: z.boolean().optional(),
+                })
+                .nullable()
+                .optional(),
+              starterCode: z
+                .object({ language: z.string().min(1), code: z.string() })
+                .nullable()
+                .optional(),
+              timeLimitSeconds: z.number().int().nullable().optional(),
+              isRequired: z.boolean().default(true),
+            }),
+          )
+          .min(1)
+          .max(25),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      // 1. Resolve project id (same logic as `create`).
+      let projectId = input.projectId;
+
+      if (!projectId) {
+        const { data: membership } = await ctx.supabase
+          .from("organization_members")
+          .select("workspaceId")
+          .eq("userId", ctx.user.id)
+          .limit(1)
+          .single();
+        if (!membership) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "No organization found" });
+        }
+        const { data: defaultProject } = await ctx.supabase
+          .from("projects")
+          .select("id")
+          .eq("organizationId", membership.workspaceId)
+          .order("createdAt", { ascending: true })
+          .limit(1)
+          .single();
+        if (!defaultProject) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "No project found. Create a project first.",
+          });
+        }
+        projectId = defaultProject.id;
+      }
+
+      // 2. Authorize (org membership + project access).
+      const { data: project } = await ctx.supabase
+        .from("projects")
+        .select("id, organizationId")
+        .eq("id", projectId)
+        .single();
+      if (!project) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Project not found" });
+      }
+      const membership = await getOrgMembership(
+        ctx.supabase,
+        project.organizationId,
+        ctx.user.id,
+      );
+      if (!membership) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "You are not a member of this organization",
+        });
+      }
+      const projAccess = await hasProjectAccess(
+        ctx.supabase,
+        project.id,
+        ctx.user.id,
+      );
+      if (!projAccess) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "You do not have access to this project",
+        });
+      }
+      const effectiveRole = await getEffectiveProjectRole(
+        ctx.supabase,
+        project.id,
+        ctx.user.id,
+        membership.role,
+      );
+      assertMinRole(effectiveRole, "MEMBER");
+
+      // 3. Per-question invariants before handing to the DB.
+      for (const [idx, q] of input.questions.entries()) {
+        const needsOptions =
+          q.type === "SINGLE_CHOICE" || q.type === "MULTIPLE_CHOICE";
+        if (needsOptions && (!q.options || q.options.options.length < 2)) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: `Question ${idx + 1} (${q.type}) requires at least 2 options`,
+          });
+        }
+        if (!needsOptions && q.options) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: `Question ${idx + 1} (${q.type}) must not include options`,
+          });
+        }
+        if (q.type === "CODING" && !q.starterCode) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: `Question ${idx + 1} (CODING) requires a starterCode object`,
+          });
+        }
+        if (q.type !== "CODING" && q.starterCode) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: `Question ${idx + 1} (${q.type}) must not include starterCode`,
+          });
+        }
+      }
+
+      // 4. Atomic insert via RPC.
+      const interviewPayload = {
+        ...input,
+        projectId,
+        userId: ctx.user.id,
+        requireInvite: true,
+      };
+      const questionPayload = input.questions.map((q, i) => ({
+        ...q,
+        order: i,
+      }));
+
+      const { data, error } = await ctx.supabase.rpc(
+        "create_interview_with_questions",
+        {
+          p_interview: interviewPayload,
+          p_questions: questionPayload,
+        },
+      );
+
+      if (error) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: error.message,
+        });
+      }
+
+      const rows = Array.isArray(data) ? data[0] : data;
+      if (!rows) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "RPC returned no row",
+        });
+      }
+
+      const interview = (rows as { interview: unknown }).interview;
+      const questions = (rows as { questions: unknown[] }).questions ?? [];
+      void questions;
+
+      return interview;
+    }),
+
   createFromTemplate: protectedProcedure
     .input(
       z.object({

@@ -49,12 +49,6 @@ export interface GeneratedInterview {
   estimatedDurationMinutes: number;
   questions: GeneratedQuestion[];
   recommendedSettings: {
-    mode?: "CHAT" | "VOICE" | "HYBRID";
-    chatEnabled?: boolean;
-    voiceEnabled?: boolean;
-    videoEnabled?: boolean;
-    followUpDepth: "LIGHT" | "MODERATE" | "DEEP";
-    aiTone: "CASUAL" | "PROFESSIONAL" | "FORMAL" | "FRIENDLY";
     aiName: string;
   };
 }
@@ -67,7 +61,6 @@ export interface GeneratedQuestion {
   timeLimitSeconds?: number;
   isRequired: boolean;
   options?: { options: string[]; allowMultiple?: boolean };
-  followUpPrompts?: string[];
   /** Starter code template for CODING questions. */
   starterCode?: { language: string; code: string };
 }

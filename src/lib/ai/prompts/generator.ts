@@ -1,4 +1,5 @@
 import type { LLMMessage } from "../types";
+import { getPromptLanguageName } from "../language-name";
 
 export function buildGeneratorPrompt(
   description: string,
@@ -7,8 +8,9 @@ export function buildGeneratorPrompt(
   jobDescription?: string,
   resumeText?: string,
 ): LLMMessage[] {
-  const languageInstruction = language && language !== "en"
-    ? `\nLANGUAGE: All generated content (title, description, objective, assessment criteria names & descriptions, question texts & descriptions, follow-up prompts, and aiName) MUST be written in ${language}. Only the JSON keys and enum values (e.g. "OPEN_ENDED", "PROFESSIONAL") should remain in English. CRITICAL: Output must be 100% in the target language — DO NOT mix in words, phrases, characters, or examples from any other language.\n`
+  const languageName = getPromptLanguageName(language);
+  const languageInstruction = languageName && languageName !== "English"
+    ? `\nLANGUAGE: All generated content (title, description, objective, assessment criteria names & descriptions, question texts & descriptions, and aiName) MUST be written in ${languageName}. Only the JSON keys and enum values (e.g. "OPEN_ENDED", "PROFESSIONAL") should remain in English. CRITICAL: Output must be 100% in ${languageName} — DO NOT mix in words, phrases, characters, or examples from any other language.\n`
     : "";
 
   const contextInstruction = (jobDescription || resumeText)
@@ -71,15 +73,11 @@ OUTPUT VALID JSON ONLY (no markdown, no explanation):
       "timeLimitSeconds": number | null,
       "isRequired": true,
       "options": { "options": ["string", "string", ...], "allowMultiple": false } | null,
-      "followUpPrompts": ["string"],
       "starterCode": { "language": "string", "code": "string" } | null
     }
   ],
   "recommendedSettings": {
-    "mode": "CHAT" | "VOICE" | "HYBRID",
-    "followUpDepth": "LIGHT" | "MODERATE" | "DEEP",
-    "aiTone": "CASUAL" | "PROFESSIONAL" | "FORMAL" | "FRIENDLY",
-    "aiName": "string suggestion"
+    "aiName": "string (a short, friendly name for the AI interviewer)"
   }
 }`,
     },
@@ -120,11 +118,12 @@ export function buildImprovePrompt(
         .join("\n")
     : "None defined";
 
+  const languageName = getPromptLanguageName(language);
   return [
     {
       role: "system",
       content: `You are an expert interview designer. Improve an existing interview based on user feedback.
-${language && language !== "en" ? `\nLANGUAGE: All generated content (title, description, objective, assessment criteria names & descriptions, question texts & descriptions, follow-up prompts, and aiName) MUST be written in ${language}. Only the JSON keys and enum values (e.g. "OPEN_ENDED", "PROFESSIONAL") should remain in English.\n` : ""}
+${languageName && languageName !== "English" ? `\nLANGUAGE: All generated content (title, description, objective, assessment criteria names & descriptions, question texts & descriptions, and aiName) MUST be written in ${languageName}. Only the JSON keys and enum values (e.g. "OPEN_ENDED", "PROFESSIONAL") should remain in English.\n` : ""}
 QUESTION TYPES:
 - "OPEN_ENDED": Free-form text or verbal response. Set "options" to null.
 - "SINGLE_CHOICE": Participant picks exactly one option. MUST include "options" with 2-6 option strings.
@@ -150,15 +149,11 @@ OUTPUT VALID JSON ONLY (no markdown, no explanation):
       "timeLimitSeconds": number | null,
       "isRequired": true,
       "options": { "options": ["string", "string", ...], "allowMultiple": false } | null,
-      "followUpPrompts": ["string"],
       "starterCode": { "language": "string", "code": "string" } | null
     }
   ],
   "recommendedSettings": {
-    "mode": "CHAT" | "VOICE" | "HYBRID",
-    "followUpDepth": "LIGHT" | "MODERATE" | "DEEP",
-    "aiTone": "CASUAL" | "PROFESSIONAL" | "FORMAL" | "FRIENDLY",
-    "aiName": "string suggestion"
+    "aiName": "string (a short, friendly name for the AI interviewer)"
   }
 }
 

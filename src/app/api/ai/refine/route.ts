@@ -1,9 +1,11 @@
 import { getAuthUser } from "@/lib/auth";
-import { getProvider, GENERATOR_MODEL } from "@/lib/ai/registry";
 import { createLogger } from "@/lib/logger";
+import { resolveGeneratorModel, streamGeneratorWithFallback } from "@/lib/ai/generator-run";
+import { generatedInterviewSchema, refineRequestSchema } from "@/lib/ai/generated-schema";
+import { checkAiRateLimit } from "@/lib/api-rate-limit-ai";
 
 const log = createLogger("api/ai/refine");
-import { buildImprovePrompt } from "@/lib/ai/prompts/generator";
+
 function parseJsonSafe(raw: string): unknown {
   const jsonMatch = raw.match(/\{[\s\S]*\}/);
   if (!jsonMatch) throw new Error("Failed to parse AI response as JSON");
@@ -25,13 +27,26 @@ export async function POST(req: Request) {
     return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 });
   }
 
-  const { interview, feedback, language, jobDescription, resumeText } = await req.json();
-  if (!interview || !feedback) {
-    return new Response(JSON.stringify({ error: "Interview and feedback are required" }), { status: 400 });
-  }
+  const rateLimited = checkAiRateLimit(user.id);
+  if (rateLimited) return rateLimited;
 
-  const provider = getProvider(GENERATOR_MODEL);
-  const messages = buildImprovePrompt(interview, feedback, language, jobDescription, resumeText);
+  const rawBody: unknown = await req.json().catch(() => null);
+  const parsedBody = refineRequestSchema.safeParse(rawBody);
+  if (!parsedBody.success) {
+    return new Response(
+      JSON.stringify({ error: "Invalid request", details: parsedBody.error.flatten() }),
+      { status: 400 },
+    );
+  }
+  const { interview, feedback, language, jobDescription, resumeText } = parsedBody.data;
+
+  const messages = (await import("@/lib/ai/prompts/generator")).buildImprovePrompt(
+    interview,
+    feedback,
+    language,
+    jobDescription,
+    resumeText,
+  );
 
   const encoder = new TextEncoder();
   const sse = (obj: Record<string, unknown>) =>
@@ -61,11 +76,11 @@ export async function POST(req: Request) {
       const collectLlmContent = async (streamToClient: boolean) => {
         let inThink = false;
         let fullContent = "";
-        for await (const chunk of provider.streamResponse({
+        for await (const chunk of streamGeneratorWithFallback({
           messages,
           temperature: 0.7,
           maxTokens: 8192,
-          model: GENERATOR_MODEL,
+          model: resolveGeneratorModel(),
         })) {
           let remaining = chunk;
           while (remaining.length > 0) {
@@ -102,18 +117,28 @@ export async function POST(req: Request) {
       };
 
       try {
-        let refined: { questions?: unknown[] } | null = null;
+        let refined: unknown = null;
         let lastError: unknown;
 
         for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
           try {
             const fullContent = await collectLlmContent(attempt === 0);
-            refined = parseJsonSafe(fullContent) as { questions?: unknown[] };
+            const raw = parseJsonSafe(fullContent);
+            const validated = generatedInterviewSchema.safeParse(raw);
+            if (!validated.success) {
+              throw new Error(
+                `Model output failed validation: ${validated.error.issues
+                  .slice(0, 3)
+                  .map((i) => i.message)
+                  .join("; ")}`,
+              );
+            }
+            refined = validated.data;
             break;
           } catch (error) {
             lastError = error;
             if (attempt < MAX_RETRIES) {
-              log.warn(`Refinement attempt ${attempt + 1} failed (JSON parse), retrying...`, error);
+              log.warn(`Refinement attempt ${attempt + 1} failed (${error instanceof Error ? error.message : "unknown"}), retrying...`);
               enqueue(sse({ type: "status", message: `Output was malformed, retrying (${attempt + 2}/${MAX_RETRIES + 1})…` }));
             }
           }
