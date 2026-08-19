@@ -244,6 +244,7 @@ const translations: TranslationMap = {
     "interviewForm.followUpDepth.DEEP": "Deep (3-5 follow-ups)",
     "interviewForm.languageOption.en": "English",
     "interviewForm.languageOption.zh": "Chinese (中文)",
+    "interviewForm.languageOption.id": "Indonesian (Bahasa Indonesia)",
     "interviewForm.languageOption.es": "Spanish",
     "interviewForm.languageOption.fr": "French",
     "interviewSettings.shareableLink": "Shareable Link",
