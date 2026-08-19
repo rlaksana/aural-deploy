@@ -327,6 +327,7 @@ const translations: TranslationMap = {
     "aiGenerator.tpl.screeningCall": "Screening Call",
     "aiGenerator.tpl.caseStudy": "Case Study",
     "aiGenerator.tpl.expertInterview": "Expert Interview",
+    "aiGenerator.tpl.screeningInterview": "Screening Interview",
     "account.title": "Account Settings",
     "account.subtitle": "Manage your account preferences",
     "account.email": "Email",

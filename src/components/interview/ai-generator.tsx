@@ -250,6 +250,21 @@ const PROMPT_TEMPLATES: PromptTemplate[] = [
       ".",
     ],
   },
+  {
+    label: "Screening Interview",
+    icon: ListOrdered,
+    segments: [
+      "Conduct a ",
+      h("general screening interview"),
+      " with ",
+      h("6"),
+      " questions mixing ",
+      h("open-ended and single-choice"),
+      " to quickly evaluate ",
+      h("candidate background, motivation, role-fit, and communication skills"),
+      ".",
+    ],
+  },
 ];
 
 export function AIGenerator({ projectId }: { projectId?: string } = {}) {
