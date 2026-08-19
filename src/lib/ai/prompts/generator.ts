@@ -8,12 +8,12 @@ export function buildGeneratorPrompt(
   resumeText?: string,
 ): LLMMessage[] {
   const languageInstruction = language && language !== "en"
-    ? `\nLANGUAGE: All generated content (title, description, objective, assessment criteria names & descriptions, question texts & descriptions, follow-up prompts, and aiName) MUST be written in ${language}. Only the JSON keys and enum values (e.g. "OPEN_ENDED", "PROFESSIONAL") should remain in English.\n`
+    ? `\nLANGUAGE: All generated content (title, description, objective, assessment criteria names & descriptions, question texts & descriptions, follow-up prompts, and aiName) MUST be written in ${language}. Only the JSON keys and enum values (e.g. "OPEN_ENDED", "PROFESSIONAL") should remain in English. CRITICAL: Output must be 100% in the target language — DO NOT mix in words, phrases, characters, or examples from any other language.\n`
     : "";
 
   const contextInstruction = (jobDescription || resumeText)
     ? `\nCONTEXT DOCUMENTS:
-${jobDescription ? "- A JOB DESCRIPTION has been provided. Tailor questions to assess the specific skills, qualifications, and responsibilities listed in the JD. Derive assessment criteria from the role requirements." : ""}
+${jobDescription ? "- A JOB DESCRIPTION has been provided. You MUST derive specific questions from concrete items in this JD (product names, customer profiles, required skills, tools, technologies, metrics, scenarios). AVOID generic biographical or motivational questions that could apply to any role — every question should be role-specific." : ""}
 ${resumeText ? "- A CANDIDATE RESUME has been provided. Include questions that probe the candidate's claimed experience, validate key skills, and explore any gaps or transitions in their background." : ""}
 ${jobDescription && resumeText ? "- When both are provided, focus on the intersection: how well the candidate's experience maps to the role requirements, and probe areas where there may be gaps." : ""}
 `
@@ -35,10 +35,11 @@ Design a complete interview with:
 7. Optimal AI persona configuration
 
 GUIDELINES:
-- Start with an ice-breaker/warm-up question
+- Start with a substantive context-setting question (a concrete scenario from the role is better than a generic "tell me about yourself")
 - Group related topics together
-- Place most important questions in the middle (when engagement is highest)
-- End with an open "anything else" question
+- Place the MOST discriminating questions in the middle (when engagement is highest)
+- End with a substantive behavioral or scenario question that probes a real competency — NEVER end with a fluff "anything else" or "do you have questions" closing — those waste the final interview slot
+- Avoid generic motivation/biographical questions ("why do you want to join", "tell me about yourself") when the JD provides enough specificity for concrete competency probes — only use generic warm-ups if no JD was provided
 - Use OPEN_ENDED for free-text/verbal responses, SINGLE_CHOICE when the participant must pick exactly one option, MULTIPLE_CHOICE when multiple selections are allowed, CODING for programming/algorithm questions, and RESEARCH when the goal is to extract as much detailed information as possible on a topic
 - For SINGLE_CHOICE and MULTIPLE_CHOICE questions, ALWAYS provide 2-6 clear option strings in the "options" field
 - For CODING questions, set "options" to null. Write a clear problem statement in the question text. Include a "starterCode" object with "language" and "code" fields containing a code template for the participant.
