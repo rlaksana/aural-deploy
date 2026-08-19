@@ -459,7 +459,7 @@ export function AIGenerator({ projectId }: { projectId?: string } = {}) {
         body: JSON.stringify({
           description,
           durationMinutes: Number(duration) || 20,
-          language: LANGUAGES.find((l) => l.value === language)?.label ?? language,
+          language: LANGUAGES.find((l) => l.value === language)?.value ?? language,
           organizationId: currentOrg?.id,
           projectId,
           ...(jdText && { jobDescription: jdText }),
@@ -510,7 +510,7 @@ export function AIGenerator({ projectId }: { projectId?: string } = {}) {
             questions: editableQuestions.map((q) => ({ text: q.text, type: q.type })),
           },
           feedback,
-          language: LANGUAGES.find((l) => l.value === language)?.label ?? language,
+          language: LANGUAGES.find((l) => l.value === language)?.value ?? language,
           organizationId: currentOrg?.id,
           projectId,
           ...(jdText && { jobDescription: jdText }),
