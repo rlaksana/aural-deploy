@@ -1,7 +1,7 @@
 export const LANGUAGES = [
   { value: "en", label: "English" },
   { value: "zh", label: "Chinese (中文)" },
-  { value: "id", label: "Indonesian (Bahasa Indonesia)" },
+  { value: "id", label: "Indonesian" },
   { value: "es", label: "Spanish" },
   { value: "fr", label: "French" },
 ] as const;
