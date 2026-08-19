@@ -333,8 +333,7 @@ export function AIGenerator({ projectId }: { projectId?: string } = {}) {
     streamEndRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }, [contentText]);
 
-  const createMutation = trpc.interview.create.useMutation();
-  const createQuestionMutation = trpc.question.create.useMutation();
+  const createWithQuestionsMutation = trpc.interview.createWithQuestions.useMutation();
 
   /** Consume an SSE stream from generate/refine and return parsed data. */
   const consumeStream = async (response: Response): Promise<GeneratedInterview> => {
@@ -507,7 +506,15 @@ export function AIGenerator({ projectId }: { projectId?: string } = {}) {
             description: result.description,
             objective: result.objective,
             assessmentCriteria: editableCriteria,
-            questions: editableQuestions.map((q) => ({ text: q.text, type: q.type })),
+            questions: editableQuestions.map((q) => ({
+              text: q.text,
+              type: q.type,
+              description: q.description ?? null,
+              options: q.options ?? null,
+              starterCode: q.type === "CODING" ? q.starterCode ?? null : null,
+              timeLimitSeconds: q.timeLimitSeconds ?? null,
+              isRequired: q.isRequired ?? true,
+            })),
           },
           feedback,
           language: LANGUAGES.find((l) => l.value === language)?.value ?? language,
@@ -550,7 +557,7 @@ export function AIGenerator({ projectId }: { projectId?: string } = {}) {
 
     setSaving(true);
     try {
-      const interview = await createMutation.mutateAsync({
+      const interview = await createWithQuestionsMutation.mutateAsync({
         projectId,
         title: result.title,
         description: result.description,
@@ -565,24 +572,16 @@ export function AIGenerator({ projectId }: { projectId?: string } = {}) {
         followUpDepth,
         antiCheatingEnabled,
         timeLimitMinutes: Number(duration) || undefined,
+        questions: editableQuestions.map((q) => ({
+          text: q.text,
+          type: q.type,
+          description: q.description ?? null,
+          options: q.options ?? null,
+          starterCode: q.type === "CODING" ? q.starterCode ?? null : null,
+          timeLimitSeconds: q.timeLimitSeconds ?? null,
+          isRequired: q.isRequired ?? true,
+        })),
       });
-
-      await Promise.all(
-        editableQuestions.map((q, i) =>
-          createQuestionMutation.mutateAsync({
-            interviewId: interview.id,
-            order: i,
-            text: q.text,
-            type: q.type as "OPEN_ENDED" | "SINGLE_CHOICE" | "MULTIPLE_CHOICE" | "CODING" | "WHITEBOARD" | "RESEARCH",
-            description: q.description ?? undefined,
-            timeLimitSeconds: q.timeLimitSeconds ?? undefined,
-            isRequired: q.isRequired ?? true,
-            options: q.options ?? undefined,
-            followUpPrompts: q.followUpPrompts ?? undefined,
-            starterCode: q.type === "CODING" && q.starterCode ? q.starterCode : undefined,
-          })
-        )
-      );
 
       toast({ title: "Interview created!" });
       router.push(`/interviews/${interview.id}/edit/sessions`);
@@ -621,7 +620,6 @@ export function AIGenerator({ projectId }: { projectId?: string } = {}) {
       description: "",
       isRequired: true,
       timeLimitSeconds: undefined,
-      followUpPrompts: [],
     };
     setEditableQuestions((prev) => [...prev, newQ]);
     setEditingIndex(editableQuestions.length);
