@@ -1242,7 +1242,7 @@ export function ChatInterface({
           </span>
         </div>
         {currentQ?.text && (
-          <p className="mt-1.5 line-clamp-1 text-xs text-muted-foreground">
+          <p className="mt-1.5 whitespace-pre-wrap text-xs text-muted-foreground">
             {currentQ.text}
           </p>
         )}
