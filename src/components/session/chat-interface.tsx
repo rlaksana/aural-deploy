@@ -1294,7 +1294,7 @@ export function ChatInterface({
         {(isSingleChoiceQuestion || isMultipleChoiceQuestion) &&
           choiceOptions.length > 0 && (
             <div className="mt-2 space-y-1.5">
-              <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 {isMultipleChoiceQuestion ? "Select one or more" : "Select one"}
               </p>
               <div className="grid gap-1.5 sm:grid-cols-2">
@@ -1307,7 +1307,7 @@ export function ChatInterface({
                       onClick={() => handleChoiceSelection(index)}
                       disabled={preview || sending || aiTyping}
                       className={cn(
-                        "flex items-start gap-2 rounded-md border px-2.5 py-2 text-left text-xs transition-colors",
+                        "flex items-start gap-2 rounded-md border px-2.5 py-2 text-left text-sm transition-colors",
                         isSelected
                           ? "border-primary bg-primary/10 text-foreground"
                           : "bg-card hover:border-primary/50",
@@ -1316,7 +1316,7 @@ export function ChatInterface({
                     >
                       <span
                         className={cn(
-                          "flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold",
+                          "flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold",
                           isSelected
                             ? "bg-primary text-primary-foreground"
                             : "border bg-muted text-muted-foreground",
