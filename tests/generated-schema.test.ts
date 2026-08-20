@@ -31,8 +31,9 @@ test("buildGeneratorPrompt embeds human language name, not the code", () => {
     undefined,
   );
   const text = messages[0].content;
-  assert.match(text, /Indonesian \(Bahasa Indonesia\)/);
-  assert.doesNotMatch(text, /written in id\b/);
+  assert.equal(typeof text, "string");
+  assert.match(text as string, /Indonesian \(Bahasa Indonesia\)/);
+  assert.doesNotMatch(text as string, /written in id\b/);
 });
 
 test("generatedInterviewSchema rejects invalid question options", () => {
@@ -144,5 +145,6 @@ test("buildImprovePrompt preserves language instruction when language is non-en"
     undefined,
     undefined,
   );
-  assert.match(messages[0].content, /Indonesian \(Bahasa Indonesia\)/);
+  assert.equal(typeof messages[0].content, "string");
+  assert.match(messages[0].content as string, /Indonesian \(Bahasa Indonesia\)/);
 });

@@ -676,7 +676,8 @@ export function AIGenerator({ projectId }: { projectId?: string } = {}) {
       });
 
       toast({ title: "Interview created!" });
-      router.push(`/interviews/${interview.id}/edit/sessions`);
+      const created = interview as { id: string };
+      router.push(`/interviews/${created.id}/edit/sessions`);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Something went wrong";
       toast({ title: "Error saving interview", description: message, variant: "destructive" });
