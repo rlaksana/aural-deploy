@@ -437,6 +437,98 @@ export function AIGenerator({ projectId }: { projectId?: string } = {}) {
     }
   }, [extractText]);
 
+  const [parsingText, setParsingText] = useState(false);
+
+  const handleParseText = async () => {
+    if (!description.trim()) return;
+
+    setParsingText(true);
+    setGenerating(true);
+    setStreamPhase("idle");
+    setThinkingText("");
+    setContentText("");
+
+    try {
+      const response = await fetch("/api/ai/parse-questions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          text: description,
+          language,
+        }),
+      });
+
+      if (!response.ok) {
+        const errBody = await response.json().catch(() => ({}));
+        throw new Error(errBody.error || "Parsing failed");
+      }
+
+      const reader = response.body!.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let parsedData: { title?: string; description?: string; questions: GeneratedQuestion[] } | null = null;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          const payload = JSON.parse(line.slice(6));
+          if (payload.type === "content") {
+            setStreamPhase("writing");
+            if (payload.text) setContentText((prev) => prev + payload.text);
+          } else if (payload.type === "done") {
+            parsedData = payload.data;
+          } else if (payload.type === "error") {
+            throw new Error(payload.message);
+          }
+        }
+      }
+
+      if (!parsedData || !parsedData.questions.length) {
+        throw new Error("No questions extracted");
+      }
+
+      // Populate draft result directly
+      const newInterviewResult: GeneratedInterview = {
+        title: parsedData.title || "Extracted Interview",
+        description: parsedData.description || "Interview questions extracted from document",
+        objective: "Assess candidate based on extracted question set",
+        assessmentCriteria: [
+          { name: "Technical Competency", description: "Evaluates overall technical capability from extracted questions" },
+          { name: "Communication Skills", description: "Evaluates clarity and depth of answers" },
+        ],
+        estimatedDurationMinutes: Math.max(15, parsedData.questions.length * 4),
+        questions: parsedData.questions,
+        recommendedSettings: { aiName: "Aural" },
+      };
+
+      setResult(newInterviewResult);
+      setEditableCriteria(newInterviewResult.assessmentCriteria);
+      setEditableQuestions(parsedData.questions.map((q, i) => ({
+        ...q,
+        order: i + 1,
+      })));
+
+      toast({ title: `Successfully extracted ${parsedData.questions.length} questions!` });
+    } catch (err) {
+      toast({
+        title: "Extraction failed",
+        description: err instanceof Error ? err.message : "Could not extract questions from text",
+        variant: "destructive",
+      });
+    } finally {
+      setParsingText(false);
+      setGenerating(false);
+      setStreamPhase("idle");
+    }
+  };
+
   const handleGenerate = async () => {
     if (!description.trim()) return;
 
@@ -793,8 +885,40 @@ export function AIGenerator({ projectId }: { projectId?: string } = {}) {
                       )}
                     </div>
 
-                    {/* Bottom toolbar: JD & Resume buttons (right-aligned) */}
+                    {/* Bottom toolbar: JD, Resume, & Parse Text buttons (right-aligned) */}
                     <div className="flex items-center justify-end gap-1.5 px-3 pb-2">
+                      {/* Parse Text button */}
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <button
+                            type="button"
+                            className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                          >
+                            <BrainCircuit className="h-3.5 w-3.5" />
+                            Parse Text
+                          </button>
+                        </PopoverTrigger>
+                        <PopoverContent align="end" className="w-80 p-3 space-y-2">
+                          <Label className="text-xs font-semibold">Extract Questions from Raw Text</Label>
+                          <p className="text-[11px] text-muted-foreground">
+                            Paste unformatted text, Markdown notes, or list of questions to extract them with AI.
+                          </p>
+                          <Button
+                            size="sm"
+                            className="w-full h-8 text-xs"
+                            onClick={() => {
+                              if (!description.trim()) {
+                                toast({ title: "Please paste text into the box first", variant: "destructive" });
+                                return;
+                              }
+                              handleParseText();
+                            }}
+                          >
+                            <Sparkles className="mr-1.5 h-3.5 w-3.5" />
+                            Extract Questions from Text
+                          </Button>
+                        </PopoverContent>
+                      </Popover>
                       {/* JD button */}
                       <Popover open={jdPopoverOpen} onOpenChange={(open) => { setJdPopoverOpen(open); if (!open) setJdUrlInput(""); }}>
                         <PopoverTrigger asChild>
@@ -1082,7 +1206,9 @@ export function AIGenerator({ projectId }: { projectId?: string } = {}) {
               ? streamPhase === "thinking"
                 ? "Thinking..."
                 : streamPhase === "writing"
-                  ? "Writing..."
+                  ? parsingText
+                    ? "Extracting questions..."
+                    : "Writing..."
                   : "Generating..."
               : "Generate Interview"}
           </AiButton>
