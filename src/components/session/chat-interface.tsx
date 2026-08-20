@@ -18,6 +18,7 @@ import {
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { ChatComposer } from "@/components/ui/chat-composer";
+import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import {
     WhiteboardCanvas,
@@ -60,6 +61,7 @@ interface Interview {
     text: string;
     type: string;
     description?: string | null;
+    options?: { options: string[]; allowMultiple?: boolean } | null;
     starterCode?: { language: string; code: string } | null;
   }[];
 }
@@ -102,6 +104,7 @@ export function ChatInterface({
   const [finishing, setFinishing] = useState(false);
   const [aiTyping, setAiTyping] = useState(false);
   const [currentQuestion, setCurrentQuestion] = useState(initialQuestionIndex ?? 0);
+  const [selectedChoiceIndices, setSelectedChoiceIndices] = useState<number[]>([]);
   const [whiteboardOpen, setWhiteboardOpen] = useState(false);
   const [codeEditorOpen, setCodeEditorOpen] = useState(false);
   const [finishDialogOpen, setFinishDialogOpen] = useState(false);
@@ -244,6 +247,13 @@ export function ChatInterface({
   const currentQ = interview.questions[currentQuestion];
   const isCodingQuestion = currentQ?.type === "CODING";
   const isWhiteboardQuestion = currentQ?.type === "WHITEBOARD";
+  const isSingleChoiceQuestion = currentQ?.type === "SINGLE_CHOICE";
+  const isMultipleChoiceQuestion = currentQ?.type === "MULTIPLE_CHOICE";
+  const choiceOptions = currentQ?.options?.options ?? [];
+
+  useEffect(() => {
+    setSelectedChoiceIndices([]);
+  }, [currentQ?.id]);
 
   // ── Draggable split handlers ──────────────────────────────
   const handleSplitMouseDown = useCallback((e: React.PointerEvent) => {
@@ -1024,13 +1034,14 @@ export function ChatInterface({
     void handleQuestionTransition("previous");
   }
 
-  async function handleSend() {
-    if (preview || !input.trim() || sending) return;
+  async function submitMessage(content: string) {
+    const trimmedContent = content.trim();
+    if (preview || !trimmedContent || sending) return;
 
     const userMessage: Message = {
       id: crypto.randomUUID(),
       role: "USER",
-      content: input.trim(),
+      content: trimmedContent,
       timestamp: new Date().toISOString(),
     };
 
@@ -1072,6 +1083,40 @@ export function ChatInterface({
       setSending(false);
       inputRef.current?.focus();
     }
+  }
+
+  function handleSend() {
+    void submitMessage(input);
+  }
+
+  function handleChoiceSelection(index: number) {
+    if (!currentQ || preview || sending || aiTyping) return;
+
+    if (isMultipleChoiceQuestion) {
+      setSelectedChoiceIndices((previous) =>
+        previous.includes(index)
+          ? previous.filter((choiceIndex) => choiceIndex !== index)
+          : [...previous, index],
+      );
+      return;
+    }
+
+    const option = choiceOptions[index];
+    if (!option) return;
+    void submitMessage(`Selected ${String.fromCharCode(65 + index)}: ${option}`);
+  }
+
+  function submitMultipleChoiceSelection() {
+    const selections = selectedChoiceIndices
+      .map((index) => {
+        const option = choiceOptions[index];
+        return option ? `${String.fromCharCode(65 + index)}: ${option}` : null;
+      })
+      .filter((selection): selection is string => selection !== null);
+
+    if (!selections.length) return;
+    setSelectedChoiceIndices([]);
+    void submitMessage(`Selected: ${selections.join(", ")}`);
   }
 
   const progress =
@@ -1246,6 +1291,66 @@ export function ChatInterface({
             {currentQ.text}
           </p>
         )}
+        {(isSingleChoiceQuestion || isMultipleChoiceQuestion) &&
+          choiceOptions.length > 0 && (
+            <div className="mt-2 space-y-1.5">
+              <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                {isMultipleChoiceQuestion ? "Select one or more" : "Select one"}
+              </p>
+              <div className="grid gap-1.5 sm:grid-cols-2">
+                {choiceOptions.map((option, index) => {
+                  const isSelected = selectedChoiceIndices.includes(index);
+                  return (
+                    <button
+                      key={`choice-${currentQ.id}-${index}`}
+                      type="button"
+                      onClick={() => handleChoiceSelection(index)}
+                      disabled={preview || sending || aiTyping}
+                      className={cn(
+                        "flex items-start gap-2 rounded-md border px-2.5 py-2 text-left text-xs transition-colors",
+                        isSelected
+                          ? "border-primary bg-primary/10 text-foreground"
+                          : "bg-card hover:border-primary/50",
+                        (preview || sending || aiTyping) && "cursor-not-allowed opacity-60",
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          "flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold",
+                          isSelected
+                            ? "bg-primary text-primary-foreground"
+                            : "border bg-muted text-muted-foreground",
+                        )}
+                      >
+                        {isSelected && isMultipleChoiceQuestion ? (
+                          <Check className="h-3 w-3" />
+                        ) : (
+                          String.fromCharCode(65 + index)
+                        )}
+                      </span>
+                      <span className="min-w-0 leading-snug">{option}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              {isMultipleChoiceQuestion && (
+                <div className="flex justify-end pt-1">
+                  <Button
+                    size="sm"
+                    onClick={submitMultipleChoiceSelection}
+                    disabled={
+                      preview ||
+                      sending ||
+                      aiTyping ||
+                      selectedChoiceIndices.length === 0
+                    }
+                  >
+                    Submit selection
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
       </div>
     </div>
   );
