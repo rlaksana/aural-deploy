@@ -1632,7 +1632,7 @@ export function VoiceInterface({
         </div>
         {/* Current question text */}
         {voice.isConnected && currentQuestionText && (
-          <p className="mt-1.5 text-xs text-muted-foreground line-clamp-1">
+          <p className="mt-1.5 whitespace-pre-wrap text-xs text-muted-foreground">
             {currentQuestionText}
           </p>
         )}

@@ -1791,7 +1791,7 @@ export function PracticeSessionChat({
           </span>
         </div>
         {currentPromptText ? (
-          <p className="mt-1.5 text-xs text-muted-foreground line-clamp-1">
+          <p className="mt-1.5 whitespace-pre-wrap text-xs text-muted-foreground">
             {currentPromptText}
           </p>
         ) : null}
