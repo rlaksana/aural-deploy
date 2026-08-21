@@ -55,7 +55,7 @@ export async function POST(req: Request) {
       model: interview.llmModel ?? undefined,
     });
 
-    const isComplete = response.content.includes("[INTERVIEW_COMPLETE]");
+    const rawIsComplete = response.content.includes("[INTERVIEW_COMPLETE]");
     let questionAdvanced = response.content.includes("[NEXT_QUESTION]");
 
     // Ignore [NEXT_QUESTION] in the greeting message — the AI sometimes
@@ -66,6 +66,26 @@ export async function POST(req: Request) {
 
     if (questionAdvanced && manualNavigation) {
       questionAdvanced = false;
+    }
+
+    // Guard against premature completion: only honor [INTERVIEW_COMPLETE]
+    // when the conversation has actually covered the whole script. The AI
+    // sometimes emits the marker after a SINGLE_CHOICE selection, reading
+    // the option text as a complete answer with reasoning.
+    const totalQuestions = (interview.questions ?? []).length;
+    const isOnLastQuestion =
+      (currentQuestionIndex ?? 0) >= Math.max(totalQuestions - 1, 0);
+    const hasEnoughBackAndForth = conversationHistory.length >= totalQuestions * 2 - 1;
+    const isComplete =
+      rawIsComplete && isOnLastQuestion && hasEnoughBackAndForth;
+
+    if (rawIsComplete && !isComplete) {
+      log.info("Suppressed premature [INTERVIEW_COMPLETE] marker", {
+        sessionId,
+        currentQuestionIndex,
+        totalQuestions,
+        conversationLength: conversationHistory.length,
+      });
     }
 
     const cleanContent = response.content

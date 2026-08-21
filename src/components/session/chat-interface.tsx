@@ -1103,20 +1103,16 @@ export function ChatInterface({
 
     const option = choiceOptions[index];
     if (!option) return;
-    void submitMessage(`Selected ${String.fromCharCode(65 + index)}: ${option}`);
+    void submitMessage(`Selected option ${String.fromCharCode(65 + index)}`);
   }
 
   function submitMultipleChoiceSelection() {
-    const selections = selectedChoiceIndices
-      .map((index) => {
-        const option = choiceOptions[index];
-        return option ? `${String.fromCharCode(65 + index)}: ${option}` : null;
-      })
-      .filter((selection): selection is string => selection !== null);
-
-    if (!selections.length) return;
+    const letters = selectedChoiceIndices
+      .map((index) => String.fromCharCode(65 + index))
+      .join(", ");
+    if (!letters) return;
     setSelectedChoiceIndices([]);
-    void submitMessage(`Selected: ${selections.join(", ")}`);
+    void submitMessage(`Selected options: ${letters}`);
   }
 
   const progress =
