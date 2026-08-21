@@ -507,14 +507,6 @@ function MicCheck({ done, onDone, language, allowSkip = true, externalSkipped }:
   const languageRef = useRef(language);
   languageRef.current = language;
 
-  useEffect(() => {
-    if (externalSkipped && !skipped) {
-      stopAll();
-      setSkipped(true);
-      onDoneRef.current();
-    }
-  }, [externalSkipped, skipped, stopAll]);
-
   const stopAll = useCallback(() => {
     if (listenDelayRef.current !== null) {
       window.clearTimeout(listenDelayRef.current);
@@ -551,6 +543,14 @@ function MicCheck({ done, onDone, language, allowSkip = true, externalSkipped }:
       micStreamRef.current = null;
     }
   }, []);
+
+  useEffect(() => {
+    if (externalSkipped && !skipped) {
+      stopAll();
+      setSkipped(true);
+      onDoneRef.current();
+    }
+  }, [externalSkipped, skipped, stopAll]);
 
   const analyzeResponse = useCallback((text: string) => {
     setPhase("analyzing");
