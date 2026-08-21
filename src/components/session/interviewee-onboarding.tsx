@@ -486,7 +486,7 @@ function extractMicTestAsrText(msg: Record<string, unknown>): string {
   return "";
 }
 
-function MicCheck({ done, onDone, language, allowSkip = true }: { done: boolean; onDone: () => void; language?: string; allowSkip?: boolean }) {
+function MicCheck({ done, onDone, language, allowSkip = true, externalSkipped }: { done: boolean; onDone: () => void; language?: string; allowSkip?: boolean; externalSkipped?: boolean }) {
   const [phase, setPhase] = useState<MicPhase>("idle");
   const [error, setError] = useState<string | null>(null);
   const [showSkipDialog, setShowSkipDialog] = useState(false);
@@ -506,6 +506,14 @@ function MicCheck({ done, onDone, language, allowSkip = true }: { done: boolean;
   onDoneRef.current = onDone;
   const languageRef = useRef(language);
   languageRef.current = language;
+
+  useEffect(() => {
+    if (externalSkipped && !skipped) {
+      stopAll();
+      setSkipped(true);
+      onDoneRef.current();
+    }
+  }, [externalSkipped, skipped, stopAll]);
 
   const stopAll = useCallback(() => {
     if (listenDelayRef.current !== null) {
@@ -1306,6 +1314,8 @@ export function IntervieweeOnboarding({
   const [cameraDone, setCameraDone] = useState(false);
   const [micDone, setMicDone] = useState(false);
   const [screenDone, setScreenDone] = useState(false);
+  const [micExternallySkipped, setMicExternallySkipped] = useState(false);
+  const [showSkipAllDialog, setShowSkipAllDialog] = useState(false);
   const [starting, setStarting] = useState(false);
 
   const allChecksDone = cameraDone && micDone && screenDone;
@@ -1314,6 +1324,21 @@ export function IntervieweeOnboarding({
     setStarting(true);
     onComplete();
   }, [onComplete]);
+
+  const handleSkipAll = useCallback(() => {
+    setCameraSkipped(true);
+    setScreenSkipped(true);
+    setCameraDone(true);
+    setScreenDone(true);
+    setMicExternallySkipped(true);
+    setMicDone(true);
+    setShowSkipAllDialog(false);
+    if (voiceEnabled) {
+      setStep("howItWorks");
+    } else {
+      handleComplete();
+    }
+  }, [voiceEnabled, handleComplete]);
 
   const header = (
     <header className="sticky top-0 z-50 flex h-14 items-center border-b bg-card px-4 sm:px-6">
@@ -1503,13 +1528,28 @@ export function IntervieweeOnboarding({
       <StepIndicator current="checklist" />
       <div className="mx-auto w-full max-w-2xl flex-1 space-y-4 px-4 pb-8">
         <CameraCheck done={cameraDone} onDone={() => setCameraDone(true)} allowSkip={!antiCheatingEnabled} />
-        <MicCheck done={micDone} onDone={() => setMicDone(true)} language={language} allowSkip={!antiCheatingEnabled} />
+        <MicCheck
+          done={micDone}
+          onDone={() => setMicDone(true)}
+          language={language}
+          allowSkip={!antiCheatingEnabled}
+          externalSkipped={micExternallySkipped}
+        />
         <ScreenCheck done={screenDone} onDone={() => setScreenDone(true)} allowSkip={!antiCheatingEnabled} />
 
         <div className="flex items-center justify-center gap-3 pt-4">
           <Button variant="outline" onClick={() => setStep("info")}>
             Back
           </Button>
+          {!antiCheatingEnabled && !allChecksDone && (
+            <Button
+              variant="ghost"
+              className="text-muted-foreground"
+              onClick={() => setShowSkipAllDialog(true)}
+            >
+              Skip All
+            </Button>
+          )}
           <Button disabled={!allChecksDone} onClick={() => {
             if (voiceEnabled) setStep("howItWorks");
             else onComplete();
@@ -1521,6 +1561,24 @@ export function IntervieweeOnboarding({
           Chrome is recommended for a better experience.
         </p>
       </div>
+      <AlertDialog open={showSkipAllDialog} onOpenChange={setShowSkipAllDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Skip all device checks?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Skipping camera, microphone, and screen capture is not recommended.
+              These checks verify your identity and environment. Skipping may affect
+              your interview experience and results.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Go back</AlertDialogCancel>
+            <AlertDialogAction onClick={handleSkipAll}>
+              Skip all
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
