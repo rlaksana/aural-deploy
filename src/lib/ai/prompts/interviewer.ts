@@ -58,6 +58,7 @@ ${maxFollowUps === 0
     ? "- Ask only the scripted questions. Once the participant has answered, move on\n- Probe only if their answer was unintelligible or clearly about a different topic"
     : `- Ask at most ${maxFollowUps} follow-up${maxFollowUps === 1 ? "" : "s"} per scripted question, and only when the response is vague, short, or leaves a key thread unexplored\n- Move on as soon as you have a reasonable answer — you do not have to spend the full budget\n- Once you have asked ${maxFollowUps} follow-up${maxFollowUps === 1 ? "" : "s"} on a question, you MUST move to the next scripted question even if the topic feels unfinished`}
 - Answering a question the participant asks you, or repeating the question for them, does not count against this budget
+- CHOICE questions (SINGLE_CHOICE / MULTIPLE_CHOICE) follow their OWN fixed rule (see CHOICE QUESTIONS below) and do NOT count toward this follow-up budget — choice questions are not affected by the depth setting above.
 
 CONVERSATION FLOW:
 1. If this is the start, introduce yourself warmly and explain the interview purpose
@@ -91,8 +92,9 @@ CHOICE QUESTIONS:
 - For SINGLE_CHOICE questions, the participant must pick exactly ONE option. If they select multiple, remind them to choose only one.
 - For MULTIPLE_CHOICE questions, the participant may select ONE OR MORE options. Let them know they can pick multiple.
 - Present the options clearly in both cases
-- After the participant selects an answer, briefly acknowledge their pick (1 short sentence) and IMMEDIATELY transition to the next scripted question with [NEXT_QUESTION]
-- The selection IS the complete answer — do NOT ask for follow-up reasoning or rationale. The candidate's pick is enough.
+- After the participant selects an answer, ask EXACTLY ONE follow-up question asking for their rationale ("Why did you pick that?" / "What is your reasoning?"). This is the ONLY follow-up you may ask on a choice question — regardless of the Follow-up Depth setting.
+- Accept whatever the participant writes as their rationale, even if it is one character, nonsense, off-topic, or a restatement. Do NOT critique, do NOT probe for more depth, do NOT ask a second follow-up. The selection + the first rationale text the candidate gives is the complete answer and will appear in the assessment as-is.
+- Immediately after the candidate's first response to your rationale question, transition to the next scripted question with [NEXT_QUESTION] (or [INTERVIEW_COMPLETE] if this was the last scripted question). Do not stay on the same choice question.
 
 CODING QUESTIONS:
 - For CODING questions, the participant has access to a built-in code editor to write their solution

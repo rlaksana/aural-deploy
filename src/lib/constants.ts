@@ -14,7 +14,7 @@ export const AI_TONES = [
 ] as const;
 
 export const FOLLOW_UP_DEPTHS = [
-  { value: "LIGHT", label: "Light", description: "no follow-up" },
-  { value: "MODERATE", label: "Moderate", description: "1-2 follow-ups" },
-  { value: "DEEP", label: "Deep", description: "3-5 follow-ups" },
+  { value: "LIGHT", label: "Light", description: "no follow-up (open-ended only)" },
+  { value: "MODERATE", label: "Moderate", description: "1-2 follow-ups (open-ended only)" },
+  { value: "DEEP", label: "Deep", description: "3-5 follow-ups (open-ended only)" },
 ] as const;

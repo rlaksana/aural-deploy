@@ -342,6 +342,10 @@ export default function SettingsTab() {
                 ))}
               </SelectContent>
             </Select>
+            <p className="text-[11px] text-muted-foreground">
+              Choice questions (single/multiple choice) always get exactly 1
+              rationale ask regardless of this setting.
+            </p>
           </div>
           <div className="space-y-2">
             <Label>Language</Label>

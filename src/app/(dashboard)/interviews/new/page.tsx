@@ -384,6 +384,11 @@ export default function NewInterviewPage() {
                           ))}
                         </SelectContent>
                       </Select>
+                      <p className="text-[11px] text-muted-foreground">
+                        {isZh
+                          ? "选择题（单选/多选）固定追问 1 次理由，不受此设置影响。"
+                          : "Choice questions (single/multiple choice) always get exactly 1 rationale ask regardless of this setting."}
+                      </p>
                     </div>
                     <div className="space-y-2">
                       <Label>{isZh ? "语言" : "Language"}</Label>
