@@ -1,6 +1,7 @@
 import { buildInterviewerPrompt } from "@/lib/ai/prompts/interviewer";
 import { getProvider } from "@/lib/ai/registry";
 import type { LLMMessage } from "@/lib/ai/types";
+import { resolveChoiceQuestionFlow } from "@/lib/choice-question-flow";
 import { createLogger } from "@/lib/logger";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { NextResponse } from "next/server";
@@ -41,22 +42,32 @@ export async function POST(req: Request) {
         content: m.content.trim(),
       }));
 
-    const promptMessages = buildInterviewerPrompt({
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      interview: interview as any,
+    const questionIndex = currentQuestionIndex ?? 0;
+    const choiceFlow = resolveChoiceQuestionFlow({
+      questions: interview.questions ?? [],
+      currentQuestionIndex: questionIndex,
       conversationHistory,
-      currentQuestionIndex: currentQuestionIndex ?? 0,
     });
 
-    const response = await provider.generateResponse({
-      messages: promptMessages,
-      temperature: 0.7,
-      maxTokens: 1024,
-      model: interview.llmModel ?? undefined,
-    });
+    const response = choiceFlow
+      ? null
+      : await provider.generateResponse({
+          messages: buildInterviewerPrompt({
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            interview: interview as any,
+            conversationHistory,
+            currentQuestionIndex: questionIndex,
+          }),
+          temperature: 0.7,
+          maxTokens: 1024,
+          model: interview.llmModel ?? undefined,
+        });
 
-    const rawIsComplete = response.content.includes("[INTERVIEW_COMPLETE]");
-    let questionAdvanced = response.content.includes("[NEXT_QUESTION]");
+    const responseContent = choiceFlow?.content ?? response?.content ?? "";
+    const rawIsComplete = choiceFlow?.isComplete ?? responseContent.includes("[INTERVIEW_COMPLETE]");
+    let questionAdvanced =
+      choiceFlow?.questionAdvanced ?? responseContent.includes("[NEXT_QUESTION]");
+    const isDeterministicChoiceFlow = choiceFlow !== null;
 
     // Ignore [NEXT_QUESTION] in the greeting message — the AI sometimes
     // mistakenly includes it when first asking Q1 from the introduction.
@@ -88,7 +99,16 @@ export async function POST(req: Request) {
       });
     }
 
-    const cleanContent = response.content
+    if (isDeterministicChoiceFlow) {
+      log.info("Choice-question flow handled deterministically", {
+        sessionId,
+        currentQuestionIndex,
+        questionAdvanced,
+        isComplete,
+      });
+    }
+
+    const cleanContent = responseContent
       .replace("[INTERVIEW_COMPLETE]", "")
       .replace("[NEXT_QUESTION]", "")
       .trim();
@@ -98,6 +118,7 @@ export async function POST(req: Request) {
     // transitions verbally but forgets [NEXT_QUESTION].
     if (
       !manualNavigation &&
+      !isDeterministicChoiceFlow &&
       !questionAdvanced &&
       !isComplete &&
       conversationHistory.length > 0
