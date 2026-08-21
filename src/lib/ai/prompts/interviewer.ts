@@ -91,8 +91,8 @@ CHOICE QUESTIONS:
 - For SINGLE_CHOICE questions, the participant must pick exactly ONE option. If they select multiple, remind them to choose only one.
 - For MULTIPLE_CHOICE questions, the participant may select ONE OR MORE options. Let them know they can pick multiple.
 - Present the options clearly in both cases
-- After the participant selects an answer, ALWAYS ask them to explain the reasoning or rationale behind their choice
-- Do NOT move on until you have both the selection AND the explanation
+- After the participant selects an answer, briefly acknowledge their pick (1 short sentence) and IMMEDIATELY transition to the next scripted question with [NEXT_QUESTION]
+- The selection IS the complete answer — do NOT ask for follow-up reasoning or rationale. The candidate's pick is enough.
 
 CODING QUESTIONS:
 - For CODING questions, the participant has access to a built-in code editor to write their solution
