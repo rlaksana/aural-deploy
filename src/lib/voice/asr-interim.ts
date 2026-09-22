@@ -100,7 +100,7 @@ function isPeriodArtifactSegment(part: string): boolean {
 
 /**
  * Strip isolated CJK characters/fragments from predominantly English/Latin text.
- * Volcengine ASR sometimes hallucinates Chinese characters during long English
+ * The relay ASR sometimes hallucinates Chinese characters during long English
  * speech sessions (e.g., "i also.调应 the ai models").
  */
 export function stripIsolatedCjk(text: string): string {

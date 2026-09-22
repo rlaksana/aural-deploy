@@ -12,41 +12,13 @@ function readVoiceRelaySource(): string {
   return fs.readFileSync(relayPath, "utf8");
 }
 
-describe("server/voice-relay.ts reconnect & lifecycle (source checks)", () => {
-  it("defines ASR reconnect tuning constants", () => {
+describe("server/voice-relay.ts lifecycle (source checks)", () => {
+  it("routes all speech through the one-shot MiniMax ASR pipeline", () => {
     const src = readVoiceRelaySource();
-    assert.match(src, /const MAX_RECONNECT_ATTEMPTS = 3;/);
-    assert.match(src, /const RECONNECT_DELAY_MS = 1000;/);
-  });
-
-  it("implements autoReconnectAsr and session reconnect events", () => {
-    const src = readVoiceRelaySource();
-    assert.match(src, /async function autoReconnectAsr\(\)/);
-    assert.ok(src.includes('"session_reconnecting"'));
-    assert.ok(src.includes('"session_reconnected"'));
-  });
-
-  it("uses 5000ms keep-alive intervals for silence audio", () => {
-    const src = readVoiceRelaySource();
-    const keepAliveIntervals = src.match(
-      /keepAliveInterval = setInterval\([\s\S]*?, 5000\);/g,
-    );
-    assert.equal(
-      keepAliveIntervals?.length,
-      3,
-      "response-cycle reopen, post-reconnect, and main interview keep-alive intervals",
-    );
-    assert.match(src, /MIC_TEST_ASR_IDLE_KEEPALIVE_MS/);
-  });
-
-  it("marks interviews done and detaches ASR listeners when the browser closes", () => {
-    const src = readVoiceRelaySource();
-    assert.ok(
-      src.includes(`browserWs.on("close", () => {
-    log.info("Browser disconnected");
-    interviewDone = true;`),
-    );
-    assert.ok(src.includes("asrWs?.removeAllListeners();"));
+    assert.ok(src.includes("transcribePcm("));
+    assert.ok(src.includes("enqueueTranscription("));
+    assert.ok(src.includes('"barge_in"'));
+    assert.doesNotMatch(src, /new WebSocket\(BIGMODEL_ASR_URL/);
   });
 
   it("installs a 10s safety timeout after farewell audio is queued", () => {

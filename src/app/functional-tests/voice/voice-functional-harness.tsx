@@ -12,8 +12,6 @@ type FunctionalScenario = Record<string, { events: FunctionalRelayEvent[] }>;
 
 type FunctionalScenarioId =
   | "default"
-  | "english-failover"
-  | "chinese-failover"
   | "farewell-complete"
   | "thinking-after-asr"
   | "thinking-until-response"
@@ -40,25 +38,6 @@ declare global {
 const functionalScenarios: Record<FunctionalScenarioId, FunctionalScenario> = {
   default: {
     "/ws/voice": {
-      events: [{ type: "ready", delay: 30 }],
-    },
-    "/ws/openai-voice": {
-      events: [{ type: "close", delay: 30 }],
-    },
-  },
-  "english-failover": {
-    "/ws/voice": {
-      events: [{ type: "close", delay: 30 }],
-    },
-    "/ws/openai-voice": {
-      events: [{ type: "ready", delay: 30 }],
-    },
-  },
-  "chinese-failover": {
-    "/ws/voice": {
-      events: [{ type: "close", delay: 30 }],
-    },
-    "/ws/openai-voice": {
       events: [{ type: "ready", delay: 30 }],
     },
   },
@@ -88,9 +67,6 @@ const functionalScenarios: Record<FunctionalScenarioId, FunctionalScenario> = {
         { type: "json", delay: 200, message: { type: "interview_complete" } },
       ],
     },
-    "/ws/openai-voice": {
-      events: [{ type: "close", delay: 30 }],
-    },
   },
   "thinking-after-asr": {
     "/ws/voice": {
@@ -115,9 +91,6 @@ const functionalScenarios: Record<FunctionalScenarioId, FunctionalScenario> = {
           },
         },
       ],
-    },
-    "/ws/openai-voice": {
-      events: [{ type: "close", delay: 30 }],
     },
   },
   "thinking-until-response": {
@@ -157,9 +130,6 @@ const functionalScenarios: Record<FunctionalScenarioId, FunctionalScenario> = {
         { type: "json", delay: 1_050, message: { type: "tts_ended" } },
       ],
     },
-    "/ws/openai-voice": {
-      events: [{ type: "close", delay: 30 }],
-    },
   },
   "asr-cancelled": {
     "/ws/voice": {
@@ -184,9 +154,6 @@ const functionalScenarios: Record<FunctionalScenarioId, FunctionalScenario> = {
         },
       ],
     },
-    "/ws/openai-voice": {
-      events: [{ type: "close", delay: 30 }],
-    },
   },
   "long-transcript-layout": {
     "/ws/voice": {
@@ -204,15 +171,12 @@ const functionalScenarios: Record<FunctionalScenarioId, FunctionalScenario> = {
         },
       ],
     },
-    "/ws/openai-voice": {
-      events: [{ type: "close", delay: 30 }],
-    },
   },
 };
 
 function installFunctionalRelayMocks(scenario: FunctionalScenario) {
   const normalizePath = (pathname: string) => pathname.replace(/\/+$/, "") || "/";
-  const relayPaths = new Set(["/ws/voice", "/ws/openai-voice"]);
+  const relayPaths = new Set(["/ws/voice"]);
 
   window.__functionalRelayConnections = [];
   window.__functionalRelayMessages = [];

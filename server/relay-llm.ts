@@ -1,7 +1,6 @@
 /**
  * Voice-relay text LLM (summaries + interviewer replies).
- * Default: Gemini gemini-3.1-flash-lite @ temperature 0.
- * Fallback: MiniMax abab6.5s-chat when Gemini fails and MINIMAX_API_KEY is set.
+ * Default: MiniMax-M3 @ temperature 0.
  */
 
 import { GoogleGenAI } from "@google/genai";
@@ -9,8 +8,8 @@ import { createLogger } from "../src/lib/logger";
 
 const log = createLogger("relay-llm");
 
-export const RELAY_LLM_PRIMARY_MODEL = "gemini-3.1-flash-lite";
-export const RELAY_LLM_FALLBACK_MODEL = "abab6.5s-chat";
+export const RELAY_LLM_PRIMARY_MODEL = "MiniMax-M3";
+export const RELAY_LLM_FALLBACK_MODEL = "MiniMax-M3";
 
 interface RelayLlmEndpoint {
   model: string;
@@ -57,7 +56,7 @@ function resolvePrimaryEndpoint(): RelayLlmEndpoint {
     process.env.RELAY_LLM_BASE_URL?.trim() ||
     (process.env.KIMI_API_KEY
       ? process.env.KIMI_BASE_URL?.trim() || "https://api.moonshot.cn/v1"
-      : process.env.MINIMAX_BASE_URL?.trim() || "https://api.minimaxi.com/v1");
+      : process.env.MINIMAX_BASE_URL?.trim() || "https://api.minimax.io/v1");
 
   return {
     model,
@@ -77,7 +76,7 @@ function resolveFallbackEndpoint(primary: RelayLlmEndpoint): RelayLlmEndpoint | 
   const baseUrl =
     process.env.RELAY_LLM_FALLBACK_BASE_URL?.trim() ||
     process.env.MINIMAX_BASE_URL?.trim() ||
-    "https://api.minimaxi.com/v1";
+    "https://api.minimax.io/v1";
 
   const fallback: RelayLlmEndpoint = {
     model,

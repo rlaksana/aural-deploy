@@ -1,5 +1,4 @@
-export type RelayKind = "voice" | "openai";
-export type RelayPrimaryPreference = "auto" | RelayKind;
+export type RelayKind = "voice";
 
 export interface RelayTarget {
   kind: RelayKind;
@@ -9,10 +8,8 @@ export interface RelayTarget {
 export interface RelayUrlOptions {
   language?: string;
   voiceRelayUrl?: string;
-  openAiRelayUrl?: string;
   browserProtocol?: string;
   browserHost?: string;
-  primaryPreference?: RelayPrimaryPreference;
 }
 
 export interface RelaySocketLike {
@@ -67,9 +64,7 @@ interface RelayConnectorOptions<TJsonMessage extends Record<string, unknown>> {
 }
 
 const DEFAULT_VOICE_RELAY_PORT = "8766";
-const DEFAULT_OPENAI_RELAY_PORT = "8767";
 const DEFAULT_VOICE_RELAY_PATH = "/ws/voice";
-const DEFAULT_OPENAI_RELAY_PATH = "/ws/openai-voice";
 const READY_STATE_OPEN = 1;
 
 export function isChineseVoiceLanguage(language?: string): boolean {
@@ -100,20 +95,6 @@ function deriveUrlFromBrowser(
   }
 }
 
-function deriveSiblingRelayUrl(
-  baseUrl: string,
-  options: { port?: string; pathname?: string }
-): string {
-  const url = new URL(baseUrl);
-  if (typeof options.port === "string") {
-    url.port = options.port;
-  }
-  if (typeof options.pathname === "string") {
-    url.pathname = options.pathname;
-  }
-  return url.toString();
-}
-
 function isLocalBrowserHost(browserHost?: string): boolean {
   if (!browserHost) return false;
   const normalized = browserHost.replace(/:\d+$/, "").toLowerCase();
@@ -127,7 +108,6 @@ function isLocalBrowserHost(browserHost?: string): boolean {
 
 export function resolveRelayUrls(options: RelayUrlOptions): {
   voiceRelayUrl: string;
-  openAiRelayUrl: string;
 } {
   const shouldUseSameOriginProxy =
     !!options.browserProtocol &&
@@ -152,69 +132,16 @@ export function resolveRelayUrls(options: RelayUrlOptions): {
     ) ||
     `ws://localhost:${DEFAULT_VOICE_RELAY_PORT}`;
 
-  const openAiRelayUrl =
-    options.openAiRelayUrl ||
-    (() => {
-      try {
-        const voiceUrl = new URL(voiceRelayUrl);
-        if (
-          shouldUseSameOriginProxy ||
-          (!voiceUrl.port && voiceUrl.pathname === DEFAULT_VOICE_RELAY_PATH)
-        ) {
-          return deriveSiblingRelayUrl(voiceRelayUrl, {
-            pathname: DEFAULT_OPENAI_RELAY_PATH,
-          });
-        }
-        return deriveSiblingRelayUrl(voiceRelayUrl, {
-          port: DEFAULT_OPENAI_RELAY_PORT,
-        });
-      } catch {
-        return shouldUseSameOriginProxy
-          ? deriveUrlFromBrowser(
-              options.browserProtocol,
-              options.browserHost,
-              undefined,
-              DEFAULT_OPENAI_RELAY_PATH
-            ) || `ws://localhost:${DEFAULT_OPENAI_RELAY_PORT}`
-          : `ws://localhost:${DEFAULT_OPENAI_RELAY_PORT}`;
-      }
-    })();
-
-  return { voiceRelayUrl, openAiRelayUrl };
+  return { voiceRelayUrl };
 }
 
 export function buildRelayTargets(options: RelayUrlOptions): RelayTarget[] {
-  const { voiceRelayUrl, openAiRelayUrl } = resolveRelayUrls(options);
-  if (options.primaryPreference === "voice") {
-    return [
-      { kind: "voice", url: voiceRelayUrl },
-      { kind: "openai", url: openAiRelayUrl },
-    ];
-  }
-  if (options.primaryPreference === "openai") {
-    return [
-      { kind: "openai", url: openAiRelayUrl },
-      { kind: "voice", url: voiceRelayUrl },
-    ];
-  }
-  return [
-    { kind: "voice", url: voiceRelayUrl },
-    { kind: "openai", url: openAiRelayUrl },
-  ];
+  const { voiceRelayUrl } = resolveRelayUrls(options);
+  return [{ kind: "voice", url: voiceRelayUrl }];
 }
 
-export function resolveRelayPrimaryPreference(
-  value?: string | null,
-): RelayPrimaryPreference {
-  const normalized = value?.trim().toLowerCase();
-  if (normalized === "voice" || normalized === "openai") {
-    return normalized;
-  }
-  return "voice";
-}
-
-export function relayDisplayName(kind: RelayKind): string {
-  return kind === "voice" ? "voice relay" : "OpenAI voice relay";
+export function relayDisplayName(): string {
+  return "voice relay";
 }
 
 export function isRecoverableRelayErrorMessage(message?: string): boolean {
@@ -449,7 +376,7 @@ export class RelayConnector<TJsonMessage extends Record<string, unknown>> {
         }
         if (!settled) {
           settled = true;
-          reject(new Error(`${relayDisplayName(target.kind)} timed out before ready`));
+          reject(new Error(`${relayDisplayName()} timed out before ready`));
         }
       }, this.readyTimeoutMs);
 
@@ -508,7 +435,7 @@ export class RelayConnector<TJsonMessage extends Record<string, unknown>> {
         if (settled || this.destroyed || this.ready) return;
         clear();
         settled = true;
-        reject(new Error(`${relayDisplayName(target.kind)} websocket error`));
+        reject(new Error(`${relayDisplayName()} websocket error`));
       };
 
       socket.onclose = () => {
@@ -518,7 +445,7 @@ export class RelayConnector<TJsonMessage extends Record<string, unknown>> {
         if (!this.ready) {
           if (!settled) {
             settled = true;
-            reject(new Error(`${relayDisplayName(target.kind)} closed before ready`));
+            reject(new Error(`${relayDisplayName()} closed before ready`));
           }
           return;
         }
@@ -526,7 +453,7 @@ export class RelayConnector<TJsonMessage extends Record<string, unknown>> {
         if (socket !== this.socket) return;
         this.socket = null;
         this.ready = false;
-        void this.failover(`${relayDisplayName(target.kind)} disconnected`).catch(() => {
+        void this.failover(`${relayDisplayName()} disconnected`).catch(() => {
           // onPermanentFailure already handles the user-facing surface
         });
       };

@@ -7,31 +7,12 @@ import type { GenerationParams, LLMResponse } from "./types";
 
 const log = createLogger("ai/generator-run");
 
-function pushUnique(chain: string[], model: string) {
-  if (!chain.includes(model)) chain.push(model);
-}
-
-/** Generator model chain for OSS builds: OpenAI first, then configured fallbacks. */
+/** Generator model chain: MiniMax-M3 only. */
 export function getGeneratorModelChain(): string[] {
-  const chain: string[] = [];
-  if (process.env.OPENAI_API_KEY?.trim()) {
-    pushUnique(chain, "gpt-4o-mini");
+  if (!process.env.MINIMAX_API_KEY?.trim()) {
+    throw new Error("No generator LLM configured. Set MINIMAX_API_KEY.");
   }
-  if (process.env.GEMINI_API_KEY?.trim()) {
-    pushUnique(chain, "gemini-3.1-flash-lite");
-  }
-  if (process.env.KIMI_API_KEY?.trim()) {
-    pushUnique(chain, "moonshot-v1-8k");
-  }
-  if (process.env.MINIMAX_API_KEY?.trim()) {
-    pushUnique(chain, "MiniMax-M2.1-lightning");
-  }
-  if (chain.length === 0) {
-    throw new Error(
-      "No generator LLM configured. Set OPENAI_API_KEY, GEMINI_API_KEY, KIMI_API_KEY, or MINIMAX_API_KEY.",
-    );
-  }
-  return chain;
+  return ["MiniMax-M3"];
 }
 
 export function resolveGeneratorModel(): string {

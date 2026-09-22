@@ -14,7 +14,6 @@ import {
     playbackAckFallbackMs,
     questionAwaitingSummary,
     responseInvitesUserReply,
-    shouldHoldBargeInInterimForFinal,
     shouldSuppressAnsweredAsrFinal,
     trimCrossTurnOverlap,
 } from "../server/voice-relay-helpers";
@@ -491,38 +490,6 @@ test("short answered acknowledgement still suppresses an exact replay", () => {
   assert.equal(
     shouldSuppressAnsweredAsrFinal("Yes.", "Yes."),
     true,
-  );
-});
-
-test("barge-in interim is held for a final transcript instead of promoted immediately", () => {
-  assert.equal(
-    shouldHoldBargeInInterimForFinal({
-      text: "这种病症",
-      definite: false,
-      ttsSpeaking: true,
-      endingInterview: false,
-    }),
-    true,
-  );
-
-  assert.equal(
-    shouldHoldBargeInInterimForFinal({
-      text: "我在沟通和销售方面的优势是理解消费者。",
-      definite: true,
-      ttsSpeaking: true,
-      endingInterview: false,
-    }),
-    false,
-  );
-
-  assert.equal(
-    shouldHoldBargeInInterimForFinal({
-      text: "我在沟通和销售方面的优势是理解消费者。",
-      definite: false,
-      ttsSpeaking: false,
-      endingInterview: false,
-    }),
-    false,
   );
 });
 

@@ -14,7 +14,6 @@ import {
 import {
     buildRelayTargets,
     RelayConnector,
-    resolveRelayPrimaryPreference,
 } from "@/lib/voice/relay-routing";
 import { useCallback, useEffect, useRef } from "react";
 
@@ -28,14 +27,11 @@ function extractAsrText(msg: Record<string, unknown>): string {
 }
 
 function relayAsrAvailable(): boolean {
-  return !!(
-    process.env.NEXT_PUBLIC_VOICE_RELAY_URL ||
-    process.env.NEXT_PUBLIC_OPENAI_VOICE_RELAY_URL
-  );
+  return !!process.env.NEXT_PUBLIC_VOICE_RELAY_URL;
 }
 
 /**
- * Continuous Volcengine ASR via voice relay `mic_test` mode (same as onboarding).
+ * Continuous ASR via voice relay `mic_test` mode (same as onboarding).
  */
 export function useRelayAsrInput({
   language,
@@ -223,10 +219,6 @@ export function useRelayAsrInput({
         targets: buildRelayTargets({
           language,
           voiceRelayUrl: process.env.NEXT_PUBLIC_VOICE_RELAY_URL,
-          openAiRelayUrl: process.env.NEXT_PUBLIC_OPENAI_VOICE_RELAY_URL,
-          primaryPreference: resolveRelayPrimaryPreference(
-            process.env.NEXT_PUBLIC_VOICE_RELAY_PRIMARY,
-          ),
           browserProtocol: window.location.protocol,
           browserHost: window.location.host,
         }),
@@ -234,7 +226,7 @@ export function useRelayAsrInput({
         onConnected: () => {
           flushPendingAudio();
         },
-        onJsonMessage: (msg, { connector: activeConnector }) => {
+        onJsonMessage: (msg) => {
           if (!listeningRef.current) return;
           if (msg.type === "asr") {
             const text = extractAsrText(msg);
@@ -245,10 +237,6 @@ export function useRelayAsrInput({
               commitUtterance(text);
             } else if (sessionBufferRef.current.trim()) {
               publish();
-            }
-          } else if (msg.type === "disconnected") {
-            if (listeningRef.current && activeConnector.canFailover) {
-              void activeConnector.failover("mic test ASR disconnected");
             }
           }
         },

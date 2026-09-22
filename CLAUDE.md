@@ -8,7 +8,7 @@ Open-source AI interview platform supporting Voice, Chat, and Video.
 - **API Layer**: tRPC v10 (`src/server/routers/`) + Next.js App Router API Routes (`src/app/api/`)
 - **Database**: Supabase PostgreSQL (`supabase/migrations/`)
 - **AI Infrastructure**: Multi-provider LLM registry (`src/lib/ai/` — OpenAI, Gemini, Kimi, MiniMax) with fallback chain
-- **Voice Relays**: Standalone Node.js WebSocket servers (`server/voice-relay.ts`, `server/openai-voice-relay.ts`) with Volcengine ASR/TTS and OpenAI Realtime integration
+- **Voice Relay**: Standalone Node.js WebSocket server (`server/voice-relay.ts`) with MiniMax one-shot ASR + MiniMax TTS (`server/minimax-voice.ts`); browser uplink/downlink audio frames unchanged
 
 ## Essential Commands
 
@@ -20,8 +20,7 @@ npm install                            # Install dependencies before any other c
 ### Development & Build
 ```bash
 npm run dev           # Start Next.js development server
-npm run dev:voice     # Start Volcengine voice relay (run in a separate terminal)
-npm run dev:openai-voice # Start OpenAI voice relay (run in a separate terminal)
+npm run dev:voice     # Start MiniMax voice relay (run in a separate terminal)
 npm run build         # Production build (Next.js)
 npm run lint          # Run ESLint check
 ```

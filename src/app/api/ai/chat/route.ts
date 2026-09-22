@@ -30,7 +30,8 @@ export async function POST(req: Request) {
       );
     }
 
-    const provider = getProvider(interview.llmProvider);
+    // All interviews run on MiniMax-M3; stored llmProvider/llmModel are ignored.
+    const provider = getProvider("minimax");
 
     const conversationHistory: LLMMessage[] = (messages ?? [])
       .filter(
@@ -60,7 +61,7 @@ export async function POST(req: Request) {
           }),
           temperature: 0.7,
           maxTokens: 1024,
-          model: interview.llmModel ?? undefined,
+          model: "MiniMax-M3",
         });
 
     const responseContent = choiceFlow?.content ?? response?.content ?? "";

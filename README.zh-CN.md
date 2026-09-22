@@ -180,8 +180,8 @@ Aural 是一个可自主执行结构化访谈的 AI 平台。创建访谈并分�
 | 语言 | TypeScript |
 | 数据库 | [Supabase](https://supabase.com/)（PostgreSQL、Auth、Storage、RLS） |
 | API | [tRPC](https://trpc.io/) |
-| AI / LLM | OpenAI、Google Gemini、Moonshot Kimi、MiniMax，可插拔提供商系统 |
-| 语音 | WebSocket 中继服务（火山引擎豆包、Azure OpenAI Realtime） |
+| AI / LLM | 所有文本 LLM 路径统一使用 `MiniMax-M3` |
+| 语音 | WebSocket 中继服务（MiniMax ASR + MiniMax TTS） |
 | UI | [Tailwind CSS](https://tailwindcss.com/) + [shadcn/ui](https://ui.shadcn.com/) + [Radix](https://radix-ui.com/) |
 | 代码编辑器 | [Monaco Editor](https://microsoft.github.io/monaco-editor/) |
 | 白板 | [Excalidraw](https://excalidraw.com/) |
@@ -206,11 +206,11 @@ Aural 是一个可自主执行结构化访谈的 AI 平台。创建访谈并分�
 ┌────────────────────────┐  ┌──────────────────┐
 │    Next.js 服务端      │  │  语音中继服务   │
 │  ┌──────────────────┐  │  │  ┌────────────┐  │
-│  │ tRPC 路由        │  │  │  │ 火山引擎   │  │
-│  ├──────────────────┤  │  │  │ 豆包 S2S   │  │
+│  │ tRPC 路由        │  │  │  │ MiniMax    │  │
+│  ├──────────────────┤  │  │  │ ASR + TTS  │  │
 │  │ REST API 路由    │  │  │  ├────────────┤  │
-│  ├──────────────────┤  │  │  │ Azure OAI  │  │
-│  │ AI 提供商注册表  │  │  │  │ Realtime   │  │
+│  ├──────────────────┤  │  │  │ MiniMax-M3 │  │
+│  │ AI 提供商注册表  │  │  │  │ LLM        │  │
 │  └──────────────────┘  │  │  └────────────┘  │
 └────────────┬───────────┘  └──────────────────┘
              │
@@ -231,7 +231,7 @@ Aural 是一个可自主执行结构化访谈的 AI 平台。创建访谈并分�
 | REST API | `src/app/api/` | AI、模拟面试、语音、认证、会话生命周期和文件上传接口 |
 | 开发者 API | `src/app/api/v1/` | 访谈、问题、会话和候选人的 REST API；OpenAPI 规范位于 `/api/v1/openapi.json` |
 | AI 提供商系统 | `src/lib/ai/` | 提供商注册、任务模型选择和提示词模板 |
-| 语音中继 | `server/` | 浏览器与语音模型之间的独立 WebSocket 中继服务 |
+| 语音中继 | `server/` | 独立 WebSocket 中继：本地 VAD 缓冲浏览器麦克风音频，每段话语调用一次 MiniMax ASR 转写，并通过 MiniMax TTS 合成回答 |
 | 模拟面试 | `src/components/prep/`、`src/lib/prep/` | 上下文、回答、反馈、答案库、评分和练习历史 |
 | Supabase | `src/lib/supabase/` | 客户端、服务端、管理端工具和数据隔离 |
 
@@ -251,8 +251,7 @@ Aural 是一个可自主执行结构化访谈的 AI 平台。创建访谈并分�
 
 - Node.js 18+ 和 npm
 - Supabase 云项目，或通过 `supabase start` 启动的本地项目
-- 至少一个 LLM API 密钥：OpenAI、Google Gemini、Kimi 或 MiniMax
-- 如需语音访谈或语音练习，还需火山引擎豆包或 Azure OpenAI 语音凭据
+- 一个 MiniMax API 密钥（`MINIMAX_API_KEY`），驱动所有 LLM 路径（MiniMax-M3）以及语音 ASR 和 TTS
 
 #### 1. 克隆并安装
 
@@ -299,8 +298,7 @@ cp .env.example .env.local
 编辑 `.env.local`，至少配置：
 
 - Supabase URL 和密钥
-- 一个 LLM 提供商密钥；主应用推荐 `OPENAI_API_KEY`，中继摘要和备用生成推荐 `GEMINI_API_KEY`
-- 如需语音功能，配置推荐的 `DOUBAO_*` 或备用的 `AZURE_OPENAI_*`
+- `MINIMAX_API_KEY`（AI 生成、语音访谈和语音练习均需要）
 - 可选的 `JINA_READER_API_KEY`，用于提高被反爬保护拦截的职位描述 URL 导入额度
 
 本地 Supabase 密钥对应关系：
@@ -318,11 +316,8 @@ cp .env.example .env.local
 # Next.js 开发服务器
 npm run dev
 
-# 推荐的火山引擎豆包语音中继
+# MiniMax 语音中继（需在单独终端运行）
 npm run dev:voice
-
-# 或启动 Azure OpenAI Realtime 备用中继
-npm run dev:openai-voice
 ```
 
 打开 [http://localhost:3000/register](http://localhost:3000/register) 注册，或访问 [http://localhost:3000/login](http://localhost:3000/login) 登录。
@@ -369,42 +364,31 @@ aural-oss/
 
 ## AI 提供商系统
 
-Aural 需要至少配置一个 LLM 提供商。默认按 OpenAI → Gemini → Kimi → MiniMax 的顺序选择第一个可用提供商。
-
-| 提供商 | 环境变量 | 默认模型 | 获取密钥 |
-|--------|----------|----------|----------|
-| OpenAI（推荐） | `OPENAI_API_KEY` | `gpt-4o-mini` | [platform.openai.com/api-keys](https://platform.openai.com/api-keys) |
-| Google Gemini | `GEMINI_API_KEY` | `gemini-3.1-flash-lite` | [aistudio.google.com](https://aistudio.google.com/) |
-| Moonshot Kimi | `KIMI_API_KEY` | `moonshot-v1-8k` | [platform.moonshot.cn](https://platform.moonshot.cn/) |
-| MiniMax | `MINIMAX_API_KEY` | `MiniMax-Text-01` | [platform.minimaxi.com](https://platform.minimaxi.com/) |
-
-通过设置 `OPENAI_BASE_URL`，还可以接入 Ollama、LiteLLM 等 OpenAI 兼容接口。
+所有文本 LLM 路径统一运行在 **`MiniMax-M3`** 上，只需一个密钥：`MINIMAX_API_KEY`（[platform.minimax.io](https://platform.minimax.io/)）。
 
 ---
 
 ## 语音中继
 
-Aural 通过独立 WebSocket 服务支持实时 AI 语音访谈。
+Aural 通过单一独立 WebSocket 服务（`server/voice-relay.ts`）支持实时 AI 语音访谈，整套语音链路基于 MiniMax：
 
-### 推荐：火山引擎豆包（`server/voice-relay.ts`）
-
-豆包中继提供更低延迟、自然的语音对话、中文支持、上下文摘要和自动重连。
-
-```bash
-npm run dev:voice
-```
-
-必需变量：`DOUBAO_APP_ID` + `DOUBAO_ACCESS_TOKEN`，或 `DOUBAO_API_KEY`。
-
-### 备用：Azure OpenAI Realtime（`server/openai-voice-relay.ts`）
+- **ASR** — 本地 VAD 缓冲麦克风音频（RMS 门限 + 静音窗口），每段话语调用一次 `POST /v1/speech_to_text` 转写。
+- **LLM** — 面试官回复和逐题上下文摘要运行在 `MiniMax-M3` 上。
+- **TTS** — 回复通过同步 `POST /v1/t2a_v2` 合成，以 24 kHz PCM 流式发送给浏览器。
 
 ```bash
-npm run dev:openai-voice
+npm run dev:voice          # 默认端口 8766
 ```
 
-必需变量：`AZURE_OPENAI_ENDPOINT`、`AZURE_OPENAI_API_KEY`、`AZURE_OPENAI_DEPLOYMENT`。
+必需变量：`MINIMAX_API_KEY`（与 LLM 共用）。
 
-两个中继可以同时运行。前端会根据 `NEXT_PUBLIC_VOICE_RELAY_PRIMARY` 选择首选服务，并在连接失败时自动切换。
+可选变量：
+
+- `MINIMAX_BASE_URL`（默认 `https://api.minimax.io/v1`，国际站端点）
+- `MINIMAX_TTS_MODEL`（默认 `speech-2.8-turbo`）
+- `MINIMAX_TTS_VOICE_EN`（默认 `English_Trustworth_Man`）
+- `MINIMAX_TTS_VOICE_ZH`（默认 `male-qn-qingse`）
+- `MINIMAX_TTS_SPEECH_RATE`（默认 `1`，范围 0.5–2）
 
 ---
 
@@ -443,8 +427,7 @@ Authorization: Bearer dlv_your_key_here
 | `npm run lint` | 运行 ESLint |
 | `npm run test:web` | 运行 Web 测试 |
 | `npm run test:functional` | 运行基于 Playwright 的功能测试 |
-| `npm run dev:voice` | 启动豆包语音中继 |
-| `npm run dev:openai-voice` | 启动 Azure OpenAI 备用语音中继 |
+| `npm run dev:voice` | 启动 MiniMax 语音中继（ASR + LLM + TTS） |
 | `npm run db:types` | 重新生成 Supabase TypeScript 类型 |
 
 ---

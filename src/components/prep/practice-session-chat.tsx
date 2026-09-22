@@ -39,7 +39,7 @@ import {
 } from "@/components/ui/tooltip";
 import type { PrepVoiceRecording } from "@/hooks/use-prep-voice-capture";
 import { useToast } from "@/hooks/use-toast";
-import { useVolcengineTts } from "@/hooks/use-volcengine-tts";
+import { useMinimaxTts } from "@/hooks/use-minimax-tts";
 import { isAbortError } from "@/lib/abort-error";
 import { computeMediaRetention, type PlanTier } from "@/lib/media-retention";
 import { formatPrepAudioDuration, resolveBlobDuration } from "@/lib/prep/answer-audio";
@@ -497,7 +497,7 @@ export function PracticeSessionChat({
     speakingPhase: coachSpeakingPhase,
     primeFromUserGesture,
     playPendingFromGesture,
-  } = useVolcengineTts(language);
+  } = useMinimaxTts(language);
   const stopCoachRef = useRef(stopCoach);
   stopCoachRef.current = stopCoach;
 

@@ -31,33 +31,36 @@ afterEach(() => {
   relayLlm.resetRelayLlmCacheForTests();
 });
 
-test("default primary is gemini-3.1-flash-lite with abab6.5s-chat fallback when MiniMax key set", () => {
+test("default primary is MiniMax-M3 with no fallback", () => {
   withEnv(
     {
       RELAY_LLM_MODEL: undefined,
+      RELAY_LLM_API_KEY: undefined,
+      RELAY_LLM_BASE_URL: undefined,
+      KIMI_API_KEY: undefined,
       GEMINI_API_KEY: "g-test",
       MINIMAX_API_KEY: "m-test",
-      MINIMAX_BASE_URL: "https://api.minimaxi.com/v1",
+      MINIMAX_BASE_URL: "https://api.minimax.io/v1",
     },
     () => {
-      assert.equal(relayLlm.getRelayLlmModel(), "gemini-3.1-flash-lite");
-      assert.equal(relayLlm.getRelayLlmFallbackModel(), "abab6.5s-chat");
+      assert.equal(relayLlm.getRelayLlmModel(), "MiniMax-M3");
+      assert.equal(relayLlm.getRelayLlmFallbackModel(), null);
     },
   );
 });
 
-test("no fallback when primary is already abab6.5s-chat on MiniMax", () => {
+test("RELAY_LLM_MODEL override works and falls back to MiniMax-M3", () => {
   withEnv(
     {
       RELAY_LLM_MODEL: "abab6.5s-chat",
       RELAY_LLM_API_KEY: "m-test",
-      RELAY_LLM_BASE_URL: "https://api.minimaxi.com/v1",
+      RELAY_LLM_BASE_URL: "https://api.minimax.io/v1",
       RELAY_LLM_PROVIDER: "openai",
       MINIMAX_API_KEY: "m-test",
     },
     () => {
       assert.equal(relayLlm.getRelayLlmModel(), "abab6.5s-chat");
-      assert.equal(relayLlm.getRelayLlmFallbackModel(), null);
+      assert.equal(relayLlm.getRelayLlmFallbackModel(), "MiniMax-M3");
     },
   );
 });

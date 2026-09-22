@@ -10,24 +10,15 @@ function stripThinking(text: string): string {
 export class MinimaxProvider implements LLMProvider {
   id = "minimax";
   name = "MiniMax";
-  models = [
-    "MiniMax-M2.1-lightning",
-    "MiniMax-M2.5-highspeed",
-    "MiniMax-M2.5",
-    "MiniMax-M2.1",
-    "MiniMax-Text-01",
-    "abab6.5s-chat",
-    "abab6.5-chat",
-    "abab5.5-chat",
-  ];
-  defaultModel = "MiniMax-Text-01";
+  models = ["MiniMax-M3"];
+  defaultModel = "MiniMax-M3";
 
   private client: OpenAI;
 
   constructor() {
     this.client = new OpenAI({
       apiKey: process.env.MINIMAX_API_KEY ?? "",
-      baseURL: process.env.MINIMAX_BASE_URL ?? "https://api.minimax.chat/v1",
+      baseURL: process.env.MINIMAX_BASE_URL ?? "https://api.minimax.io/v1",
     });
   }
 

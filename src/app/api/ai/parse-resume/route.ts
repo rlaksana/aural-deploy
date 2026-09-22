@@ -30,25 +30,16 @@ Rules:
 - Return ONLY the JSON object, no markdown fences, no explanation`;
 
 function getClient(): { client: OpenAI; model: string } {
-  if (process.env.MINIMAX_API_KEY) {
-    return {
-      client: new OpenAI({
-        apiKey: process.env.MINIMAX_API_KEY,
-        baseURL: process.env.MINIMAX_BASE_URL ?? "https://api.minimax.chat/v1",
-      }),
-      model: "MiniMax-Text-01",
-    };
+  if (!process.env.MINIMAX_API_KEY) {
+    throw new Error("No LLM provider configured");
   }
-  if (process.env.KIMI_API_KEY) {
-    return {
-      client: new OpenAI({
-        apiKey: process.env.KIMI_API_KEY,
-        baseURL: process.env.KIMI_BASE_URL ?? "https://api.moonshot.cn/v1",
-      }),
-      model: "moonshot-v1-32k",
-    };
-  }
-  throw new Error("No LLM provider configured");
+  return {
+    client: new OpenAI({
+      apiKey: process.env.MINIMAX_API_KEY,
+      baseURL: process.env.MINIMAX_BASE_URL ?? "https://api.minimax.io/v1",
+    }),
+    model: "MiniMax-M3",
+  };
 }
 
 export async function POST(req: Request) {

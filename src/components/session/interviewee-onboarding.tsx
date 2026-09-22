@@ -33,7 +33,6 @@ import {
     buildRelayTargets,
     isRecoverableRelayErrorMessage,
     RelayConnector,
-    resolveRelayPrimaryPreference,
 } from "@/lib/voice/relay-routing";
 import { isBrowserPlayableTtsContentType } from "@/lib/voice/tts-content-type";
 import {
@@ -720,10 +719,6 @@ function MicCheck({ done, onDone, language, allowSkip = true, externalSkipped }:
       targets: buildRelayTargets({
         language: languageRef.current,
         voiceRelayUrl: process.env.NEXT_PUBLIC_VOICE_RELAY_URL,
-        openAiRelayUrl: process.env.NEXT_PUBLIC_OPENAI_VOICE_RELAY_URL,
-        primaryPreference: resolveRelayPrimaryPreference(
-          process.env.NEXT_PUBLIC_VOICE_RELAY_PRIMARY,
-        ),
         browserProtocol: window.location.protocol,
         browserHost: window.location.host,
       }),
@@ -733,7 +728,7 @@ function MicCheck({ done, onDone, language, allowSkip = true, externalSkipped }:
         flushPendingAudio();
         markListeningReady();
       },
-      onJsonMessage: (msg, { connector: activeConnector }) => {
+      onJsonMessage: (msg) => {
         if (handled) return;
         const isInitialEchoWindow =
           captureStartedAt > 0 &&
@@ -764,17 +759,10 @@ function MicCheck({ done, onDone, language, allowSkip = true, externalSkipped }:
             finish(text);
           }
         } else if (msg.type === "disconnected") {
-          if (activeConnector.canFailover) {
-            void activeConnector.failover("mic test relay disconnected");
-          } else {
-            finish(lastAsrText);
-          }
+          finish(lastAsrText);
         } else if (msg.type === "error") {
           const message = (msg.message as string) || "";
-          if (
-            isRecoverableRelayErrorMessage(message) &&
-            activeConnector.canFailover
-          ) {
+          if (isRecoverableRelayErrorMessage(message)) {
             return;
           }
           finish(lastAsrText);

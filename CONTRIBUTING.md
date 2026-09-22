@@ -8,7 +8,7 @@ Thanks for your interest in contributing! This guide will help you get started.
 
 - **Node.js** >= 18
 - **Docker** (for local Supabase)
-- At least one LLM API key (OpenAI recommended)
+- A MiniMax API key (required for all LLM and voice features)
 
 ### Getting Started
 
@@ -39,8 +39,7 @@ If you're working on voice interview features:
 
 ```bash
 # In separate terminals
-npm run dev:voice         # Kimi/Doubao voice relay on :8081
-npm run dev:openai-voice  # OpenAI voice relay on :8082
+npm run dev:voice         # MiniMax voice relay on :8081
 ```
 
 ## Making Changes

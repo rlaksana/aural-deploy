@@ -272,8 +272,8 @@ Track all your interviews, sessions, and candidates from a unified dashboard. Or
 | Language | TypeScript |
 | Database | [Supabase](https://supabase.com/) (PostgreSQL + Auth + Storage + RLS) |
 | API | [tRPC](https://trpc.io/) |
-| AI / LLM | OpenAI, Google Gemini, Moonshot Kimi, MiniMax — pluggable provider system |
-| Voice | WebSocket relay servers (Volcengine Doubao, Azure OpenAI Realtime) |
+| AI / LLM | MiniMax-M3 (`MiniMax-M3` runs every text LLM path) |
+| Voice | WebSocket relay server (MiniMax ASR + MiniMax TTS) |
 | UI | [Tailwind CSS](https://tailwindcss.com/) + [shadcn/ui](https://ui.shadcn.com/) + [Radix](https://radix-ui.com/) |
 | Code Editor | [Monaco Editor](https://microsoft.github.io/monaco-editor/) |
 | Whiteboard | [Excalidraw](https://excalidraw.com/) |
@@ -300,11 +300,11 @@ Track all your interviews, sessions, and candidates from a unified dashboard. Or
 │   Next.js Server       │  │  Voice Relay     │
 │                        │  │  Servers         │
 │  ┌──────────────────┐  │  │  ┌────────────┐  │
-│  │ tRPC Routers     │  │  │  │ Volcengine │  │
-│  │ (typed RPC API)  │  │  │  │ Doubao S2S │  │
+│  │ tRPC Routers     │  │  │  │ MiniMax    │  │
+│  │ (typed RPC API)  │  │  │  │ ASR + TTS  │  │
 │  ├──────────────────┤  │  │  ├────────────┤  │
-│  │ REST API Routes  │  │  │  │ Azure OAI  │  │
-│  │ /api/ai/*        │  │  │  │ Realtime   │  │
+│  │ REST API Routes  │  │  │  │ MiniMax-M3 │  │
+│  │ /api/ai/*        │  │  │  │ LLM        │  │
 │  │ /api/voice/*     │  │  │  └────────────┘  │
 │  │ /api/auth/*      │  │  └──────────────────┘
 │  ├──────────────────┤  │
@@ -337,7 +337,7 @@ Track all your interviews, sessions, and candidates from a unified dashboard. Or
 | **REST API Routes** | `src/app/api/` | Endpoints for AI operations (chat, generate, refine, summarize), practice feedback/hints/follow-ups, voice token/save/TTS, auth, session lifecycle (complete/leave), and file uploads. |
 | **Developer API (v1)** | `src/app/api/v1/` | Full REST API for programmatic interview management — CRUD for interviews, questions, sessions, candidates, publish, and usage. Authenticated via `dlv_` API keys with rate limiting. OpenAPI 3.1 spec at `/api/v1/openapi.json`. |
 | **AI Provider Registry** | `src/lib/ai/` | Pluggable LLM system with a provider registry, per-task model selection, and prompt templates for interviewing, generation, and report summarization. |
-| **Voice Relay** | `server/` | Standalone WebSocket servers that proxy audio between the browser and speech-to-speech APIs (Volcengine Doubao or Azure OpenAI Realtime). |
+| **Voice Relay** | `server/` | Standalone WebSocket server that VAD-buffers browser mic audio, transcribes utterances with one-shot MiniMax ASR, and speaks replies via MiniMax TTS. |
 | **Practice / Prep Module** | `src/app/(dashboard)/practices/`, `src/app/practice/`, `src/components/prep/`, `src/lib/prep/`, `src/server/routers/prep.ts` | Interview practice workspace with JD/resume context, voice or text answers, streamed feedback, suggested answers, follow-up coaching, practice attempt history, and resumable sessions. |
 | **Components** | `src/components/` | React components split by domain — `session/` (chat/voice/video UI, anti-cheating), `interview/` (builder, question cards), `auth/`, `layout/`, and `ui/` (shadcn primitives). |
 | **Supabase Layer** | `src/lib/supabase/` | Client/server/admin helpers for database access, auth, and storage. Row-Level Security enforces data isolation per user and organization. |
@@ -367,8 +367,7 @@ Run Aural on your own servers for full control over data, configuration, and cus
 
 - **Node.js** 20.9+ and npm
 - **Supabase** project (cloud or local via `supabase start`)
-- **LLM API key** — at least one of: OpenAI, Google Gemini, Kimi (Moonshot), or MiniMax
-- **Voice relay credentials** — Volcengine Doubao (primary) or Azure OpenAI (backup), if you want voice interviews or voice practice
+- **MiniMax API key** — one key (`MINIMAX_API_KEY`) powers every LLM path (MiniMax-M3) plus voice ASR and TTS
 
 #### 1. Clone and Install
 
@@ -415,8 +414,7 @@ cp .env.example .env.local
 Edit `.env.local` with your credentials. At minimum you need:
 
 - Supabase URL and keys
-- One LLM provider API key (`OPENAI_API_KEY` recommended for the main app; `GEMINI_API_KEY` recommended for relay summarization and fallback generation)
-- Voice credentials only if you want voice interviews or voice practice (`DOUBAO_*` for the recommended relay, or `AZURE_OPENAI_*` for the backup relay)
+- `MINIMAX_API_KEY` (required for AI generation, voice interviews, and voice practice)
 - Optional `JINA_READER_API_KEY` for higher-rate JD URL imports when a public page blocks direct server-side fetching
 
 **Local Supabase key mapping** — map the keys from `supabase status` output to your `.env.local`:
@@ -434,11 +432,8 @@ Edit `.env.local` with your credentials. At minimum you need:
 # Start the Next.js dev server
 npm run dev
 
-# Start the primary voice relay (Volcengine Doubao)
+# Start the MiniMax voice relay (run in a separate terminal)
 npm run dev:voice
-
-# Or start the backup voice relay (Azure OpenAI Realtime)
-npm run dev:openai-voice
 ```
 
 Open [http://localhost:3000/login](http://localhost:3000/login) to sign in, or [http://localhost:3000/register](http://localhost:3000/register) to create a new account.
@@ -495,78 +490,51 @@ The practice module lets interview authors and candidates rehearse against an in
 | API layer | `src/server/routers/prep.ts`, `src/app/api/prep/` | tRPC data mutations plus streaming feedback, follow-up, hint, and leave endpoints. |
 | Data model | `supabase/migrations/004_interview_prep.sql`, `supabase/migrations/005_account_delete_and_answer_bank.sql` | Adds interview context, practice sessions and attempts, the personal answer bank, and RLS policies. |
 
-Practice feedback uses the same LLM provider chain as interview generation. Voice practice also uses the voice relay and Doubao TTS settings from `.env.local`; answer audio is stored in the existing private `recordings` bucket.
+Practice feedback uses the same LLM provider chain as interview generation. Voice practice also uses the voice relay and MiniMax TTS settings from `.env.local`; answer audio is stored in the existing private `recordings` bucket.
 
 ---
 
 ## AI Provider System
 
-Aural uses a pluggable LLM provider architecture. You need **at least one** provider configured. The system auto-selects the first available provider in this order: OpenAI > Gemini > Kimi > MiniMax.
-
-### Providers
-
-| Provider | Env Variable | Default Model | Get API Key |
-|----------|-------------|---------------|-------------|
-| **OpenAI** (recommended) | `OPENAI_API_KEY` | `gpt-4o-mini` | [platform.openai.com/api-keys](https://platform.openai.com/api-keys) |
-| Google Gemini | `GEMINI_API_KEY` | `gemini-3.1-flash-lite` | [aistudio.google.com](https://aistudio.google.com/) |
-| Moonshot Kimi | `KIMI_API_KEY` | `moonshot-v1-8k` | [platform.moonshot.cn](https://platform.moonshot.cn/) |
-| MiniMax | `MINIMAX_API_KEY` | `MiniMax-Text-01` | [platform.minimaxi.com](https://platform.minimaxi.com/) |
-
-You can also use any OpenAI-compatible API (e.g., local models via Ollama or LiteLLM) by setting `OPENAI_BASE_URL`.
+All text LLM paths run on **`MiniMax-M3`** with a single key: `MINIMAX_API_KEY` ([platform.minimax.io](https://platform.minimax.io/)).
 
 ### How LLMs Are Used
 
-Aural uses LLMs for several distinct tasks, each selecting the best available model:
+Aural runs all text LLM tasks on a single model: **`MiniMax-M3`** (`MINIMAX_API_KEY` required).
 
-| Task | What It Does | OpenAI Model | Gemini Model | Kimi Model | MiniMax Model |
-|------|-------------|-------------|--------------|-----------|--------------|
-| **Chat interviewing** | Powers the AI interviewer during live sessions — asks questions, generates follow-ups, adapts tone | `gpt-4o-mini` | `gemini-3.1-flash-lite` | `moonshot-v1-8k` | `MiniMax-Text-01` |
-| **Interview generation** | Generates a complete interview (questions, criteria, settings) from a plain-language description | `gpt-4o-mini` | `gemini-3.1-flash-lite` | `moonshot-v1-8k` | `MiniMax-M2.1-lightning` |
-| **Question refinement** | Improves or refines existing interview questions based on feedback | `gpt-4o-mini` | `gemini-3.1-flash-lite` | `moonshot-v1-8k` | `MiniMax-M2.1-lightning` |
-| **Practice coaching** | Scores practice answers, streams feedback, generates follow-up coaching, and suggests improved answers | `gpt-4o-mini` | `gemini-3.1-flash-lite` | `moonshot-v1-8k` | `MiniMax-M2.1-lightning` |
-| **Report & analysis** | Generates post-interview reports with per-question scores, highlights, and improvement areas | `gpt-4o` | `gemini-3.1-flash-lite` | `kimi-k2.5` | `MiniMax-M2.1-lightning` |
+| Task | What It Does | Model |
+|------|-------------|-------|
+| **Chat interviewing** | Powers the AI interviewer during live sessions — asks questions, generates follow-ups, adapts tone | `MiniMax-M3` |
+| **Interview generation** | Generates a complete interview (questions, criteria, settings) from a plain-language description | `MiniMax-M3` |
+| **Question refinement** | Improves or refines existing interview questions based on feedback | `MiniMax-M3` |
+| **Practice coaching** | Scores practice answers, streams feedback, generates follow-up coaching, and suggests improved answers | `MiniMax-M3` |
+| **Report & analysis** | Generates post-interview reports with per-question scores, highlights, and improvement areas | `MiniMax-M3` |
 
-Report generation uses a higher-capability model when OpenAI or Kimi is configured because it requires synthesizing an entire conversation into structured analysis. Chat interviewing uses each provider's default model unless overridden per-interview in the settings. Interview generation and practice coaching use a fallback chain, so configuring more than one provider improves resilience.
+Interview generation and practice coaching run through a fallback wrapper; the chain is `MiniMax-M3` end to end. Resume parsing and the voice-relay text LLM (interviewer replies, summarization) use `MiniMax-M3` too. Voice audio uses the dedicated MiniMax speech services (`asr-1.0` for ASR, `speech-2.8-turbo` for TTS) with the same `MINIMAX_API_KEY`.
 
 ---
 
 ## Voice Relay
 
-Aural supports real-time AI voice interviews via WebSocket relay servers. Two relay implementations are provided.
+Aural supports real-time AI voice interviews via a single WebSocket relay server (`server/voice-relay.ts`) built entirely on MiniMax speech services.
 
-> **Recommendation:** We strongly recommend using **Volcengine Doubao** as your primary voice relay. It delivers a noticeably better interview experience than the OpenAI Realtime model — lower latency, more natural speech-to-speech flow, superior Chinese language support, and built-in server-side auto-reconnect for reliability. The OpenAI relay is provided as a backup for environments where Volcengine credentials are unavailable.
-
-### Primary (Recommended): Volcengine Doubao (`server/voice-relay.ts`)
-
-The recommended voice relay for production use. It provides full-featured Speech-to-Speech capabilities with per-question interview flow, LLM-powered context summarization, native Chinese language support, and automatic server-side reconnection (up to 3 retry attempts with backoff) for resilient voice sessions.
+- **ASR** — mic audio is VAD-buffered locally (RMS gate + silence window) and each utterance is transcribed with one one-shot `POST /v1/speech_to_text` call.
+- **LLM** — interviewer replies and per-question context summarization run on `MiniMax-M3`.
+- **TTS** — replies are synthesized with the sync `POST /v1/t2a_v2` API and streamed to the browser as 24 kHz PCM.
 
 ```bash
 npm run dev:voice          # starts on port 8766
 ```
 
-**Required env vars:** either `DOUBAO_APP_ID` + `DOUBAO_ACCESS_TOKEN`, or `DOUBAO_API_KEY`.
+**Required env var:** `MINIMAX_API_KEY` (shared with the LLM).
 
-**Recommended supporting env vars:**
+**Optional env vars:**
 
-- `GEMINI_API_KEY` for the relay LLM default (`gemini-3.1-flash-lite`)
-- `RELAY_LLM_PROVIDER=gemini`
-- `RELAY_LLM_MODEL=gemini-3.1-flash-lite`
-- `NEXT_PUBLIC_VOICE_RELAY_PRIMARY=voice`
-- `DOUBAO_ASR_RESOURCE_ID=volc.seedasr.sauc.duration`
-- `DOUBAO_TTS_RESOURCE_ID=seed-tts-2.0`
-- `DOUBAO_TTS_PCM_SAMPLE_LAYOUT=int16le`
-
-### Backup: Azure OpenAI Realtime (`server/openai-voice-relay.ts`)
-
-An alternative relay using Azure OpenAI's Realtime API (`gpt-realtime-1.5` by default). Use this when Volcengine credentials are unavailable or for English-only deployments. Note that the OpenAI relay may have higher latency and less natural conversational flow compared to Volcengine.
-
-```bash
-npm run dev:openai-voice   # starts on port 8767
-```
-
-**Required env vars:** `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_DEPLOYMENT`
-
-> **Tip:** You can run both relays simultaneously. The frontend uses `NEXT_PUBLIC_VOICE_RELAY_PRIMARY` to choose the first relay and automatically falls back to the alternate relay if the primary cannot connect.
+- `MINIMAX_BASE_URL` (default `https://api.minimax.io/v1` — the international endpoint)
+- `MINIMAX_TTS_MODEL` (default `speech-2.8-turbo`)
+- `MINIMAX_TTS_VOICE_EN` (default `English_Trustworth_Man`)
+- `MINIMAX_TTS_VOICE_ZH` (default `male-qn-qingse`)
+- `MINIMAX_TTS_SPEECH_RATE` (default `1`, range 0.5–2)
 
 ---
 
@@ -638,8 +606,7 @@ curl -X POST http://localhost:3000/api/v1/interviews/{id}/publish \
 | `npm run lint` | Run ESLint |
 | `npm run test:web` | Run web tests |
 | `npm run test:functional` | Run Playwright-backed functional browser tests |
-| `npm run dev:voice` | Start primary voice relay (Volcengine Doubao) |
-| `npm run dev:openai-voice` | Start backup voice relay (Azure OpenAI) |
+| `npm run dev:voice` | Start the MiniMax voice relay (ASR + LLM + TTS) |
 | `npm run db:types` | Regenerate Supabase TypeScript types |
 
 ---

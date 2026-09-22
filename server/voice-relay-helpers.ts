@@ -702,22 +702,8 @@ export function shouldSuppressRecentAsrFinal(
   ));
 }
 
-export function shouldHoldBargeInInterimForFinal(input: {
-  text: string;
-  definite: boolean;
-  ttsSpeaking: boolean;
-  endingInterview: boolean;
-}): boolean {
-  return (
-    !input.endingInterview &&
-    input.ttsSpeaking &&
-    !input.definite &&
-    input.text.trim().length >= 2
-  );
-}
-
 /**
- * Volcengine ASR streams are rolling hypotheses, not guaranteed deltas. Merge them as revisions
+ * ASR segment texts are rolling hypotheses, not guaranteed deltas. Merge them as revisions
  * when they heavily overlap; append only when the incoming text is a true continuation.
  */
 export function mergeAsrSegments(existing: string, incoming: string): string {
@@ -798,122 +784,6 @@ export function trimCrossTurnOverlap(previous: string, incoming: string): string
 }
 
 /**
- * Volcengine runs with `result_type: "full"`, so every response packet repeats the whole
- * transcript for the session: all endpointed sentence segments plus the one in progress.
- * Treating each `utterances[]` entry as a fresh result therefore re-delivers finished
- * segments on every audio packet. Track the provider's own cumulative text instead and use
- * the segment list only to learn whether the newest segment has been endpointed.
- */
-export interface AsrSessionState {
-  /** Latest cumulative transcript the provider reported for this websocket session. */
-  sessionText: string;
-  /** Portion of `sessionText` already committed as a user turn. */
-  committedPrefix: string;
-  /** Last uncommitted text handed to the relay, for exact change detection. */
-  lastEmittedText: string;
-  /** Endpointing state of the last update, so a settled segment is reported once. */
-  lastEmittedDefinite: boolean;
-}
-
-export interface AsrResultPacket {
-  text?: string;
-  utterances?: readonly { text?: string; definite?: boolean }[];
-  isLastPackage?: boolean;
-}
-
-export interface AsrSessionUpdate {
-  /** Speech in this session that has not been committed as a turn yet. */
-  text: string;
-  /** Whether the provider has endpointed the newest segment. */
-  definite: boolean;
-  /** Whether this update says anything the previous one did not. */
-  changed: boolean;
-}
-
-export function createAsrSessionState(): AsrSessionState {
-  return {
-    sessionText: "",
-    committedPrefix: "",
-    lastEmittedText: "",
-    lastEmittedDefinite: false,
-  };
-}
-
-export function resetAsrSessionState(state: AsrSessionState): void {
-  state.sessionText = "";
-  state.committedPrefix = "";
-  state.lastEmittedText = "";
-  state.lastEmittedDefinite = false;
-}
-
-/** Mark everything reported so far as spoken for, so later packets only yield new speech. */
-export function markAsrSessionCommitted(state: AsrSessionState): void {
-  state.committedPrefix = state.sessionText;
-  state.lastEmittedText = "";
-  state.lastEmittedDefinite = false;
-}
-
-function uncommittedAsrTail(sessionText: string, committedPrefix: string): string {
-  if (!committedPrefix) return sessionText;
-  if (sessionText === committedPrefix) return "";
-  if (sessionText.startsWith(committedPrefix)) {
-    return sessionText.slice(committedPrefix.length).trim();
-  }
-
-  // A verbatim prefix covers the normal cases: the provider only rewords a segment during the
-  // `enable_nonstream` second pass, which runs before the segment is reported as definite and
-  // therefore before it can be committed. When a commit does land mid-segment, that segment
-  // keeps growing from the same words. Anything else is treated as a revision and located
-  // fuzzily, falling back to the duplicate-turn guards downstream.
-  const tail = trimCrossTurnOverlap(committedPrefix, sessionText);
-  if (tail !== sessionText) return tail.trim();
-  return isAsrRollingRevision(committedPrefix, sessionText) ? "" : sessionText;
-}
-
-export function deriveAsrSessionUpdate(
-  state: AsrSessionState,
-  packet: AsrResultPacket,
-): AsrSessionUpdate {
-  const utterances = packet.utterances ?? [];
-
-  let joined = "";
-  // The newest segment carrying words is what says whether the speaker has stopped; earlier ones
-  // are settled history the provider keeps resending. Empty entries must be skipped rather than
-  // treated as the newest segment: the provider opens the next (still empty) utterance in the very
-  // packet that endpoints the previous one, so reading the literal last element reports
-  // `definite: false` for the rest of the session and the turn never commits.
-  let newestSpokenDefinite: boolean | null = null;
-  for (const utterance of utterances) {
-    const part = (utterance.text ?? "").trim();
-    if (!part) continue;
-    joined = joined ? joinAsrTail(joined, part) : part;
-    newestSpokenDefinite = !!utterance.definite;
-  }
-
-  const sessionText = (packet.text ?? "").trim() || joined;
-
-  const definite = newestSpokenDefinite ?? !!packet.isLastPackage;
-
-  if (!sessionText) {
-    return { text: state.lastEmittedText, definite, changed: false };
-  }
-
-  state.sessionText = sessionText;
-
-  const text = uncommittedAsrTail(sessionText, state.committedPrefix);
-  // Endpointing counts as news even when the wording is unchanged, but only while there is
-  // uncommitted speech for it to apply to.
-  const changed = !!text && (
-    normalizeAsrComparisonText(text) !== normalizeAsrComparisonText(state.lastEmittedText) ||
-    definite !== state.lastEmittedDefinite
-  );
-  state.lastEmittedText = text;
-  state.lastEmittedDefinite = definite;
-
-  return { text, definite, changed };
-}
-
-/**
  * How long to keep a turn open before committing it, measured purely from when the transcript last
  * grew: that gap is the only evidence that the speaker has stopped rather than paused.
  *
@@ -922,7 +792,7 @@ export function deriveAsrSessionUpdate(
  * ("first… second… and third…") was committed on a one-second pause mid-list; the assistant
  * started replying and the rest of the sentence arrived as a barge-in, splitting one answer across
  * several turns. Someone three sentences in needs at least as much room to breathe as someone one
- * sentence in. Total hold is bounded elsewhere, by the max-hold and session-rotation valves.
+ * sentence in. Total hold is bounded elsewhere, by the active-speech max-hold valve.
  */
 export function asrPendingFinalDelayMs(input: {
   coalesceTargetMs: number;

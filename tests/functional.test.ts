@@ -9,11 +9,6 @@ import { chromium, type Browser, type Page, type Route } from "playwright";
 
 const APP_CWD = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
-type RelayConnection = {
-  url: string;
-  path: string;
-};
-
 type RelayMessage = {
   path: string;
   message: Record<string, unknown>;
@@ -80,7 +75,6 @@ function startAppServer(port: number): ChildProcess {
         NODE_ENV: "development",
         ENABLE_FUNCTIONAL_TEST_PAGES: "1",
         NEXT_PUBLIC_VOICE_RELAY_URL: `ws://127.0.0.1:${port}/ws/voice`,
-        NEXT_PUBLIC_OPENAI_VOICE_RELAY_URL: `ws://127.0.0.1:${port}/ws/openai-voice`,
       },
       stdio: ["ignore", "pipe", "pipe"],
     },
@@ -107,13 +101,6 @@ async function stopProcess(child: ChildProcess): Promise<void> {
       }
     }),
   ]);
-}
-
-async function readRelayConnections(page: Page): Promise<RelayConnection[]> {
-  return page.evaluate(() => {
-    const raw = window.sessionStorage.getItem("__functionalRelayConnections");
-    return raw ? (JSON.parse(raw) as RelayConnection[]) : [];
-  });
 }
 
 async function readRelayMessages(page: Page): Promise<RelayMessage[]> {
@@ -250,56 +237,6 @@ test("whiteboard renders and Mermaid conversion works with patched dependencies"
 
   assert.equal(await page.getByTestId("mermaid-error").textContent(), "");
   assert.deepEqual(pageErrors, []);
-
-  await context.close();
-});
-
-test("English interviews try the voice relay first and fail over to OpenAI", async () => {
-  const context = await browser.newContext({ locale: "en-US" });
-  const page = await context.newPage();
-  await page.goto(
-    `${baseUrl}/functional-tests/voice?language=en&scenario=english-failover`,
-  );
-  await waitForCondition(
-    async () =>
-      (await page.getByTestId("harness-ready").textContent()) === "true",
-    5_000,
-    "Expected functional voice harness mocks to be ready",
-  );
-  await page.getByRole("button", { name: "Start Voice Interview" }).click();
-
-  await delay(3_500);
-
-  const connections = await readRelayConnections(page);
-  assert.deepEqual(
-    connections.map((entry) => entry.path),
-    ["/ws/voice", "/ws/openai-voice"],
-  );
-
-  await context.close();
-});
-
-test("Chinese interviews also try the voice relay first and fail over to OpenAI", async () => {
-  const context = await browser.newContext({ locale: "en-US" });
-  const page = await context.newPage();
-  await page.goto(
-    `${baseUrl}/functional-tests/voice?language=zh-CN&scenario=chinese-failover`,
-  );
-  await waitForCondition(
-    async () =>
-      (await page.getByTestId("harness-ready").textContent()) === "true",
-    5_000,
-    "Expected functional voice harness mocks to be ready",
-  );
-  await page.getByRole("button", { name: "Start Voice Interview" }).click();
-
-  await delay(3_500);
-
-  const connections = await readRelayConnections(page);
-  assert.deepEqual(
-    connections.map((entry) => entry.path),
-    ["/ws/voice", "/ws/openai-voice"],
-  );
 
   await context.close();
 });

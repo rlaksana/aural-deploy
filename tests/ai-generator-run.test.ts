@@ -36,7 +36,7 @@ function withEnv(
   }
 }
 
-test("getGeneratorModelChain prefers OpenAI, then Gemini, Kimi, and MiniMax", () => {
+test("getGeneratorModelChain returns only MiniMax-M3 regardless of other provider keys", () => {
   withEnv(
     {
       OPENAI_API_KEY: "test-openai",
@@ -45,46 +45,22 @@ test("getGeneratorModelChain prefers OpenAI, then Gemini, Kimi, and MiniMax", ()
       MINIMAX_API_KEY: "test-minimax",
     },
     () => {
-      assert.deepEqual(getGeneratorModelChain(), [
-        "gpt-4o-mini",
-        "gemini-3.1-flash-lite",
-        "moonshot-v1-8k",
-        "MiniMax-M2.1-lightning",
-      ]);
-      assert.equal(resolveGeneratorModel(), "gpt-4o-mini");
+      assert.deepEqual(getGeneratorModelChain(), ["MiniMax-M3"]);
+      assert.equal(resolveGeneratorModel(), "MiniMax-M3");
     },
   );
 });
 
-test("getGeneratorModelChain uses Gemini when OpenAI is not configured", () => {
+test("getGeneratorModelChain still requires MINIMAX_API_KEY even when other keys exist", () => {
   withEnv(
     {
-      OPENAI_API_KEY: undefined,
-      GEMINI_API_KEY: "test-gemini",
-      KIMI_API_KEY: undefined,
-      MINIMAX_API_KEY: "test-minimax",
-    },
-    () => {
-      assert.deepEqual(getGeneratorModelChain(), [
-        "gemini-3.1-flash-lite",
-        "MiniMax-M2.1-lightning",
-      ]);
-      assert.equal(resolveGeneratorModel(), "gemini-3.1-flash-lite");
-    },
-  );
-});
-
-test("getGeneratorModelChain uses MiniMax when only MiniMax is configured", () => {
-  withEnv(
-    {
-      OPENAI_API_KEY: undefined,
+      OPENAI_API_KEY: "test-openai",
       GEMINI_API_KEY: undefined,
       KIMI_API_KEY: undefined,
-      MINIMAX_API_KEY: "test-minimax",
+      MINIMAX_API_KEY: undefined,
     },
     () => {
-      assert.deepEqual(getGeneratorModelChain(), ["MiniMax-M2.1-lightning"]);
-      assert.equal(resolveGeneratorModel(), "MiniMax-M2.1-lightning");
+      assert.throws(() => getGeneratorModelChain(), /MINIMAX_API_KEY/);
     },
   );
 });

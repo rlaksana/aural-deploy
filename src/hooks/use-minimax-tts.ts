@@ -50,9 +50,9 @@ function resolveBlobMimeType(
 }
 
 /**
- * Play coach speech via Volcengine Seed TTS (`POST /api/voice/tts-s2s`).
+ * Play coach speech via MiniMax TTS (`POST /api/voice/tts-s2s`).
  */
-export function useVolcengineTts(language?: string) {
+export function useMinimaxTts(language?: string) {
   /** Dedicated element for coach TTS — never share with muted autoplay priming. */
   const coachAudioRef = useRef<HTMLAudioElement | null>(null);
   const objectUrlRef = useRef<string | null>(null);
@@ -155,7 +155,7 @@ export function useVolcengineTts(language?: string) {
               }
             })
             .catch((err) => {
-              console.warn("[useVolcengineTts] play() blocked", err);
+              console.warn("[useMinimaxTts] play() blocked", err);
               playStartedRef.current = false;
               if (generation === speakGenRef.current) {
                 pendingBlobRef.current = blob;
@@ -186,7 +186,7 @@ export function useVolcengineTts(language?: string) {
 
         audio.onerror = () => {
           if (generation === speakGenRef.current) {
-            console.warn("[useVolcengineTts] audio element error", {
+            console.warn("[useMinimaxTts] audio element error", {
               mime: blob.type,
               size: blob.size,
               networkState: audio.networkState,
@@ -356,7 +356,7 @@ export function useVolcengineTts(language?: string) {
           );
           if (!used) setSpeakingPhase("idle");
         } else {
-          console.warn("[useVolcengineTts] TTS failed", err);
+          console.warn("[useMinimaxTts] TTS failed", err);
           setSpeakingPhase("idle");
         }
       } finally {

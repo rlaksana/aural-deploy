@@ -40,31 +40,15 @@ export function listProviders(): LLMProvider[] {
 
 /**
  * Model used for post-interview report generation.
- * Falls back through available providers.
+ * All text LLM tasks run on MiniMax-M3.
  */
-export const REPORT_MODEL = process.env.OPENAI_API_KEY
-  ? "gpt-4o"
-  : process.env.GEMINI_API_KEY
-    ? "gemini-3.1-flash-lite"
-    : process.env.KIMI_API_KEY
-      ? "kimi-k2.5"
-      : "MiniMax-M2.1-lightning";
+export const REPORT_MODEL = "MiniMax-M3";
 
 /**
  * Model used for interview question generation and refinement.
  */
-export const GENERATOR_MODEL = process.env.OPENAI_API_KEY
-  ? "gpt-4o-mini"
-  : process.env.GEMINI_API_KEY
-    ? "gemini-3.1-flash-lite"
-    : process.env.KIMI_API_KEY
-      ? "moonshot-v1-8k"
-      : "MiniMax-M2.1-lightning";
+export const GENERATOR_MODEL = "MiniMax-M3";
 
 export const PRIMARY_GENERATOR_MODEL = GENERATOR_MODEL;
 
-export const FALLBACK_GENERATOR_MODEL = process.env.MINIMAX_API_KEY
-  ? "MiniMax-M2.1-lightning"
-  : process.env.KIMI_API_KEY
-    ? "moonshot-v1-8k"
-    : GENERATOR_MODEL;
+export const FALLBACK_GENERATOR_MODEL = GENERATOR_MODEL;

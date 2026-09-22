@@ -1,7 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { useVolcengineTts } from "@/hooks/use-volcengine-tts";
+import { useMinimaxTts } from "@/hooks/use-minimax-tts";
 import { cn } from "@/lib/utils";
 import { CheckCircle2, Volume2 } from "lucide-react";
 import type { PrepFeedback } from "./prep-types";
@@ -21,7 +21,7 @@ export function PrepFeedbackStream({
   isLoading,
   language,
 }: Props) {
-  const tts = useVolcengineTts(language);
+  const tts = useMinimaxTts(language);
 
   if (isLoading && !feedback) {
     return (

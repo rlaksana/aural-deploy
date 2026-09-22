@@ -14,7 +14,6 @@ import {
   isRecoverableRelayErrorMessage,
   RelayConnector,
   relayDisplayName,
-  resolveRelayPrimaryPreference,
 } from "@/lib/voice/relay-routing";
 import { shouldCommitTranscript } from "@/lib/voice/transcript-commit";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -88,14 +87,14 @@ interface TrackedMessage {
 }
 
 /**
- * Voice interview hook using Volcengine S2S (Speech-to-Speech) via relay.
+ * Voice interview hook using the MiniMax voice relay (ASR + LLM + TTS).
  *
  * Flow:
  * 1. Browser connects and sends interview context to relay
- * 2. Relay builds system prompt and connects to Volcengine
+ * 2. Relay VAD-buffers mic audio and transcribes with one-shot MiniMax ASR
  * 3. Browser captures mic audio as 16kHz int16 PCM
  * 4. Audio sent to relay server via WebSocket (hex-encoded)
- * 5. Relay forwards to Volcengine S2S which handles ASR + LLM + TTS
+ * 5. Relay handles ASR + LLM + TTS
  * 6. TTS audio (24kHz int16 PCM) streamed back and played via AudioContext
  * 7. Per-question transitions managed by relay with LLM summarization
  * 8. On disconnect, all messages are saved to database
@@ -644,10 +643,6 @@ export function useVoice({
       const targets = buildRelayTargets({
         language: interviewContext.language,
         voiceRelayUrl: process.env.NEXT_PUBLIC_VOICE_RELAY_URL,
-        openAiRelayUrl: process.env.NEXT_PUBLIC_OPENAI_VOICE_RELAY_URL,
-        primaryPreference: resolveRelayPrimaryPreference(
-          process.env.NEXT_PUBLIC_VOICE_RELAY_PRIMARY,
-        ),
         browserProtocol:
           typeof window !== "undefined" ? window.location.protocol : undefined,
         browserHost:
@@ -674,26 +669,22 @@ export function useVoice({
           playAudio(data);
           onTtsChunk?.(data);
         },
-        onConnected: ({ target, isFailover, connector: activeConnector }) => {
+        onConnected: ({ isFailover, connector: activeConnector }) => {
           log.info(
-            `${isFailover ? "Failed over to" : "Connected to"} ${relayDisplayName(
-              target.kind
-            )} @ ${target.url}`
+            `${isFailover ? "Failed over to" : "Connected to"} ${relayDisplayName()}`
           );
           if (isFailover) {
             replayLatestRelayContext(activeConnector);
           }
         },
-        onReconnecting: (attempt, maxAttempts, target) => {
+        onReconnecting: (attempt, maxAttempts) => {
           log.info(
-            `Reconnecting to ${relayDisplayName(target.kind)} (attempt ${attempt}/${maxAttempts})...`
+            `Reconnecting to ${relayDisplayName()} (attempt ${attempt}/${maxAttempts})...`
           );
         },
-        onFailover: ({ from, to, reason }) => {
+        onFailover: ({ reason }) => {
           log.warn(
-            `Relay failover: ${relayDisplayName(from.kind)} -> ${relayDisplayName(
-              to.kind
-            )} (${reason})`
+            `Relay failover: ${relayDisplayName()} -> ${relayDisplayName()} (${reason})`
           );
         },
         onPermanentFailure: (error) => {
@@ -715,7 +706,7 @@ export function useVoice({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onError, playAudio, interviewContext]);
 
-  /** Extract text from a Volcengine event payload, trying common field names */
+  /** Extract text from an ASR event payload, trying common field names */
   const extractText = useCallback(
     (data: Record<string, unknown> | undefined): string => {
       if (!data) return "";
@@ -870,7 +861,7 @@ export function useVoice({
         }
 
         case "asr": {
-          // ASR transcript chunk from Volcengine — accumulate.
+          // ASR transcript chunk — accumulate.
           const results =
             (msg.data?.results as Array<Record<string, unknown>>) || [];
           if (results.length > 0) {
