@@ -11,6 +11,7 @@ const ENV_KEYS = [
   "GEMINI_API_KEY",
   "KIMI_API_KEY",
   "MINIMAX_API_KEY",
+  "OPENROUTER_API_KEY",
 ] as const;
 
 function withEnv(
@@ -46,6 +47,25 @@ test("getGeneratorModelChain returns only MiniMax-M3 regardless of other provide
     },
     () => {
       assert.deepEqual(getGeneratorModelChain(), ["MiniMax-M3"]);
+      assert.equal(resolveGeneratorModel(), "MiniMax-M3");
+    },
+  );
+});
+
+test("getGeneratorModelChain appends OpenRouter fallback when OPENROUTER_API_KEY is set", () => {
+  withEnv(
+    {
+      OPENAI_API_KEY: undefined,
+      GEMINI_API_KEY: undefined,
+      KIMI_API_KEY: undefined,
+      MINIMAX_API_KEY: "test-minimax",
+      OPENROUTER_API_KEY: "test-openrouter",
+    },
+    () => {
+      assert.deepEqual(getGeneratorModelChain(), [
+        "MiniMax-M3",
+        "meta/muse-spark-1.3-contributor",
+      ]);
       assert.equal(resolveGeneratorModel(), "MiniMax-M3");
     },
   );

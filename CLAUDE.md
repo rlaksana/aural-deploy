@@ -7,7 +7,7 @@ Open-source AI interview platform supporting Voice, Chat, and Video.
 - **Frontend/API**: Next.js 16 (App Router, React 19, Tailwind CSS, Radix UI)
 - **API Layer**: tRPC v10 (`src/server/routers/`) + Next.js App Router API Routes (`src/app/api/`)
 - **Database**: Supabase PostgreSQL (`supabase/migrations/`)
-- **AI Infrastructure**: Multi-provider LLM registry (`src/lib/ai/` — OpenAI, Gemini, Kimi, MiniMax) with fallback chain
+- **AI Infrastructure**: Multi-provider LLM registry (`src/lib/ai/` — OpenAI, Gemini, Kimi, MiniMax, OpenRouter) with fallback chain; optional OpenRouter resilience fallback (`OPENROUTER_API_KEY`) used when MiniMax output fails validation after retries
 - **Voice Relay**: Standalone Node.js WebSocket server (`server/voice-relay.ts`) with MiniMax one-shot ASR + MiniMax TTS (`server/minimax-voice.ts`); browser uplink/downlink audio frames unchanged
 
 ## Essential Commands

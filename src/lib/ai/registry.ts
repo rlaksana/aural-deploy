@@ -3,6 +3,7 @@ import { OpenAIProvider } from "./providers/openai";
 import { GeminiProvider } from "./providers/gemini";
 import { KimiProvider } from "./providers/kimi";
 import { MinimaxProvider } from "./providers/minimax";
+import { OpenRouterProvider } from "./providers/openrouter";
 
 const providers = new Map<string, LLMProvider>();
 
@@ -14,6 +15,7 @@ registerProvider(new OpenAIProvider());
 registerProvider(new GeminiProvider());
 registerProvider(new KimiProvider());
 registerProvider(new MinimaxProvider());
+registerProvider(new OpenRouterProvider());
 
 /** Resolve the right provider for a given model name or provider id. */
 export function getProvider(idOrModel?: string | null): LLMProvider {
@@ -26,12 +28,13 @@ export function getProvider(idOrModel?: string | null): LLMProvider {
       }
     }
   }
-  // Default fallback order: openai → gemini → kimi → minimax
+  // Default fallback order: openai → gemini → kimi → minimax → openrouter
   if (process.env.OPENAI_API_KEY) return providers.get("openai")!;
   if (process.env.GEMINI_API_KEY) return providers.get("gemini")!;
   if (process.env.KIMI_API_KEY) return providers.get("kimi")!;
   if (process.env.MINIMAX_API_KEY) return providers.get("minimax")!;
-  throw new Error("No LLM provider configured. Set OPENAI_API_KEY, GEMINI_API_KEY, KIMI_API_KEY, or MINIMAX_API_KEY.");
+  if (process.env.OPENROUTER_API_KEY) return providers.get("openrouter")!;
+  throw new Error("No LLM provider configured. Set OPENAI_API_KEY, GEMINI_API_KEY, KIMI_API_KEY, MINIMAX_API_KEY, or OPENROUTER_API_KEY.");
 }
 
 export function listProviders(): LLMProvider[] {
@@ -51,4 +54,5 @@ export const GENERATOR_MODEL = "MiniMax-M3";
 
 export const PRIMARY_GENERATOR_MODEL = GENERATOR_MODEL;
 
-export const FALLBACK_GENERATOR_MODEL = GENERATOR_MODEL;
+/** Resilience fallback when MiniMax output fails parse/validation repeatedly. */
+export const FALLBACK_GENERATOR_MODEL = "meta/muse-spark-1.3-contributor";

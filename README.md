@@ -536,7 +536,7 @@ Aural runs all text LLM tasks on a single model: **`MiniMax-M3`** (`MINIMAX_API_
 | **Practice coaching** | Scores practice answers, streams feedback, generates follow-up coaching, and suggests improved answers | `MiniMax-M3` |
 | **Report & analysis** | Generates post-interview reports with per-question scores, highlights, and improvement areas | `MiniMax-M3` |
 
-Interview generation and practice coaching run through a fallback wrapper; the chain is `MiniMax-M3` end to end. Resume parsing and the voice-relay text LLM (interviewer replies, summarization) use `MiniMax-M3` too. Voice audio uses the dedicated MiniMax speech services (`asr-1.0` for ASR, `speech-2.8-turbo` for TTS) with the same `MINIMAX_API_KEY`.
+Interview generation and practice coaching run through a fallback wrapper; the chain is `MiniMax-M3` end to end. Optionally set `OPENROUTER_API_KEY` to append an OpenRouter resilience fallback (`meta/muse-spark-1.3-contributor`) used when MiniMax output fails parse/validation after retries, including for post-interview report generation. Resume parsing and the voice-relay text LLM (interviewer replies, summarization) use `MiniMax-M3` too. Voice audio uses the dedicated MiniMax speech services (`asr-1.0` for ASR, `speech-2.8-turbo` for TTS) with the same `MINIMAX_API_KEY`.
 
 ---
 

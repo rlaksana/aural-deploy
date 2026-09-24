@@ -2,7 +2,8 @@ import { svgDataUrlToPng } from "@/lib/ai/convert-svg";
 import { extractJson } from "@/lib/ai/extract-json";
 import { createLogger } from "@/lib/logger";
 import { buildSummaryPrompt } from "@/lib/ai/prompts/summary";
-import { getProvider, REPORT_MODEL } from "@/lib/ai/registry";
+import { REPORT_MODEL } from "@/lib/ai/registry";
+import { generateChatWithFallback } from "@/lib/ai/generator-run";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 
 const log = createLogger("ai/session-summary");
@@ -91,7 +92,6 @@ async function run(sessionId: string): Promise<void> {
       }))
       .filter((s) => s.code.trim().length > 0);
 
-    const provider = getProvider(REPORT_MODEL);
     const textMessages = msgs
       .filter((m) => m.contentType === "TEXT")
       .map((m) => ({ role: m.role === "USER" ? "user" : "assistant", content: m.content }));
@@ -112,7 +112,7 @@ async function run(sessionId: string): Promise<void> {
 
     let response;
     try {
-      response = await provider.generateResponse({
+      response = await generateChatWithFallback({
         messages,
         temperature: 0.3,
         maxTokens: 8192,
@@ -140,7 +140,7 @@ async function run(sessionId: string): Promise<void> {
           textOnlyDrawings,
           codeInput,
         );
-        response = await provider.generateResponse({
+        response = await generateChatWithFallback({
           messages: fallbackMessages,
           temperature: 0.3,
           maxTokens: 8192,

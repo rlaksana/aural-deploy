@@ -1,5 +1,6 @@
 import { createLogger } from "@/lib/logger";
 import {
+    FALLBACK_GENERATOR_MODEL,
     getProvider,
     PRIMARY_GENERATOR_MODEL,
 } from "./registry";
@@ -7,12 +8,19 @@ import type { GenerationParams, LLMResponse } from "./types";
 
 const log = createLogger("ai/generator-run");
 
-/** Generator model chain: MiniMax-M3 only. */
+/**
+ * Generator model chain: MiniMax-M3 primary, OpenRouter fallback.
+ * The fallback only joins the chain when OPENROUTER_API_KEY is configured.
+ */
 export function getGeneratorModelChain(): string[] {
   if (!process.env.MINIMAX_API_KEY?.trim()) {
     throw new Error("No generator LLM configured. Set MINIMAX_API_KEY.");
   }
-  return ["MiniMax-M3"];
+  const chain = ["MiniMax-M3"];
+  if (process.env.OPENROUTER_API_KEY?.trim()) {
+    chain.push(FALLBACK_GENERATOR_MODEL);
+  }
+  return chain;
 }
 
 export function resolveGeneratorModel(): string {
