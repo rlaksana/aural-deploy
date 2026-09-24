@@ -1,0 +1,14 @@
+node_modules
+.next
+.git
+.github
+.vercel
+.env*
+supabase
+tests
+e2e
+*.md
+Dockerfile
+docker-compose.yml
+Caddyfile
+tsconfig.tsbuildinfo

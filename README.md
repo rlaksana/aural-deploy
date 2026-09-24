@@ -438,6 +438,32 @@ npm run dev:voice
 
 Open [http://localhost:3000/login](http://localhost:3000/login) to sign in, or [http://localhost:3000/register](http://localhost:3000/register) to create a new account.
 
+#### 6. Production via Docker (web + voice relay + Caddy)
+
+One image runs both processes; `docker-compose.yml` wires the Next.js web app, the voice relay, and a Caddy reverse proxy (automatic HTTPS + WebSocket `/ws/voice` → relay).
+
+1. On a VPS (Ubuntu, ≥ 2 GB RAM): install Docker (`curl -fsSL https://get.docker.com | sh`), open ports 22/80/443.
+2. Clone the repo, then `cp .env.example .env` and fill in: Supabase URL/keys (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`), `MINIMAX_API_KEY`, `NEXT_PUBLIC_APP_URL=https://your-domain`, and `DOMAIN=your-domain` (used by the Caddyfile). Leave `NEXT_PUBLIC_VOICE_RELAY_URL` unset — the browser client auto-connects to `wss://<host>/ws/voice`.
+3. Point a DNS A record for `your-domain` at the VPS IP.
+4. Build and start:
+
+```bash
+docker compose up -d --build
+```
+
+Verify: `docker compose ps` (all three services up), `curl -I https://your-domain` (valid TLS), then run a voice interview end-to-end. Supabase migrations and the `recordings` Storage bucket must exist in the target Supabase project before use (steps 2–3 above).
+
+#### Official deploy pipelines
+
+Two scripted paths deploy exactly `origin/main` (CI has already validated that commit). Gates: branch `main`, clean working tree, local HEAD == `origin/main`.
+
+```bash
+npm run deploy:vercel                              # Vercel production via CLI (linked project)
+AURAL_DEPLOY_HOST=user@vps npm run deploy:docker   # remote compose stack: git pull + compose up -d --build
+```
+
+Docker extras: `AURAL_DEPLOY_DIR` (repo path on the server, default `/opt/aural`), `AURAL_DEPLOY_URL` (post-deploy health check, e.g. `https://your-domain`).
+
 ---
 
 ## Project Structure

@@ -1,0 +1,40 @@
+services:
+  web:
+    build:
+      context: .
+      args:
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+        NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL}
+        NEXT_PUBLIC_VOICE_RELAY_URL: ${NEXT_PUBLIC_VOICE_RELAY_URL:-}
+    image: aural-app
+    env_file: .env
+    restart: unless-stopped
+    expose:
+      - "3000"
+
+  voice-relay:
+    image: aural-app
+    command: ["npx", "tsx", "server/voice-relay.ts"]
+    env_file: .env
+    environment:
+      VOICE_RELAY_PORT: "8766"
+    restart: unless-stopped
+    expose:
+      - "8766"
+
+  caddy:
+    image: caddy:2-alpine
+    env_file: .env
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    restart: unless-stopped
+
+volumes:
+  caddy_data:
+  caddy_config:

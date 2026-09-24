@@ -1,0 +1,8 @@
+{$DOMAIN} {
+	handle /ws/voice {
+		reverse_proxy voice-relay:8766
+	}
+	handle {
+		reverse_proxy web:3000
+	}
+}

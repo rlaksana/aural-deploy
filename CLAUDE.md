@@ -77,4 +77,11 @@ git push origin main                           # Push when ready
 git push deploy main                           # ALWAYS mirror to deploy remote — must never diverge from origin/main
 ```
 
-**Dual-remote rule:** `origin` (aural-oss) and `deploy` (aural-deploy) must always point to the same commit on `main`. Every push to `origin` must be immediately followed by a push to `deploy`. Vercel deployments are CLI-driven (`vercel --prod`), not git-triggered, so the `deploy` remote is a mirror only — but it must never fall behind.
+**Deploy pipelines** (run only after the push steps above; both require a clean `main` synced with `origin/main`):
+
+```bash
+npm run deploy:vercel                              # Vercel production via CLI
+AURAL_DEPLOY_HOST=user@vps npm run deploy:docker   # remote compose stack (git pull + compose up --build)
+```
+
+**Dual-remote rule:** `origin` (aural-oss) and `deploy` (aural-deploy) must always point to the same commit on `main`. Every push to `origin` must be immediately followed by a push to `deploy`. Vercel deployments are CLI-driven (`vercel --prod`, or `npm run deploy:vercel`), not git-triggered, so the `deploy` remote is a mirror only — but it must never fall behind.
