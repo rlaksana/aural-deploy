@@ -15,7 +15,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { sessionId, skipExisting } = await req.json();
+  const { sessionId, skipExisting, force } = await req.json();
 
   try {
     const { data: interviewSession } = await supabaseAdmin
@@ -36,8 +36,9 @@ export async function POST(req: Request) {
     }
 
     // Batch callers set skipExisting so re-running a backfill never
-    // re-generates summaries that already exist.
-    if (skipExisting && interviewSession.summary) {
+    // re-generates summaries that already exist. force overrides that —
+    // used by the reports-tab regenerate action to rebuild stale summaries.
+    if (skipExisting && !force && interviewSession.summary) {
       return NextResponse.json({ skipped: true });
     }
 

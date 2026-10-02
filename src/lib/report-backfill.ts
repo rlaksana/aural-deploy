@@ -18,6 +18,8 @@ export async function runBatchSummaries(
   sessions: { sessionId: string; name: string }[],
   opts: {
     concurrency?: number;
+    /** Regenerate even when a summary already exists (overwrites it). */
+    force?: boolean;
     onProgress?: (p: BackfillProgress) => void;
     fetchImpl?: typeof fetch;
   } = {},
@@ -47,7 +49,7 @@ export async function runBatchSummaries(
         const res = await fetchImpl("/api/ai/summarize", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ sessionId, skipExisting: true }),
+          body: JSON.stringify({ sessionId, skipExisting: true, force: opts.force ?? false }),
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         done += 1;

@@ -15,6 +15,7 @@ import {
   ExternalLink,
   Globe,
   Loader2,
+  RefreshCw,
   Share2,
   Trash2,
 } from "lucide-react";
@@ -48,6 +49,10 @@ export function ReportsTab({ interviewId }: { interviewId: string }) {
     (r) => r.status === "COMPLETED" && r.overallScore === null && r.sessionId,
   );
 
+  const completed = (report.data?.report.rows ?? []).filter(
+    (r) => r.status === "COMPLETED" && r.sessionId,
+  );
+
   const handleBackfill = useCallback(async () => {
     if (runningRef.current || pending.length === 0) return;
     runningRef.current = true;
@@ -70,6 +75,35 @@ export function ReportsTab({ interviewId }: { interviewId: string }) {
       utils.report.get.invalidate({ interviewId });
     }
   }, [pending, interviewId, utils, toast]);
+
+  const handleRegenerate = useCallback(async () => {
+    if (runningRef.current || completed.length === 0) return;
+    if (
+      !window.confirm(
+        `Regenerate AI summaries for all ${completed.length} completed sessions? Existing summaries and scores will be overwritten.`,
+      )
+    )
+      return;
+    runningRef.current = true;
+    setProgress({ done: 0, failed: 0, total: completed.length, current: null });
+    try {
+      const { failed } = await runBatchSummaries(
+        completed.map((r) => ({ sessionId: r.sessionId, name: r.name })),
+        { concurrency: 5, force: true, onProgress: setProgress },
+      );
+      if (failed > 0) {
+        toast({
+          title: "Regeneration finished with failures",
+          description: `${failed} session(s) could not be regenerated. You can safely run it again.`,
+          variant: "destructive",
+        });
+      }
+    } finally {
+      runningRef.current = false;
+      setProgress(null);
+      utils.report.get.invalidate({ interviewId });
+    }
+  }, [completed, interviewId, utils, toast]);
 
   const createLink = trpc.report.createLink.useMutation({
     onSuccess: () => {
@@ -196,6 +230,44 @@ export function ReportsTab({ interviewId }: { interviewId: string }) {
                 <>
                   <Calculator className="mr-2 h-4 w-4" />
                   Calculate scores
+                </>
+              )}
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Regenerate: rebuild AI summaries for every completed session,
+          overwriting existing ones — e.g. to switch report language. */}
+      {!report.isLoading && completed.length > 0 && (
+        <Card>
+          <CardContent className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0 space-y-1">
+              <p className="flex items-center gap-2 text-sm font-medium">
+                <RefreshCw className="h-4 w-4 text-primary" />
+                Regenerate all {completed.length} summar{completed.length > 1 ? "ies" : "y"}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Rebuilds summaries and scores using the current interview
+                language, overwriting existing ones. Keep this tab open until
+                it finishes.
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              onClick={handleRegenerate}
+              disabled={progress !== null}
+            >
+              {progress ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  {progress.done + progress.failed}/{progress.total}
+                  {progress.current ? ` — ${progress.current}` : ""}
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                  Regenerate summaries
                 </>
               )}
             </Button>
