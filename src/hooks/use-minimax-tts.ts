@@ -5,6 +5,7 @@ import {
     sanitizeTtsText,
 } from "@/lib/prep/coach-tts-text";
 import { SILENT_MP3_DATA_URL } from "@/lib/prep/silent-audio";
+import { getSpeechSynthesisLocale } from "@/lib/i18n";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 export type TtsSpeakingPhase = "idle" | "loading" | "playing";
@@ -30,7 +31,7 @@ function speakWithBrowser(
   if (typeof window === "undefined" || !window.speechSynthesis) return false;
   window.speechSynthesis.cancel();
   const utterance = new SpeechSynthesisUtterance(text);
-  utterance.lang = language?.toLowerCase().startsWith("zh") ? "zh-CN" : "en-US";
+  utterance.lang = getSpeechSynthesisLocale(language);
   utterance.onstart = onStart;
   utterance.onend = onEnd;
   utterance.onerror = onEnd;

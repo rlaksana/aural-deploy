@@ -17,10 +17,12 @@ import {
 
 export function IntervieweeHelpPopover({
   mode,
+  language,
 }: {
   mode: "voice" | "chat";
+  language?: string;
 }) {
-  const items = mode === "voice" ? getVoiceGuideItems() : getChatGuideItems();
+  const items = mode === "voice" ? getVoiceGuideItems(language) : getChatGuideItems(language);
   const [index, setIndex] = useState(0);
 
   const canPrev = index > 0;

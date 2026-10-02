@@ -48,6 +48,7 @@ export async function POST(req: Request) {
       questions: interview.questions ?? [],
       currentQuestionIndex: questionIndex,
       conversationHistory,
+      language: interview.language,
     });
 
     const response = choiceFlow

@@ -1,5 +1,6 @@
 "use client";
 
+import { bt, getLanguageKey, type LangKey } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import {
     Code2,
@@ -19,13 +20,15 @@ interface GuideItem {
   illustration: React.ReactNode;
 }
 
-function VoiceAreaIllustration() {
+function VoiceAreaIllustration({ lang = "en" }: { lang?: LangKey }) {
   return (
     <div className="flex h-32 w-full items-center justify-center rounded-lg border bg-muted/30 p-3">
       <div className="flex flex-col items-center gap-2">
         <div className="flex items-center gap-2 text-primary">
           <Volume2 className="h-5 w-5 animate-pulse" />
-          <span className="text-xs font-medium">AI is speaking...</span>
+          <span className="text-xs font-medium">
+            {bt(lang, { en: "AI is speaking...", zh: "AI is speaking...", id: "AI sedang berbicara..." })}
+          </span>
         </div>
         <div className="flex items-center gap-[2px]">
           {Array.from({ length: 14 }).map((_, i) => (
@@ -37,14 +40,18 @@ function VoiceAreaIllustration() {
           ))}
         </div>
         <span className="text-[10px] text-muted-foreground">
-          Speak naturally — AI responds automatically
+          {bt(lang, {
+            en: "Speak naturally — AI responds automatically",
+            zh: "Speak naturally — AI responds automatically",
+            id: "Bicara secara natural — AI merespons otomatis",
+          })}
         </span>
       </div>
     </div>
   );
 }
 
-function MicControlIllustration() {
+function MicControlIllustration({ lang = "en" }: { lang?: LangKey }) {
   return (
     <div className="flex h-32 w-full items-center justify-center rounded-lg border bg-muted/30 p-3">
       <div className="flex items-center gap-6">
@@ -52,14 +59,18 @@ function MicControlIllustration() {
           <div className="flex h-10 w-10 items-center justify-center rounded-full bg-secondary-500 text-white">
             <Mic className="h-4 w-4" />
           </div>
-          <span className="text-[10px] font-medium text-secondary-600">Unmuted</span>
+          <span className="text-[10px] font-medium text-secondary-600">
+            {bt(lang, { en: "Unmuted", zh: "Unmuted", id: "Mikrofon aktif" })}
+          </span>
         </div>
         <div className="text-xs text-muted-foreground">→</div>
         <div className="flex flex-col items-center gap-1">
           <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted text-muted-foreground">
             <MicOff className="h-4 w-4" />
           </div>
-          <span className="text-[10px] text-muted-foreground">Muted</span>
+          <span className="text-[10px] text-muted-foreground">
+            {bt(lang, { en: "Muted", zh: "Muted", id: "Mikrofon di-mute" })}
+          </span>
         </div>
       </div>
     </div>
@@ -190,7 +201,7 @@ function ChatQuestionIllustration() {
   );
 }
 
-function ChatInputIllustration() {
+function ChatInputIllustration({ lang = "en" }: { lang?: LangKey }) {
   return (
     <div className="flex h-32 w-full items-center justify-center rounded-lg border bg-muted/30 p-3">
       <div className="w-52 rounded-lg border bg-card p-2">
@@ -202,18 +213,22 @@ function ChatInputIllustration() {
             <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m22 2-7 20-4-9-9-4 20-7z"/></svg>
           </div>
         </div>
-        <div className="mt-1.5 text-[8px] text-muted-foreground">Press Enter to send</div>
+        <div className="mt-1.5 text-[8px] text-muted-foreground">
+          {bt(lang, { en: "Press Enter to send", zh: "Press Enter to send", id: "Tekan Enter untuk mengirim" })}
+        </div>
       </div>
     </div>
   );
 }
 
-function ChatProgressIllustration() {
+function ChatProgressIllustration({ lang = "en" }: { lang?: LangKey }) {
   return (
     <div className="flex h-32 w-full items-center justify-center rounded-lg border bg-muted/30 p-3">
       <div className="w-48 space-y-2">
         <div className="flex items-center justify-between">
-          <span className="text-[10px] font-medium">Interview Progress</span>
+          <span className="text-[10px] font-medium">
+            {bt(lang, { en: "Interview Progress", zh: "Interview Progress", id: "Progres Wawancara" })}
+          </span>
           <span className="rounded border px-1.5 py-0.5 text-[9px] font-medium">Q2/5</span>
         </div>
         <div className="h-1.5 w-full rounded-full bg-muted">
@@ -225,92 +240,125 @@ function ChatProgressIllustration() {
   );
 }
 
-export function getVoiceGuideItems(): GuideItem[] {
+export function getVoiceGuideItems(language?: string): GuideItem[] {
+  const lang = getLanguageKey(language);
   return [
     {
-      title: "Your AI Interviewer",
-      description:
-        "The center area shows the AI interviewer status. It speaks to you and listens to your responses in real time.",
-      illustration: <VoiceAreaIllustration />,
+      title: bt(lang, { en: "Your AI Interviewer", zh: "Your AI Interviewer", id: "Pewawancara AI-mu" }),
+      description: bt(lang, {
+        en: "The center area shows the AI interviewer status. It speaks to you and listens to your responses in real time.",
+        zh: "The center area shows the AI interviewer status. It speaks to you and listens to your responses in real time.",
+        id: "Bagian tengah menampilkan status pewawancara AI. Ia berbicara dan mendengarkan jawabanmu secara real time.",
+      }),
+      illustration: <VoiceAreaIllustration lang={lang} />,
     },
     {
-      title: "Microphone Control",
-      description:
-        "Click the mic button to mute or unmute. Speak naturally when unmuted — the AI will respond automatically.",
-      illustration: <MicControlIllustration />,
+      title: bt(lang, { en: "Microphone Control", zh: "Microphone Control", id: "Kontrol Mikrofon" }),
+      description: bt(lang, {
+        en: "Click the mic button to mute or unmute. Speak naturally when unmuted — the AI will respond automatically.",
+        zh: "Click the mic button to mute or unmute. Speak naturally when unmuted — the AI will respond automatically.",
+        id: "Klik tombol mikrofon untuk mute atau unmute. Bicara secara natural saat mikrofon aktif — AI akan merespons otomatis.",
+      }),
+      illustration: <MicControlIllustration lang={lang} />,
     },
     {
-      title: "Text Chat Channel",
-      description:
-        "Prefer typing? Toggle the chat panel to send text messages alongside the voice conversation.",
+      title: bt(lang, { en: "Text Chat Channel", zh: "Text Chat Channel", id: "Saluran Obrolan Teks" }),
+      description: bt(lang, {
+        en: "Prefer typing? Toggle the chat panel to send text messages alongside the voice conversation.",
+        zh: "Prefer typing? Toggle the chat panel to send text messages alongside the voice conversation.",
+        id: "Lebih suka mengetik? Buka panel obrolan untuk mengirim pesan teks bersama percakapan suara.",
+      }),
       illustration: <ChatChannelIllustration />,
     },
     {
-      title: "Whiteboard & Code Editor",
-      description:
-        "Use the Whiteboard for diagrams or the Code Editor for coding questions. They open as side panels.",
+      title: bt(lang, { en: "Whiteboard & Code Editor", zh: "Whiteboard & Code Editor", id: "Whiteboard & Editor Kode" }),
+      description: bt(lang, {
+        en: "Use the Whiteboard for diagrams or the Code Editor for coding questions. They open as side panels.",
+        zh: "Use the Whiteboard for diagrams or the Code Editor for coding questions. They open as side panels.",
+        id: "Gunakan Whiteboard untuk diagram atau Editor Kode untuk soal coding. Keduanya terbuka sebagai panel samping.",
+      }),
       illustration: <ToolsIllustration />,
     },
     {
-      title: "Conversation Transcript",
-      description:
-        "Your full conversation transcript appears on the right. Use it to review what was said.",
+      title: bt(lang, { en: "Conversation Transcript", zh: "Conversation Transcript", id: "Transkrip Percakapan" }),
+      description: bt(lang, {
+        en: "Your full conversation transcript appears on the right. Use it to review what was said.",
+        zh: "Your full conversation transcript appears on the right. Use it to review what was said.",
+        id: "Transkrip lengkap percakapanmu tampil di sisi kanan. Gunakan untuk meninjau apa yang sudah dibicarakan.",
+      }),
       illustration: <TranscriptIllustration />,
     },
     {
-      title: "Question Navigation",
-      description:
-        "Use Previous/Next to navigate between questions. The progress bar shows how far along you are. Click End when finished.",
+      title: bt(lang, { en: "Question Navigation", zh: "Question Navigation", id: "Navigasi Pertanyaan" }),
+      description: bt(lang, {
+        en: "Use Previous/Next to navigate between questions. The progress bar shows how far along you are. Click End when finished.",
+        zh: "Use Previous/Next to navigate between questions. The progress bar shows how far along you are. Click End when finished.",
+        id: "Gunakan Sebelumnya/Berikutnya untuk berpindah antar pertanyaan. Bilah progres menunjukkan sejauh mana kamu. Klik Selesai jika sudah selesai.",
+      }),
       illustration: <NavigationIllustration />,
     },
   ];
 }
 
-export function getChatGuideItems(): GuideItem[] {
+export function getChatGuideItems(language?: string): GuideItem[] {
+  const lang = getLanguageKey(language);
   return [
     {
-      title: "Chat with the AI",
-      description:
-        "Questions appear as chat messages. The AI will guide you through each one and may ask follow-ups based on your answers.",
+      title: bt(lang, { en: "Chat with the AI", zh: "Chat with the AI", id: "Obrolan dengan AI" }),
+      description: bt(lang, {
+        en: "Questions appear as chat messages. The AI will guide you through each one and may ask follow-ups based on your answers.",
+        zh: "Questions appear as chat messages. The AI will guide you through each one and may ask follow-ups based on your answers.",
+        id: "Pertanyaan muncul sebagai pesan obrolan. AI akan memandumu melewati setiap pertanyaan dan mungkin bertanya lanjut berdasarkan jawabanmu.",
+      }),
       illustration: <ChatQuestionIllustration />,
     },
     {
-      title: "Type Your Response",
-      description:
-        "Type your answer in the text box and press Enter or click Send. Take your time to compose thoughtful responses.",
-      illustration: <ChatInputIllustration />,
+      title: bt(lang, { en: "Type Your Response", zh: "Type Your Response", id: "Tulis Jawabanmu" }),
+      description: bt(lang, {
+        en: "Type your answer in the text box and press Enter or click Send. Take your time to compose thoughtful responses.",
+        zh: "Type your answer in the text box and press Enter or click Send. Take your time to compose thoughtful responses.",
+        id: "Ketik jawabanmu di kotak teks lalu tekan Enter atau klik Kirim. Luangkan waktumu untuk menyusun jawaban yang matang.",
+      }),
+      illustration: <ChatInputIllustration lang={lang} />,
     },
     {
-      title: "Whiteboard & Code Editor",
-      description:
-        "Use the Whiteboard for diagrams or the Code Editor for coding questions. They appear above the chat area.",
+      title: bt(lang, { en: "Whiteboard & Code Editor", zh: "Whiteboard & Code Editor", id: "Whiteboard & Editor Kode" }),
+      description: bt(lang, {
+        en: "Use the Whiteboard for diagrams or the Code Editor for coding questions. They appear above the chat area.",
+        zh: "Use the Whiteboard for diagrams or the Code Editor for coding questions. They appear above the chat area.",
+        id: "Gunakan Whiteboard untuk diagram atau Editor Kode untuk soal coding. Keduanya tampil di atas area obrolan.",
+      }),
       illustration: <ToolsIllustration />,
     },
     {
-      title: "Track Your Progress",
-      description:
-        "The progress bar and question counter show how far along you are. Use the back arrow to revisit previous questions.",
-      illustration: <ChatProgressIllustration />,
+      title: bt(lang, { en: "Track Your Progress", zh: "Track Your Progress", id: "Pantau Progresmu" }),
+      description: bt(lang, {
+        en: "The progress bar and question counter show how far along you are. Use the back arrow to revisit previous questions.",
+        zh: "The progress bar and question counter show how far along you are. Use the back arrow to revisit previous questions.",
+        id: "Bilah progres dan penghitung pertanyaan menunjukkan sejauh mana kamu. Gunakan panah kembali untuk membuka pertanyaan sebelumnya.",
+      }),
+      illustration: <ChatProgressIllustration lang={lang} />,
     },
   ];
 }
 
-const STEP_ILLUSTRATION_MAP: Record<string, React.ReactNode> = {
-  "voice-status": <VoiceAreaIllustration />,
-  "voice-mic": <MicControlIllustration />,
-  "voice-chat": <ChatChannelIllustration />,
-  "voice-tools": <ToolsIllustration />,
-  "voice-transcript": <TranscriptIllustration />,
-  "voice-progress": <NavigationIllustration />,
-  "chat-question": <ChatQuestionIllustration />,
-  "chat-input": <ChatInputIllustration />,
-  "chat-tools": <ToolsIllustration />,
-  "chat-progress": <ChatProgressIllustration />,
-  "chat-timer": <NavigationIllustration />,
+const STEP_ILLUSTRATION_MAP: Record<string, (lang: LangKey) => React.ReactNode> = {
+  "voice-status": (lang) => <VoiceAreaIllustration lang={lang} />,
+  "voice-mic": (lang) => <MicControlIllustration lang={lang} />,
+  "voice-chat": () => <ChatChannelIllustration />,
+  "voice-tools": () => <ToolsIllustration />,
+  "voice-transcript": () => <TranscriptIllustration />,
+  "voice-progress": () => <NavigationIllustration />,
+  "chat-question": () => <ChatQuestionIllustration />,
+  "chat-input": (lang) => <ChatInputIllustration lang={lang} />,
+  "chat-tools": () => <ToolsIllustration />,
+  "chat-progress": (lang) => <ChatProgressIllustration lang={lang} />,
+  "chat-timer": () => <NavigationIllustration />,
 };
 
-export function getStepIllustration(stepId: string): React.ReactNode | null {
-  return STEP_ILLUSTRATION_MAP[stepId] ?? null;
+export function getStepIllustration(stepId: string, language?: string): React.ReactNode | null {
+  const render = STEP_ILLUSTRATION_MAP[stepId];
+  return render ? render(getLanguageKey(language)) : null;
 }
 
 export function GuideStepCard({

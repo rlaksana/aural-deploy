@@ -1,12 +1,14 @@
 /**
- * Bilingual prompt templates for the voice relay server.
+ * Multilingual (zh/en/id) prompt templates for the voice relay server.
  *
- * All zh/en strings are centralized here for easy maintenance
- * and future multi-language support. To add a new language,
- * extend BiText in src/lib/i18n.ts and add translations to
- * each template below.
+ * All localized strings are centralized here for easy maintenance.
+ * To add a new language, extend LangKey/BiText in src/lib/i18n.ts and add
+ * translations to each candidate-facing template below (instruction-only
+ * templates may stay zh/en and fall back to en via bt()).
  */
 import {
+  AI_TONE_ID,
+  AI_TONE_ID_DEFAULT,
   AI_TONE_ZH,
   AI_TONE_ZH_DEFAULT,
   type BiText,
@@ -16,7 +18,9 @@ import {
   QUESTION_TYPE_LABEL,
   ROLE_LABELS,
   SCREEN_PROMPT,
+  type LangKey,
 } from "../src/lib/i18n";
+import { getPromptLanguageName } from "../src/lib/ai/language-name";
 
 // ── Types ───────────────────────────────────────────────────────────
 
@@ -67,6 +71,7 @@ function noNextQuestionSuffix(ctx: FollowUpBudgetContext): BiText {
   return {
     zh: `（注意：这是最后一道题，收尾时不要说"进入下一题"或"下一部分"。）`,
     en: ` (Note: this is the last question — when you close it, do not say you are moving on to the next question or the next part.)`,
+    id: ` (Catatan: ini adalah pertanyaan terakhir — saat menutupnya, jangan katakan akan pindah ke pertanyaan berikutnya atau bagian berikutnya.)`,
   };
 }
 
@@ -75,6 +80,7 @@ export function lastQuestionNotice(p: ResponsePromptParams): BiText {
   return {
     zh: `\n**这是最后一道题（第${p.qNum}题，共${p.totalQs}题），后面没有任何问题了。** 收尾这道题时，绝对不要说"进入下一个问题""下一部分""接下来我们聊聊"这类话——没有下一题了。只需简短承接对方最后一点即可。${p.nextToken} 仍然表示"这道题结束了"，系统随后会自动询问对方还有什么要补充的，并说结束语；所以你自己不要说完整的告别语（如"感谢你今天的参与，再见"）。\n`,
     en: `\n**This is the FINAL question (${p.qNum} of ${p.totalQs}) — nothing follows it.** When you close this topic, do NOT say things like "let's move on to the next question", "on to the next part of our discussion", or "next topic", because there is no next question. Just briefly acknowledge their last point. ${p.nextToken} still means "this question is done": the system then asks whether they have anything to add and delivers the closing, so do NOT say the full goodbye yourself (e.g. "thank you for your time today, goodbye").\n`,
+    id: `\n**Ini adalah PERTANYAAN TERAKHIR (pertanyaan ${p.qNum} dari ${p.totalQs}) — tidak ada pertanyaan lagi setelah ini.** Saat menutup topik ini, JANGAN mengatakan "kita lanjut ke pertanyaan berikutnya", "bagian berikutnya", atau "topik selanjutnya", karena tidak ada pertanyaan berikutnya. Cukup tanggapi secara singkat poin terakhir mereka. ${p.nextToken} tetap berarti "pertanyaan ini selesai": sistem akan menanyakan apakah ada yang ingin ditambahkan dan menyampaikan penutup, jadi JANGAN mengucapkan salam perpisahan lengkap sendiri (misalnya "terima kasih atas waktu Anda hari ini, sampai jumpa").\n`,
   };
 }
 
@@ -90,6 +96,7 @@ export const SPOKEN = {
     return {
       zh: `你是${aiName}，一位${AI_TONE_ZH[toneKey] || AI_TONE_ZH_DEFAULT}的面试官。你只负责朗读系统提供给你的内容。不要自己编造任何回复。`,
       en: `You are ${aiName}, a ${toneKey} interviewer. You only read aloud what the system provides via SayHello. Do not generate your own responses.`,
+      id: `Kamu adalah ${aiName}, pewawancara yang ${AI_TONE_ID[toneKey] || AI_TONE_ID_DEFAULT}. Kamu hanya membacakan konten yang diberikan sistem melalui SayHello. Jangan membuat respons sendiri.`,
     };
   },
 
@@ -97,6 +104,7 @@ export const SPOKEN = {
     return {
       zh: `这是一道${QUESTION_TYPE_LABEL[type].zh}，${SCREEN_PROMPT.zh}${QUESTION_TYPE_HINT[type][variant].zh}`,
       en: `this is a ${QUESTION_TYPE_LABEL[type].en} question. ${SCREEN_PROMPT.en} ${QUESTION_TYPE_HINT[type][variant].en}`,
+      id: `ini adalah soal ${QUESTION_TYPE_LABEL[type].id}. ${SCREEN_PROMPT.id} ${QUESTION_TYPE_HINT[type][variant].id}`,
     };
   },
 
@@ -104,6 +112,7 @@ export const SPOKEN = {
     return {
       zh: ` 选项有：${labels}。请选择一个选项并说明你的理由。`,
       en: ` Your options are: ${labels}. Please pick one and explain your reasoning.`,
+      id: ` Pilihanmu: ${labels}. Silakan pilih satu dan jelaskan alasanmu.`,
     };
   },
 
@@ -111,6 +120,7 @@ export const SPOKEN = {
     return {
       zh: ` 选项有：${labels}。这道题可以选择多个选项，请选择并说明你的理由。`,
       en: ` Your options are: ${labels}. You may select more than one. Please pick and explain your reasoning.`,
+      id: ` Pilihanmu: ${labels}. Kamu boleh memilih lebih dari satu. Silakan pilih dan jelaskan alasanmu.`,
     };
   },
 
@@ -118,6 +128,7 @@ export const SPOKEN = {
     return {
       zh: ` 选项有：${labels}。`,
       en: ` Your options are: ${labels}.`,
+      id: ` Pilihanmu: ${labels}.`,
     };
   },
 
@@ -125,6 +136,7 @@ export const SPOKEN = {
     return {
       zh: `你好，我是${aiName}，今天由我来和你聊聊"${title}"这个话题，一共${count}个问题。我们开始吧！第一个问题：${spokenQuestion}`,
       en: `Hi, I'm ${aiName}. Today we'll chat about "${title}" — I have ${count} questions. Let's begin! Here is the first question: ${spokenQuestion}`,
+      id: `Halo, saya ${aiName}. Hari ini kita akan membahas tentang "${title}" — ada ${count} pertanyaan. Kita mulai! Pertanyaan pertama: ${spokenQuestion}`,
     };
   },
 
@@ -133,12 +145,14 @@ export const SPOKEN = {
       return {
         zh: `接下来第${qNum}个问题，${intro}`,
         en: `Next, question ${qNum} — ${intro}`,
+        id: `Selanjutnya pertanyaan ke-${qNum}, ${intro}`,
       };
     },
     normal(qNum: number, qText: string, optionsSuffix: string): BiText {
       return {
         zh: `接下来第${qNum}个问题：${qText}${optionsSuffix}`,
         en: `Next, question ${qNum}: ${qText}${optionsSuffix}`,
+        id: `Selanjutnya pertanyaan ke-${qNum}: ${qText}${optionsSuffix}`,
       };
     },
   },
@@ -148,12 +162,14 @@ export const SPOKEN = {
       return {
         zh: `欢迎回来！我们继续之前的面试。接下来是第${qNum}个问题，${intro}`,
         en: `Welcome back! Let's continue where we left off. Question ${qNum} — ${intro}`,
+        id: `Selamat datang kembali! Kita lanjutkan wawancaranya. Pertanyaan ke-${qNum}, ${intro}`,
       };
     },
     normal(qNum: number, qText: string, optionsSuffix: string): BiText {
       return {
         zh: `欢迎回来！我们继续之前的面试。接下来是第${qNum}个问题：${qText}${optionsSuffix}`,
         en: `Welcome back! Let's continue where we left off. Here's question ${qNum}: ${qText}${optionsSuffix}`,
+        id: `Selamat datang kembali! Kita lanjutkan wawancaranya. Pertanyaan ke-${qNum}: ${qText}${optionsSuffix}`,
       };
     },
   },
@@ -163,12 +179,14 @@ export const SPOKEN = {
       return {
         zh: `好的，我们回到第${qNum}个问题，${intro}`,
         en: `Sure, let's go back to question ${qNum} — ${intro}`,
+        id: `Baik, kita kembali ke pertanyaan ke-${qNum}, ${intro}`,
       };
     },
     normal(qNum: number, qText: string, optionsSuffix: string): BiText {
       return {
         zh: `好的，我们回到第${qNum}个问题：${qText}${optionsSuffix} 请继续补充你的回答。`,
         en: `Sure, let's go back to question ${qNum}: ${qText}${optionsSuffix} Please feel free to add to your previous answer.`,
+        id: `Baik, kita kembali ke pertanyaan ke-${qNum}: ${qText}${optionsSuffix} Silakan tambahkan jawabanmu sebelumnya.`,
       };
     },
   },
@@ -179,10 +197,10 @@ export const SPOKEN = {
 export const PROMPTS = {
   summaryError: INTERVIEW_MESSAGES.summaryError,
 
-  formatHistory(entries: Array<{ role: string; text: string }>, isZh: boolean): string {
+  formatHistory(entries: Array<{ role: string; text: string }>, lang: LangKey): string {
     return entries
       .map((m) =>
-        `${bt(isZh, m.role === "user" ? ROLE_LABELS.participant : ROLE_LABELS.interviewer)}: ${m.text}`
+        `${bt(lang, m.role === "user" ? ROLE_LABELS.participant : ROLE_LABELS.interviewer)}: ${m.text}`
       )
       .join("\n");
   },
@@ -191,6 +209,7 @@ export const PROMPTS = {
     return {
       zh: `以下是面试中关于这个问题的对话：\n问题：${questionText}\n\n${transcript}\n\n请用1-2句话简要总结受访者的回答要点。只输出总结内容，不要加任何前缀。`,
       en: `Interview discussion:\nQuestion: ${questionText}\n\n${transcript}\n\nSummarize the participant's key points in 1-2 sentences. Output only the summary.`,
+      id: `Berikut percakapan wawancara tentang pertanyaan ini:\nPertanyaan: ${questionText}\n\n${transcript}\n\nRingkas poin-poin utama jawaban peserta dalam 1-2 kalimat. Keluarkan hanya ringkasannya.`,
     };
   },
 
@@ -388,8 +407,9 @@ Important: when you are asking the participant to explain their approach (catego
       const guardZh = (p.correctionGuard || "") + (p.antiRepetition || "");
       const guardEn = (p.correctionGuard || "") + (p.antiRepetition || "");
       const lastQ = lastQuestionNotice(p);
-      const langInstr = p.forceLanguage
-        ? `\n**语言要求：你必须用${p.forceLanguage === "en" ? "英文" : "中文"}回复，无论问题是什么语言。** / **Language: You MUST respond in ${p.forceLanguage === "en" ? "English" : "Chinese"}, regardless of the question language.**\n`
+      const forcedName = p.forceLanguage ? getPromptLanguageName(p.forceLanguage) : undefined;
+      const langInstr = forcedName
+        ? `\n**语言要求：无论问题是什么语言，你必须只用 ${forcedName} 回复。** / **Language: You MUST respond ONLY in ${forcedName}, regardless of the question language. Every word you speak must be in ${forcedName}.**\n`
         : "";
       return {
         zh: `你是面试官"${p.aiName}"，正在进行一场关于"${p.title}"的访谈。
@@ -479,8 +499,9 @@ Rules:
       const guardZh = (p.correctionGuard || "") + (p.antiRepetition || "");
       const guardEn = (p.correctionGuard || "") + (p.antiRepetition || "");
       const lastQ = lastQuestionNotice(p);
-      const langInstr = p.forceLanguage
-        ? `\n**语言要求：你必须用${p.forceLanguage === "en" ? "英文" : "中文"}回复，无论问题是什么语言。** / **Language: You MUST respond in ${p.forceLanguage === "en" ? "English" : "Chinese"}, regardless of the question language.**\n`
+      const forcedName = p.forceLanguage ? getPromptLanguageName(p.forceLanguage) : undefined;
+      const langInstr = forcedName
+        ? `\n**语言要求：无论问题是什么语言，你必须只用 ${forcedName} 回复。** / **Language: You MUST respond ONLY in ${forcedName}, regardless of the question language. Every word you speak must be in ${forcedName}.**\n`
         : "";
       return {
         zh: `你是面试官"${p.aiName}"，正在进行一场关于"${p.title}"的访谈。

@@ -3,6 +3,7 @@
 import { Button } from "@/components/ui/button";
 import { ChatComposer } from "@/components/ui/chat-composer";
 import { useToast } from "@/hooks/use-toast";
+import { bt, getLanguageKey } from "@/lib/i18n";
 import { CheckCircle2, MessageSquareText } from "lucide-react";
 import { useEffect, useState } from "react";
 import { readPrepStream } from "./prep-stream";
@@ -26,6 +27,7 @@ type Props = {
   existingTurns: PrepFollowUpTurn[];
   maxTurns: number;
   onTurnSaved?: () => void;
+  language?: string;
 };
 
 export function PrepFollowUp({
@@ -34,8 +36,12 @@ export function PrepFollowUp({
   existingTurns,
   maxTurns,
   onTurnSaved,
+  language,
 }: Props) {
   const { toast } = useToast();
+  const lang = getLanguageKey(language);
+  const t = (text: { en: string; id: string }) =>
+    bt(lang, { zh: text.en, ...text });
   const [activePrompt, setActivePrompt] = useState("");
   const [draft, setDraft] = useState("");
   const [streaming, setStreaming] = useState("");
@@ -126,10 +132,13 @@ export function PrepFollowUp({
       <div className="flex items-center justify-between gap-3 border-b px-4 py-3">
         <div className="flex items-center gap-2 text-sm font-medium">
           <MessageSquareText className="h-4 w-4 text-primary" />
-          Coaching follow-up
+          {t({ en: "Coaching follow-up", id: "Tindak lanjut coaching" })}
         </div>
         <span className="text-xs text-muted-foreground">
-          {completedTurns}/{maxTurns} turn{maxTurns === 1 ? "" : "s"}
+          {t({
+            en: `${completedTurns}/${maxTurns} turn${maxTurns === 1 ? "" : "s"}`,
+            id: `${completedTurns}/${maxTurns} giliran`,
+          })}
         </span>
       </div>
 
@@ -137,7 +146,7 @@ export function PrepFollowUp({
         {localTurns.map((turn, idx) => (
           <div key={idx} className="space-y-3 rounded-md bg-muted/40 p-3">
             <div className="text-xs uppercase tracking-wide text-muted-foreground">
-              Turn {idx + 1}
+              {t({ en: `Turn ${idx + 1}`, id: `Giliran ${idx + 1}` })}
             </div>
             <div className="text-sm font-medium">{turn.prompt}</div>
             <div className="rounded-md bg-background p-2 text-sm">
@@ -158,7 +167,7 @@ export function PrepFollowUp({
               {turn.refinement.stillMissing.length > 0 ? (
                 <div>
                   <div className="mt-2 text-xs font-medium text-muted-foreground">
-                    Still missing
+                    {t({ en: "Still missing", id: "Masih kurang" })}
                   </div>
                   <ul className="ml-6 list-disc text-muted-foreground">
                     {turn.refinement.stillMissing.map((s) => (
@@ -173,7 +182,10 @@ export function PrepFollowUp({
 
         {exhausted ? (
           <p className="text-sm text-muted-foreground">
-            Follow-up coaching complete for this question.
+            {t({
+              en: "Follow-up coaching complete for this question.",
+              id: "Coaching tindak lanjut untuk pertanyaan ini selesai.",
+            })}
           </p>
         ) : activePrompt ? (
           <div className="space-y-3">
@@ -188,7 +200,10 @@ export function PrepFollowUp({
               isGenerating={submitting}
               submitDisabled={draft.trim().length < 4}
               minLength={4}
-              placeholder="Your answer to the follow-up..."
+              placeholder={t({
+                en: "Your answer to the follow-up...",
+                id: "Jawabanmu untuk tindak lanjut...",
+              })}
             />
             {streaming ? (
               <pre className="max-h-40 overflow-auto whitespace-pre-wrap rounded-md bg-muted/40 p-3 text-xs text-muted-foreground">
@@ -204,13 +219,16 @@ export function PrepFollowUp({
                   setActivePrompt("");
                 }}
               >
-                Skip
+                {t({ en: "Skip", id: "Lewati" })}
               </Button>
             </div>
           </div>
         ) : (
           <p className="text-sm text-muted-foreground">
-            No more follow-ups for this question.
+            {t({
+              en: "No more follow-ups for this question.",
+              id: "Tidak ada tindak lanjut lagi untuk pertanyaan ini.",
+            })}
           </p>
         )}
       </div>

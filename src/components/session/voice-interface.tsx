@@ -1,6 +1,7 @@
 "use client";
 
 import { CodeBlock } from "@/components/code-editor/code-block";
+import { bt, getLanguageKey, type BiText, type LangKey } from "@/lib/i18n";
 import {
     CodeEditorCanvas,
     type CodeEditorCanvasRef,
@@ -390,6 +391,36 @@ const MIN_PANEL_WIDTH = 260;
 const DEFAULT_RIGHT_WIDTH = 380;
 const COLLAPSED_RIGHT_DOCK_WIDTH = 56;
 
+/** Localize known voice-failure strings; unknown/technical messages pass through. */
+function localizeVoiceError(message: string, lang: LangKey): string {
+  const known: Record<string, BiText> = {
+    "Voice connection error. Is the relay server running?": {
+      en: "Voice connection error. Is the relay server running?",
+      zh: "语音连接出错。中继服务器是否在运行？",
+      id: "Koneksi suara bermasalah. Apakah server relay sedang berjalan?",
+    },
+    "Voice connection failed": {
+      en: "Voice connection failed",
+      zh: "语音连接失败",
+      id: "Koneksi suara gagal",
+    },
+    "Microphone access failed": {
+      en: "Microphone access failed",
+      zh: "麦克风访问失败",
+      id: "Akses mikrofon gagal",
+    },
+  };
+  const FAILED_PREFIX = "Connection failed: ";
+  if (message.startsWith(FAILED_PREFIX)) {
+    return (
+      bt(lang, { en: FAILED_PREFIX, zh: "连接失败：", id: "Koneksi gagal: " }) +
+      message.slice(FAILED_PREFIX.length)
+    );
+  }
+  const hit = known[message];
+  return hit ? bt(lang, hit) : message;
+}
+
 export function VoiceInterface({
   sessionId,
   interviewId,
@@ -410,6 +441,7 @@ export function VoiceInterface({
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === "dark";
   const isMobile = useIsMobile();
+  const lang = getLanguageKey(interviewContext.language);
 
   const [messages, setMessages] = useState<Message[]>(
     () =>
@@ -1395,7 +1427,10 @@ export function VoiceInterface({
     return () => clearTimeout(timer);
   }, [voice.isInterviewComplete, locallyCompleted]);
   const completionScreen = (
-    <SessionEndedScreen reason={localCompletionReason} />
+    <SessionEndedScreen
+      reason={localCompletionReason}
+      language={interviewContext.language}
+    />
   );
 
   const sortedQuestions = interviewContext.questions.slice().sort((a, b) => a.order - b.order);
@@ -1588,9 +1623,11 @@ export function VoiceInterface({
       {isSaving && (
         <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-background/80 backdrop-blur-sm">
           <Loader2 className="h-10 w-10 animate-spin text-primary" />
-          <p className="mt-4 text-lg font-medium">Saving interview data...</p>
+          <p className="mt-4 text-lg font-medium">
+            {bt(lang, { en: "Saving interview data...", zh: "Saving interview data...", id: "Menyimpan data wawancara..." })}
+          </p>
           <p className="mt-1 text-sm text-muted-foreground">
-            This will only take a moment.
+            {bt(lang, { en: "This will only take a moment.", zh: "This will only take a moment.", id: "Ini hanya sebentar saja." })}
           </p>
         </div>
       )}
@@ -1614,7 +1651,7 @@ export function VoiceInterface({
             <Badge variant={preview ? "outline" : voice.isConnected ? "default" : "secondary"}>
               {preview ? "Preview" : voice.isConnected ? "Connected" : "Disconnected"}
             </Badge>
-            <IntervieweeHelpPopover mode="voice" />
+            <IntervieweeHelpPopover mode="voice" language={interviewContext.language} />
           </div>
         </div>
         {/* Question progress + timer (mobile: timer in header to avoid blocking bottom buttons) */}
@@ -1626,7 +1663,7 @@ export function VoiceInterface({
           {remainingSeconds !== null && isMobile && (
             <div className={`flex shrink-0 items-center gap-1.5 rounded-md px-2 py-0.5 text-xs font-medium tabular-nums ${isTimeLow ? "bg-destructive/10 text-destructive" : "bg-muted text-muted-foreground"}`}>
               <Clock className="h-3 w-3" />
-              <span>{formatTime(remainingSeconds)} left</span>
+              <span>{bt(lang, { en: `${formatTime(remainingSeconds)} left`, zh: `${formatTime(remainingSeconds)} left`, id: `${formatTime(remainingSeconds)} tersisa` })}</span>
             </div>
           )}
         </div>
@@ -1642,7 +1679,7 @@ export function VoiceInterface({
       {error && (
         <div className="mx-6 mt-2 flex items-center gap-2 rounded-md bg-destructive/10 px-4 py-2 text-sm text-destructive">
           <AlertCircle className="h-4 w-4 shrink-0" />
-          {error}
+          {localizeVoiceError(error, getLanguageKey(interviewContext.language))}
         </div>
       )}
 
@@ -1658,7 +1695,7 @@ export function VoiceInterface({
                 {showVoiceSpeaking && (
                   <div className="flex items-center gap-1.5 text-primary">
                     <Volume2 className="h-4 w-4 animate-pulse" />
-                    <span className="text-xs font-medium">{aiName} speaking</span>
+                    <span className="text-xs font-medium">{bt(lang, { en: `${aiName} speaking`, zh: `${aiName} speaking`, id: `${aiName} sedang berbicara` })}</span>
                   </div>
                 )}
                 {showVoiceListening && (
@@ -1672,28 +1709,36 @@ export function VoiceInterface({
                         <Mic className="h-full w-full text-secondary-400" />
                       </div>
                     </div>
-                    <span className="text-xs font-medium">Listening</span>
+                    <span className="text-xs font-medium">{bt(lang, { en: "Listening", zh: "Listening", id: "Mendengarkan" })}</span>
                   </div>
                 )}
                 {showVoiceProcessing && (
                   <div className="flex items-center gap-1.5 text-muted-foreground">
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    <span className="text-xs font-medium">Thinking</span>
+                    <span className="text-xs font-medium">{bt(lang, { en: "Thinking", zh: "Thinking", id: "Berpikir" })}</span>
                   </div>
                 )}
                 {showVoiceTransitioning && (
                   <div className="flex items-center gap-1.5 text-muted-foreground">
                     <Loader2 className="h-4 w-4 animate-spin" />
                     <span className="text-xs font-medium">
-                      {voice.transitionDirection === "previous" ? "Previous question..." : "Next question..."}
+                      {bt(lang, {
+                        en: voice.transitionDirection === "previous" ? "Previous question..." : "Next question...",
+                        zh: voice.transitionDirection === "previous" ? "Previous question..." : "Next question...",
+                        id: voice.transitionDirection === "previous" ? "Pertanyaan sebelumnya..." : "Pertanyaan berikutnya...",
+                      })}
                     </span>
                   </div>
                 )}
                 {!showVoiceSpeaking && !showVoiceListening && !showVoiceProcessing && !showVoiceTransitioning && (
                   <span className="text-xs text-muted-foreground">
                     {voice.isConnected
-                      ? `Voice active — ${whiteboardActive ? "draw" : "code"} freely`
-                      : "Voice disconnected"}
+                      ? bt(lang, {
+                          en: `Voice active — ${whiteboardActive ? "draw" : "code"} freely`,
+                          zh: `Voice active — ${whiteboardActive ? "draw" : "code"} freely`,
+                          id: whiteboardActive ? "Suara aktif — gambar dengan bebas" : "Suara aktif — coding dengan bebas",
+                        })
+                      : bt(lang, { en: "Voice disconnected", zh: "Voice disconnected", id: "Suara terputus" })}
                   </span>
                 )}
                 {showVoiceListening && voice.userTranscript && (
@@ -1994,7 +2039,11 @@ export function VoiceInterface({
                   <div className="flex items-center gap-2 text-muted-foreground">
                     <Loader2 className="h-5 w-5 animate-spin" />
                     <span className="text-sm font-medium">
-                      {voice.transitionDirection === "previous" ? "Preparing previous question..." : "Preparing next question..."}
+                      {bt(lang, {
+                        en: voice.transitionDirection === "previous" ? "Preparing previous question..." : "Preparing next question...",
+                        zh: voice.transitionDirection === "previous" ? "Preparing previous question..." : "Preparing next question...",
+                        id: voice.transitionDirection === "previous" ? "Menyiapkan pertanyaan sebelumnya..." : "Menyiapkan pertanyaan berikutnya...",
+                      })}
                     </span>
                   </div>
                 )}
@@ -2002,7 +2051,7 @@ export function VoiceInterface({
                   <div className="flex flex-col items-center gap-3">
                     <div className="flex items-center gap-2 text-muted-foreground">
                       <Loader2 className="h-5 w-5 animate-spin" />
-                      <span className="text-sm font-medium">Thinking...</span>
+                      <span className="text-sm font-medium">{bt(lang, { en: "Thinking...", zh: "Thinking...", id: "Berpikir..." })}</span>
                     </div>
                     {(() => {
                       const lastUserMsg = messages.filter(m => m.role === "user").pop();
@@ -2018,7 +2067,7 @@ export function VoiceInterface({
                 {showVoiceSpeaking && (
                   <div className="flex items-center gap-2 text-primary">
                     <Volume2 className="h-5 w-5 animate-pulse" />
-                    <span className="text-sm font-medium">{aiName} is speaking...</span>
+                    <span className="text-sm font-medium">{bt(lang, { en: `${aiName} is speaking...`, zh: `${aiName} is speaking...`, id: `${aiName} sedang berbicara...` })}</span>
                   </div>
                 )}
                 {showVoiceListening && (
@@ -2033,7 +2082,7 @@ export function VoiceInterface({
                         <Mic className="h-full w-full text-secondary-400" />
                       </div>
                     </div>
-                    <span className="text-sm font-medium text-secondary-500">Listening...</span>
+                    <span className="text-sm font-medium text-secondary-500">{bt(lang, { en: "Listening...", zh: "Listening...", id: "Mendengarkan..." })}</span>
                   </div>
                 )}
 
@@ -2101,7 +2150,11 @@ export function VoiceInterface({
 
               {!voice.isConnected && !preview && isStartingInterview && (
                 <p className="text-sm text-muted-foreground">
-                  Connecting to the interview. This can take a few seconds.
+                  {bt(lang, {
+                    en: "Connecting to the interview. This can take a few seconds.",
+                    zh: "Connecting to the interview. This can take a few seconds.",
+                    id: "Menghubungkan ke wawancara. Ini bisa memakan waktu beberapa detik.",
+                  })}
                 </p>
               )}
 
@@ -2112,12 +2165,16 @@ export function VoiceInterface({
               )}
               {voice.isConnected && !voice.isListening && (
                 <p className="text-sm text-muted-foreground">
-                  Click the mic to start speaking
+                  {bt(lang, { en: "Click the mic to start speaking", zh: "Click the mic to start speaking", id: "Klik mikrofon untuk mulai berbicara" })}
                 </p>
               )}
               {voice.isConnected && showVoiceListening && (
                 <p className="text-sm text-muted-foreground">
-                  Speak naturally — AI will respond automatically
+                  {bt(lang, {
+                    en: "Speak naturally — AI will respond automatically",
+                    zh: "自然说话——AI 会自动回应",
+                    id: "Bicaralah secara natural — AI akan merespons otomatis",
+                  })}
                 </p>
               )}
               </div>
@@ -2160,21 +2217,29 @@ export function VoiceInterface({
                               <Volume2 className="mt-0.5 h-3 w-3 shrink-0 text-primary/60" />
                               <div>
                                 <span className="font-medium text-primary">{aiName}:</span>{" "}
-                                Welcome! Let&apos;s begin the interview. Could you start by telling me about yourself?
+                                {bt(lang, {
+                                  en: "Welcome! Let's begin the interview. Could you start by telling me about yourself?",
+                                  zh: "Welcome! Let's begin the interview. Could you start by telling me about yourself?",
+                                  id: "Selamat datang! Mari mulai wawancara...",
+                                })}
                               </div>
                             </div>
                             <div className="flex items-start gap-1.5 text-sm">
                               <Mic className="mt-0.5 h-3 w-3 shrink-0 text-muted-foreground" />
                               <div>
-                                <span className="font-medium text-secondary-600 dark:text-secondary-400">You:</span>{" "}
-                                Sure, I have been working as a software engineer for...
+                                <span className="font-medium text-secondary-600 dark:text-secondary-400">{bt(lang, { en: "You:", zh: "You:", id: "Kamu:" })}</span>{" "}
+                                {bt(lang, {
+                                  en: "Sure, I have been working as a software engineer for...",
+                                  zh: "Sure, I have been working as a software engineer for...",
+                                  id: "Tentu, saya telah bekerja sebagai software engineer selama...",
+                                })}
                               </div>
                             </div>
-                            <p className="text-center text-xs text-muted-foreground italic">(sample transcript)</p>
+                            <p className="text-center text-xs text-muted-foreground italic">{bt(lang, { en: "(sample transcript)", zh: "(sample transcript)", id: "(contoh transkrip)" })}</p>
                           </>
                         ) : messages.length === 0 && !voice.aiTranscript && !voice.userTranscript ? (
                           <p className="py-8 text-center text-sm text-muted-foreground">
-                            Transcript will appear here once the conversation starts.
+                            {bt(lang, { en: "Transcript will appear here once the conversation starts.", zh: "Transcript will appear here once the conversation starts.", id: "Transkrip akan muncul di sini setelah percakapan dimulai." })}
                           </p>
                         ) : (
                           <>
@@ -2195,7 +2260,7 @@ export function VoiceInterface({
                                         : "text-primary"
                                     }`}
                                   >
-                                    {msg.role === "user" ? "You" : aiName}:
+                                    {msg.role === "user" ? bt(lang, { en: "You", zh: "You", id: "Kamu" }) : aiName}:
                                   </span>{" "}
                                   {msg.content}
                                 </div>
@@ -2205,7 +2270,7 @@ export function VoiceInterface({
                               <div className={`flex items-start gap-1.5 text-sm${showVoiceListening ? " animate-pulse" : ""}`}>
                                 <Mic className="mt-0.5 h-3 w-3 shrink-0 text-muted-foreground" />
                                 <div>
-                                  <span className="font-medium text-secondary-600 dark:text-secondary-400">You:</span>{" "}
+                                  <span className="font-medium text-secondary-600 dark:text-secondary-400">{bt(lang, { en: "You:", zh: "You:", id: "Kamu:" })}</span>{" "}
                                   <span className="text-muted-foreground">{voice.userTranscript}</span>
                                 </div>
                               </div>
@@ -2213,7 +2278,7 @@ export function VoiceInterface({
                             {voice.isProcessing && !voice.aiTranscript && (
                               <div className="flex items-start gap-1.5 text-sm text-muted-foreground">
                                 <Loader2 className="mt-0.5 h-3 w-3 shrink-0 animate-spin text-primary/60" />
-                                <span className="text-xs italic">Thinking...</span>
+                                <span className="text-xs italic">{bt(lang, { en: "Thinking...", zh: "Thinking...", id: "Berpikir..." })}</span>
                               </div>
                             )}
                             {voice.aiTranscript && (() => {
@@ -2298,21 +2363,29 @@ export function VoiceInterface({
                           <Volume2 className="mt-0.5 h-3 w-3 shrink-0 text-primary/60" />
                           <div>
                             <span className="font-medium text-primary">{aiName}:</span>{" "}
-                            Welcome! Let&apos;s begin the interview. Could you start by telling me about yourself?
+                            {bt(lang, {
+                              en: "Welcome! Let's begin the interview. Could you start by telling me about yourself?",
+                              zh: "Welcome! Let's begin the interview. Could you start by telling me about yourself?",
+                              id: "Selamat datang! Mari mulai wawancara...",
+                            })}
                           </div>
                         </div>
                         <div className="flex items-start gap-1.5 text-sm">
                           <Mic className="mt-0.5 h-3 w-3 shrink-0 text-muted-foreground" />
                           <div>
-                            <span className="font-medium text-secondary-600 dark:text-secondary-400">You:</span>{" "}
-                            Sure, I have been working as a software engineer for...
+                            <span className="font-medium text-secondary-600 dark:text-secondary-400">{bt(lang, { en: "You:", zh: "You:", id: "Kamu:" })}</span>{" "}
+                            {bt(lang, {
+                              en: "Sure, I have been working as a software engineer for...",
+                              zh: "Sure, I have been working as a software engineer for...",
+                              id: "Tentu, saya telah bekerja sebagai software engineer selama...",
+                            })}
                           </div>
                         </div>
-                        <p className="text-center text-xs text-muted-foreground italic">(sample transcript)</p>
+                        <p className="text-center text-xs text-muted-foreground italic">{bt(lang, { en: "(sample transcript)", zh: "(sample transcript)", id: "(contoh transkrip)" })}</p>
                       </>
                     ) : messages.length === 0 && !voice.aiTranscript && !voice.userTranscript ? (
                       <p className="py-8 text-center text-sm text-muted-foreground">
-                        Transcript will appear here once the conversation starts.
+                        {bt(lang, { en: "Transcript will appear here once the conversation starts.", zh: "Transcript will appear here once the conversation starts.", id: "Transkrip akan muncul di sini setelah percakapan dimulai." })}
                       </p>
                     ) : (
                       <>
@@ -2333,7 +2406,7 @@ export function VoiceInterface({
                                     : "text-primary"
                                 }`}
                               >
-                                {msg.role === "user" ? "You" : aiName}:
+                                {msg.role === "user" ? bt(lang, { en: "You", zh: "You", id: "Kamu" }) : aiName}:
                               </span>{" "}
                               {msg.content}
                             </div>
@@ -2343,7 +2416,7 @@ export function VoiceInterface({
                           <div className={`flex items-start gap-1.5 text-sm${showVoiceListening ? " animate-pulse" : ""}`}>
                             <Mic className="mt-0.5 h-3 w-3 shrink-0 text-muted-foreground" />
                             <div>
-                              <span className="font-medium text-secondary-600 dark:text-secondary-400">You:</span>{" "}
+                              <span className="font-medium text-secondary-600 dark:text-secondary-400">{bt(lang, { en: "You:", zh: "You:", id: "Kamu:" })}</span>{" "}
                               <span className="text-muted-foreground">{voice.userTranscript}</span>
                             </div>
                           </div>
@@ -2351,7 +2424,7 @@ export function VoiceInterface({
                         {voice.isProcessing && !voice.aiTranscript && (
                           <div className="flex items-start gap-1.5 text-sm text-muted-foreground">
                             <Loader2 className="mt-0.5 h-3 w-3 shrink-0 animate-spin text-primary/60" />
-                            <span className="text-xs italic">Thinking...</span>
+                            <span className="text-xs italic">{bt(lang, { en: "Thinking...", zh: "Thinking...", id: "Berpikir..." })}</span>
                           </div>
                         )}
                         {voice.aiTranscript && (() => {
@@ -2395,7 +2468,7 @@ export function VoiceInterface({
                     <div className="space-y-3 p-4">
                       {chatMessages.length === 0 ? (
                         <p className="py-4 text-center text-xs text-muted-foreground">
-                          Send a message to start chatting.
+                          {bt(lang, { en: "Send a message to start chatting.", zh: "Send a message to start chatting.", id: "Kirim pesan untuk mulai mengobrol." })}
                         </p>
                       ) : (
                         chatMessages.map((msg) => (
@@ -2413,7 +2486,7 @@ export function VoiceInterface({
                       ref={chatInputRef}
                       value={chatInput}
                       onChange={(e) => setChatInput(e.target.value)}
-                      placeholder="Type a message..."
+                      placeholder={bt(lang, { en: "Type a message...", zh: "Type a message...", id: "Ketik pesan..." })}
                       className="h-8 flex-1 text-sm"
                       onKeyDown={(e) => {
                         if (e.key === "Enter" && !e.shiftKey && chatInput.trim()) {
@@ -2452,7 +2525,7 @@ export function VoiceInterface({
           {remainingSeconds !== null && !isMobile && (
             <div className={`absolute right-3 flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium tabular-nums md:right-6 md:px-2.5 ${isTimeLow ? "bg-destructive/10 text-destructive" : "bg-muted text-muted-foreground"}`}>
               <Clock className="h-3.5 w-3.5" />
-              <span>{formatTime(remainingSeconds)} left</span>
+              <span>{bt(lang, { en: `${formatTime(remainingSeconds)} left`, zh: `${formatTime(remainingSeconds)} left`, id: `${formatTime(remainingSeconds)} tersisa` })}</span>
             </div>
           )}
           {/* Mic toggle */}
@@ -2605,18 +2678,22 @@ export function VoiceInterface({
       <AlertDialog open={showEndDialog} onOpenChange={setShowEndDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>End interview?</AlertDialogTitle>
+            <AlertDialogTitle>{bt(lang, { en: "End interview?", zh: "End interview?", id: "Akhiri wawancara?" })}</AlertDialogTitle>
             <AlertDialogDescription>
-              This will save your progress and end the current interview session. You won&apos;t be able to continue after this.
+              {bt(lang, {
+                en: "This will save your progress and end the current interview session. You won't be able to continue after this.",
+                zh: "This will save your progress and end the current interview session. You won't be able to continue after this.",
+                id: "Progresmu akan disimpan dan sesi wawancara ini akan diakhiri. Kamu tidak bisa melanjutkan setelah ini.",
+              })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{bt(lang, { en: "Cancel", zh: "Cancel", id: "Batal" })}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={() => handleEndInterview()}
             >
-              End Interview
+              {bt(lang, { en: "End Interview", zh: "End Interview", id: "Akhiri Wawancara" })}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -2637,7 +2714,7 @@ export function VoiceInterface({
               <div className="space-y-3 p-4">
                 {messages.length === 0 && !voice.aiTranscript && !voice.userTranscript ? (
                   <p className="py-8 text-center text-sm text-muted-foreground">
-                    Transcript will appear here once the conversation starts.
+                    {bt(lang, { en: "Transcript will appear here once the conversation starts.", zh: "Transcript will appear here once the conversation starts.", id: "Transkrip akan muncul di sini setelah percakapan dimulai." })}
                   </p>
                 ) : (
                   <>
@@ -2658,7 +2735,7 @@ export function VoiceInterface({
                                 : "text-primary"
                             }`}
                           >
-                            {msg.role === "user" ? "You" : aiName}:
+                            {msg.role === "user" ? bt(lang, { en: "You", zh: "You", id: "Kamu" }) : aiName}:
                           </span>{" "}
                           {msg.content}
                         </div>
@@ -2668,7 +2745,7 @@ export function VoiceInterface({
                       <div className={`flex items-start gap-1.5 text-sm${showVoiceListening ? " animate-pulse" : ""}`}>
                         <Mic className="mt-0.5 h-3 w-3 shrink-0 text-muted-foreground" />
                         <div>
-                          <span className="font-medium text-secondary-600 dark:text-secondary-400">You:</span>{" "}
+                          <span className="font-medium text-secondary-600 dark:text-secondary-400">{bt(lang, { en: "You:", zh: "You:", id: "Kamu:" })}</span>{" "}
                           <span className="text-muted-foreground">{voice.userTranscript}</span>
                         </div>
                       </div>
@@ -2696,7 +2773,7 @@ export function VoiceInterface({
                 ref={chatInputRef}
                 value={chatInput}
                 onChange={(e) => setChatInput(e.target.value)}
-                placeholder="Type a message..."
+                placeholder={bt(lang, { en: "Type a message...", zh: "Type a message...", id: "Ketik pesan..." })}
                 className="h-8 flex-1 text-base md:text-sm"
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && !e.shiftKey && chatInput.trim()) {

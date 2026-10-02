@@ -691,7 +691,7 @@ To run an interview: 1. Create interview (\`POST /interviews\`), 2. Add question
             enum: ["LIGHT", "MODERATE", "DEEP"],
             example: "MODERATE",
           },
-          language: { type: "string", example: "en" },
+          language: { type: "string", example: "id" },
           timeLimitMinutes: { type: ["integer", "null"], minimum: 1, example: 45 },
           antiCheatingEnabled: { type: "boolean", example: false },
           projectId: { type: "string" },
@@ -762,7 +762,7 @@ To run an interview: 1. Create interview (\`POST /interviews\`), 2. Add question
             enum: ["LIGHT", "MODERATE", "DEEP"],
             default: "MODERATE",
           },
-          language: { type: "string", default: "en", example: "en" },
+          language: { type: "string", default: "id", example: "id" },
           timeLimitMinutes: {
             type: "integer",
             minimum: 1,

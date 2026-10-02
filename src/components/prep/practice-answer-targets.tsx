@@ -18,17 +18,20 @@ import { useMemo } from "react";
 export function AnswerTargetChips({
   questionType,
   questionText,
+  language,
   className,
   "data-tour": dataTour,
 }: {
   questionType?: string | null;
   questionText: string;
+  language?: string;
   className?: string;
   "data-tour"?: string;
 }) {
+  const id = !!language && language.toLowerCase().startsWith("id");
   const target = useMemo(
-    () => buildAnswerTarget(questionType, questionText),
-    [questionType, questionText],
+    () => buildAnswerTarget(questionType, questionText, language),
+    [questionType, questionText, language],
   );
 
   return (
@@ -40,7 +43,7 @@ export function AnswerTargetChips({
       )}
     >
       <span className="mr-0.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-        Aim for
+        {id ? "Targetkan" : "Aim for"}
       </span>
       <Tooltip>
         <TooltipTrigger asChild>
@@ -61,7 +64,7 @@ export function AnswerTargetChips({
           </Badge>
         </TooltipTrigger>
         <TooltipContent side="top" className="text-xs">
-          About {target.wordsLabel} spoken
+          {id ? `Sekitar ${target.wordsLabel} saat diucapkan` : `About ${target.wordsLabel} spoken`}
         </TooltipContent>
       </Tooltip>
       <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">

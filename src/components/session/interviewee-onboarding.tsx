@@ -17,7 +17,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import type { InterviewContext } from "@/hooks/use-voice";
 import { DEFAULT_FOLLOW_UP_DEPTH } from "@/lib/follow-up-depth";
-import { getMicTestMessage } from "@/lib/i18n";
+import { bt, getLanguageKey, getMicTestMessage } from "@/lib/i18n";
 import {
     setCameraSkipped,
     setScreenSkipped,
@@ -95,11 +95,14 @@ function WelcomeIllustration() {
 
 export function PreviewWrapper({
   onReady,
+  language,
   children,
 }: {
   onReady: () => void;
+  language?: string;
   children: React.ReactNode;
 }) {
+  const lang = getLanguageKey(language);
   const tour = useIntervieweeTour();
   const tourDone = tour?.finished ?? false;
   const [welcomed, setWelcomed] = useState(false);
@@ -125,14 +128,22 @@ export function PreviewWrapper({
           <div className="mx-4 w-full max-w-md overflow-hidden rounded-2xl border border-border/30 bg-white shadow-2xl">
             <WelcomeIllustration />
             <div className="space-y-3 px-8 pb-8 pt-2 text-center">
-              <h3 className="text-xl font-bold text-gray-900">Welcome to your interview!</h3>
+              <h3 className="text-xl font-bold text-gray-900">
+                {bt(lang, { en: "Welcome to your interview!", zh: "Welcome to your interview!", id: "Selamat datang di wawancaramu!" })}
+              </h3>
               <p className="text-[15px] font-medium text-gray-700">
-                Take a quick tour of the interview interface.
+                {bt(lang, {
+                  en: "Take a quick tour of the interview interface.",
+                  zh: "Take a quick tour of the interview interface.",
+                  id: "Ikuti tur singkat antarmuka wawancara.",
+                })}
               </p>
               <p className="text-sm leading-relaxed text-gray-500">
-                We&apos;ll walk you through the key features — voice controls,
-                transcript, whiteboard, and more — so you know exactly where
-                everything is.
+                {bt(lang, {
+                  en: "We'll walk you through the key features — voice controls, transcript, whiteboard, and more — so you know exactly where everything is.",
+                  zh: "We'll walk you through the key features — voice controls, transcript, whiteboard, and more — so you know exactly where everything is.",
+                  id: "Kami akan menunjukkan kontrol utama yang perlu kamu ketahui.",
+                })}
               </p>
               <div className="flex flex-col-reverse gap-3 pt-3 sm:flex-row sm:items-stretch">
                 <Button
@@ -141,10 +152,10 @@ export function PreviewWrapper({
                   className="text-muted-foreground"
                   onClick={handleSkipTour}
                 >
-                  Skip for now
+                  {bt(lang, { en: "Skip for now", zh: "Skip for now", id: "Lewati dulu" })}
                 </Button>
                 <Button className="sm:flex-1" size="lg" onClick={handleStartTour}>
-                  Take a quick tour
+                  {bt(lang, { en: "Take a quick tour", zh: "Take a quick tour", id: "Ikuti tur singkat" })}
                 </Button>
               </div>
             </div>
@@ -157,9 +168,15 @@ export function PreviewWrapper({
         <div className="absolute inset-0 z-[9997] flex items-center justify-center bg-black/40 backdrop-blur-[2px]">
           <div className="mx-4 w-full max-w-md space-y-4 rounded-2xl border bg-card p-6 shadow-2xl">
             <div className="text-center">
-              <h3 className="text-lg font-semibold">You&apos;re all set!</h3>
+              <h3 className="text-lg font-semibold">
+                {bt(lang, { en: "You're all set!", zh: "You're all set!", id: "Kamu sudah siap!" })}
+              </h3>
               <p className="mt-1 text-sm text-muted-foreground">
-                You can start the interview now, or restart the tour if you&apos;d like another look.
+                {bt(lang, {
+                  en: "You can start the interview now, or restart the tour if you'd like another look.",
+                  zh: "You can start the interview now, or restart the tour if you'd like another look.",
+                  id: "Kamu bisa mulai wawancara sekarang, atau putar ulang tur jika ingin melihat lagi.",
+                })}
               </p>
             </div>
             <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-stretch">
@@ -170,10 +187,10 @@ export function PreviewWrapper({
                 onClick={() => tour?.restart()}
               >
                 <RotateCcw className="h-3.5 w-3.5" />
-                Restart tour
+                {bt(lang, { en: "Restart tour", zh: "Restart tour", id: "Putar ulang tur" })}
               </Button>
               <Button className="sm:flex-1" size="lg" onClick={onReady}>
-                Start Interview
+                {bt(lang, { en: "Start Interview", zh: "Start Interview", id: "Mulai Wawancara" })}
               </Button>
             </div>
           </div>
@@ -244,11 +261,14 @@ function CameraCheck({
   done,
   onDone,
   allowSkip = true,
+  language,
 }: {
   done: boolean;
   onDone: () => void;
   allowSkip?: boolean;
+  language?: string;
 }) {
+  const lang = getLanguageKey(language);
   const [showSkipDialog, setShowSkipDialog] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -273,9 +293,15 @@ function CameraCheck({
       setPhoto(null);
       setStreaming(true);
     } catch {
-      setError("Unable to access camera. Please check permissions.");
+      setError(
+        bt(lang, {
+          en: "Unable to access camera. Please check permissions.",
+          zh: "无法访问摄像头，请检查权限。",
+          id: "Tidak dapat mengakses kamera. Silakan periksa izin.",
+        }),
+      );
     }
-  }, []);
+  }, [lang]);
 
   const stopCamera = useCallback(() => {
     streamRef.current?.getTracks().forEach((t) => t.stop());
@@ -509,6 +535,7 @@ function MicCheck({ done, onDone, language, allowSkip = true, externalSkipped }:
   onDoneRef.current = onDone;
   const languageRef = useRef(language);
   languageRef.current = language;
+  const micLang = getLanguageKey(language);
 
   const stopAll = useCallback(() => {
     if (listenDelayRef.current !== null) {
@@ -810,7 +837,13 @@ function MicCheck({ done, onDone, language, allowSkip = true, externalSkipped }:
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       stream.getTracks().forEach((t) => t.stop());
     } catch {
-      setError("Unable to access microphone. Please check permissions.");
+      setError(
+        bt(getLanguageKey(language), {
+          en: "Unable to access microphone. Please check permissions.",
+          zh: "无法访问麦克风，请检查权限。",
+          id: "Tidak dapat mengakses mikrofon. Silakan periksa izin.",
+        }),
+      );
       setPhase("idle");
       return;
     }
@@ -889,7 +922,13 @@ function MicCheck({ done, onDone, language, allowSkip = true, externalSkipped }:
     } catch (err) {
       abortRef.current = null;
       if (err instanceof DOMException && err.name === "AbortError") return;
-      setError("Unable to play Seed TTS. Please retry the microphone test.");
+      setError(
+        bt(getLanguageKey(language), {
+          en: "Unable to play Seed TTS. Please retry the microphone test.",
+          zh: "无法播放语音，请重试麦克风测试。",
+          id: "Gagal memutar suara. Silakan ulangi tes mikrofon.",
+        }),
+      );
       setPhase("idle");
     }
   }, [getSpeechSynthesisApi, language, startListeningAfterPlayback, stopTtsPlayback]);
@@ -1003,39 +1042,74 @@ function MicCheck({ done, onDone, language, allowSkip = true, externalSkipped }:
 
         <div className="flex-1 space-y-2">
           <p className="text-sm font-medium">
-            Test your speaker and microphone to ensure audio is working
-            properly.
+            {bt(micLang, {
+              en: "Test your speaker and microphone to ensure audio is working properly.",
+              zh: "测试你的扬声器和麦克风，确保音频正常工作。",
+              id: "Tes speaker dan mikrofonmu untuk memastikan audio berfungsi dengan baik.",
+            })}
           </p>
           <p className="text-xs text-muted-foreground">
             {phase === "idle" && !done &&
-              "Click \"Test Microphone\" to hear a message from the voice agent. Then speak your response to confirm the audio works — just like in the actual interview."}
+              bt(micLang, {
+                en: 'Click "Test Microphone" to hear a message from the voice agent. Then speak your response to confirm the audio works — just like in the actual interview.',
+                zh: "点击“测试麦克风”听取语音助手的消息，然后说出你的回应以确认音频正常——就像正式面试时一样。",
+                id: 'Klik "Tes Mikrofon" untuk mendengar pesan dari voice agent. Lalu ucapkan jawabanmu untuk memastikan audio berfungsi — sama seperti saat wawancara nanti.',
+              })}
             {phase === "requesting" &&
-              "Granting microphone access..."}
+              bt(micLang, {
+                en: "Granting microphone access...",
+                zh: "正在请求麦克风权限……",
+                id: "Meminta akses mikrofon...",
+              })}
             {phase === "playing" &&
-              "The voice agent is speaking. Listening will start automatically."}
+              bt(micLang, {
+                en: "The voice agent is speaking. Listening will start automatically.",
+                zh: "语音助手正在说话，将自动开始聆听。",
+                id: "Voice agent sedang berbicara. Perekaman suara akan dimulai otomatis.",
+              })}
             {phase === "listening" &&
-              "Speak briefly — any short phrase is fine — so we know the microphone is working."}
+              bt(micLang, {
+                en: "Speak briefly — any short phrase is fine — so we know the microphone is working.",
+                zh: "请简短说几句（任何短语都行），以确认麦克风正常。",
+                id: "Ucapkan sesuatu secara singkat — kalimat pendek apa saja — agar kami tahu mikrofon berfungsi.",
+              })}
             {phase === "analyzing" &&
-              "Checking your response..."}
+              bt(micLang, {
+                en: "Checking your response...",
+                zh: "正在检查你的回答……",
+                id: "Memeriksa jawabanmu...",
+              })}
             {phase === "confirm" && !done && allowSkip &&
-              "We couldn't detect your voice. Try again, or "}
+              bt(micLang, {
+                en: "We couldn't detect your voice. Try again, or ",
+                zh: "我们没有检测到你的声音。请重试，或 ",
+                id: "Suaramu tidak terdeteksi. Coba lagi, atau ",
+              })}
             {phase === "confirm" && !done && allowSkip && (
               <button type="button" className="font-medium text-primary hover:underline" onClick={() => setShowSkipDialog(true)}>
-                skip this step
+                {bt(micLang, { en: "skip this step", zh: "跳过此步骤", id: "lewati langkah ini" })}
               </button>
             )}
             {phase === "confirm" && !done && allowSkip && "."}
             {phase === "confirm" && !done && !allowSkip &&
-              "We couldn't detect your voice. Please try again."}
+              bt(micLang, {
+                en: "We couldn't detect your voice. Please try again.",
+                zh: "我们没有检测到你的声音，请重试。",
+                id: "Suaramu tidak terdeteksi. Silakan coba lagi.",
+              })}
             {done &&
-              "Audio test passed. Your speaker and microphone are working."}
+              bt(micLang, {
+                en: "Audio test passed. Your speaker and microphone are working.",
+                zh: "音频测试通过。扬声器和麦克风工作正常。",
+                id: "Tes audio berhasil. Speaker dan mikrofonmu berfungsi dengan baik.",
+              })}
           </p>
           {error && (
             <div className="flex items-center gap-1.5 rounded-md bg-destructive/10 px-2.5 py-1.5 text-xs text-destructive">
               <AlertCircle className="h-3.5 w-3.5 shrink-0" />
               <span>{error}</span>
               <button type="button" className="ml-auto font-medium underline" onClick={playTTS}>
-                Retry
+                {bt(micLang, { en: "Retry", zh: "重试", id: "Coba lagi" })}
               </button>
             </div>
           )}
@@ -1094,11 +1168,14 @@ function ScreenCheck({
   done,
   onDone,
   allowSkip = true,
+  language,
 }: {
   done: boolean;
   onDone: () => void;
   allowSkip?: boolean;
+  language?: string;
 }) {
+  const lang = getLanguageKey(language);
   const [error, setError] = useState<string | null>(null);
   const [thumbnail, setThumbnail] = useState<string | null>(null);
   const [showSkipDialog, setShowSkipDialog] = useState(false);
@@ -1156,9 +1233,15 @@ function ScreenCheck({
       videoEl.srcObject = null;
       onDone();
     } catch {
-      setError("Screen capture was denied or cancelled.");
+      setError(
+        bt(lang, {
+          en: "Screen capture was denied or cancelled.",
+          zh: "屏幕共享被拒绝或已取消。",
+          id: "Berbagi layar ditolak atau dibatalkan.",
+        }),
+      );
     }
-  }, [onDone]);
+  }, [onDone, lang]);
 
   if (!isSupported) {
     return (
@@ -1302,6 +1385,7 @@ export function IntervieweeOnboarding({
 }: IntervieweeOnboardingProps) {
   const [step, setStep] = useState<OnboardingStep>("info");
   const [agreed, setAgreed] = useState(false);
+  const lang = getLanguageKey(language);
 
   const [cameraDone, setCameraDone] = useState(false);
   const [micDone, setMicDone] = useState(false);
@@ -1355,92 +1439,171 @@ export function IntervieweeOnboarding({
                 <div>
                   <span className="font-medium">Description</span>
                   <p className="mt-1 text-muted-foreground">
-                    {interviewDescription || "No additional description."}
+                    {interviewDescription ||
+                      bt(lang, {
+                        en: "No additional description.",
+                        zh: "No additional description.",
+                        id: "Tidak ada deskripsi tambahan.",
+                      })}
                   </p>
                 </div>
               </div>
 
               <div className="mt-2 text-sm text-muted-foreground">
-                {questionCount} questions &middot;{" "}
+                {bt(lang, {
+                  en: `${questionCount} questions`,
+                  zh: `${questionCount} questions`,
+                  id: `${questionCount} pertanyaan`,
+                })}{" "}
+                &middot;{" "}
                 {timeLimitMinutes
-                  ? `${timeLimitMinutes} min`
-                  : "No time limit"}
+                  ? bt(lang, {
+                      en: `${timeLimitMinutes} min`,
+                      zh: `${timeLimitMinutes} min`,
+                      id: `${timeLimitMinutes} menit`,
+                    })
+                  : bt(lang, {
+                      en: "No time limit",
+                      zh: "No time limit",
+                      id: "Tanpa batas waktu",
+                    })}
               </div>
             </CardContent>
           </Card>
 
           <Card className="mt-4">
             <CardContent className="space-y-3 p-4 sm:p-6">
-              <h3 className="font-semibold">Integrity Notices</h3>
+              <h3 className="font-semibold">
+                {bt(lang, {
+                  en: "Integrity Notices",
+                  zh: "Integrity Notices",
+                  id: "Pemberitahuan Integritas",
+                })}
+              </h3>
               {antiCheatingEnabled ? (
                 <>
                   <div className="rounded-md bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
-                    To ensure fairness, the following integrity measures will be
-                    actively enforced throughout this session.
+                    {bt(lang, {
+                      en: "To ensure fairness, the following integrity measures will be actively enforced throughout this session.",
+                      zh: "To ensure fairness, the following integrity measures will be actively enforced throughout this session.",
+                      id: "Untuk menjaga kejujuran, langkah-langkah integritas berikut diterapkan sepanjang sesi:",
+                    })}
                   </div>
                   <ol className="list-inside list-decimal space-y-2 text-sm text-muted-foreground">
                     <li>
-                      To ensure that the interview runs properly, please use the
-                      latest version of Chrome.
+                      {bt(lang, {
+                        en: "To ensure that the interview runs properly, please use the latest version of Chrome.",
+                        zh: "To ensure that the interview runs properly, please use the latest version of Chrome.",
+                        id: "Agar wawancara berjalan lancar, gunakan versi Chrome terbaru.",
+                      })}
                     </li>
                     <li>
-                      After completing your answers, please make sure that you have
-                      submitted them to all questions. Otherwise it will affect your
-                      results.
+                      {bt(lang, {
+                        en: "After completing your answers, please make sure that you have submitted them to all questions. Otherwise it will affect your results.",
+                        zh: "After completing your answers, please make sure that you have submitted them to all questions. Otherwise it will affect your results.",
+                        id: "Setelah selesai menjawab, pastikan jawabanmu sudah terkirim ke semua pertanyaan. Jika tidak, hasil wawancaramu bisa terpengaruh.",
+                      })}
                     </li>
                     <li>
-                      <span className="font-medium text-foreground">Tab switching and focus tracking:</span>{" "}
-                      Leaving the interview page or switching to another window will
-                      be automatically detected and recorded. If you leave more
-                      than{" "}
-                      <span className="font-medium text-primary">3</span> times,
-                      your session will be flagged for review.
+                      <span className="font-medium text-foreground">
+                        {bt(lang, {
+                          en: "Tab switching and focus tracking:",
+                          zh: "Tab switching and focus tracking:",
+                          id: "Berpindah tab dan pelacakan fokus:",
+                        })}
+                      </span>{" "}
+                      {bt(lang, {
+                        en: "Leaving the interview page or switching to another window will be automatically detected and recorded. If you leave more than",
+                        zh: "Leaving the interview page or switching to another window will be automatically detected and recorded. If you leave more than",
+                        id: "meninggalkan halaman wawancara atau berpindah ke jendela lain akan terdeteksi dan tercatat otomatis. Jika kamu keluar lebih dari",
+                      })}{" "}
+                      <span className="font-medium text-primary">3</span>{" "}
+                      {bt(lang, {
+                        en: "times, your session will be flagged for review.",
+                        zh: "times, your session will be flagged for review.",
+                        id: "kali, sesimu akan ditandai untuk ditinjau.",
+                      })}
                     </li>
                     <li>
-                      <span className="font-medium text-foreground">External paste blocked:</span>{" "}
-                      Pasting content from outside the interview page is not
-                      allowed. You can copy and paste freely within the page.
+                      <span className="font-medium text-foreground">
+                        {bt(lang, {
+                          en: "External paste blocked:",
+                          zh: "External paste blocked:",
+                          id: "Tempelan dari luar diblokir:",
+                        })}
+                      </span>{" "}
+                      {bt(lang, {
+                        en: "Pasting content from outside the interview page is not allowed. You can copy and paste freely within the page.",
+                        zh: "Pasting content from outside the interview page is not allowed. You can copy and paste freely within the page.",
+                        id: "menempel konten dari luar halaman wawancara tidak diizinkan. Kamu tetap bebas menyalin dan menempel di dalam halaman.",
+                      })}
                     </li>
                     <li>
-                      <span className="font-medium text-foreground">Multiple screen detection:</span>{" "}
-                      The system will detect if you have multiple monitors connected.
-                      Please unplug or turn off additional screens before starting.
+                      <span className="font-medium text-foreground">
+                        {bt(lang, {
+                          en: "Multiple screen detection:",
+                          zh: "Multiple screen detection:",
+                          id: "Deteksi banyak layar:",
+                        })}
+                      </span>{" "}
+                      {bt(lang, {
+                        en: "The system will detect if you have multiple monitors connected. Please unplug or turn off additional screens before starting.",
+                        zh: "The system will detect if you have multiple monitors connected. Please unplug or turn off additional screens before starting.",
+                        id: "sistem akan mendeteksi jika ada lebih dari satu monitor terhubung. Lepaskan atau matikan layar tambahan sebelum memulai.",
+                      })}
                     </li>
                     <li>
-                      This interview requires a camera to collect your registration
-                      photo and capture your behavior. All photos are privacy
-                      protected.
+                      {bt(lang, {
+                        en: "This interview requires a camera to collect your registration photo and capture your behavior. All photos are privacy protected.",
+                        zh: "This interview requires a camera to collect your registration photo and capture your behavior. All photos are privacy protected.",
+                        id: "Wawancara ini memerlukan kamera untuk mengambil foto pendaftaran dan merekam perilakumu. Semua foto dilindungi privasi.",
+                      })}
                     </li>
                     <li>
-                      The interview will screen capture throughout. Screen capture
-                      requires authorization.
+                      {bt(lang, {
+                        en: "The interview will screen capture throughout. Screen capture requires authorization.",
+                        zh: "The interview will screen capture throughout. Screen capture requires authorization.",
+                        id: "Wawancara ini akan merekam layar selama sesi berlangsung. Perekaman layar memerlukan otorisasi.",
+                      })}
                     </li>
                   </ol>
                 </>
               ) : (
                 <ol className="list-inside list-decimal space-y-2 text-sm text-muted-foreground">
                   <li>
-                    To ensure that the interview runs properly, please use the
-                    latest version of Chrome.
+                    {bt(lang, {
+                      en: "To ensure that the interview runs properly, please use the latest version of Chrome.",
+                      zh: "To ensure that the interview runs properly, please use the latest version of Chrome.",
+                      id: "Agar wawancara berjalan lancar, gunakan versi Chrome terbaru.",
+                    })}
                   </li>
                   <li>
-                    After completing your answers, please make sure that you have
-                    submitted them to all questions. Otherwise it will affect your
-                    results.
+                    {bt(lang, {
+                      en: "After completing your answers, please make sure that you have submitted them to all questions. Otherwise it will affect your results.",
+                      zh: "After completing your answers, please make sure that you have submitted them to all questions. Otherwise it will affect your results.",
+                      id: "Setelah selesai menjawab, pastikan jawabanmu sudah terkirim ke semua pertanyaan. Jika tidak, hasil wawancaramu bisa terpengaruh.",
+                    })}
                   </li>
                   <li>
-                    Before the interview starts, please shut down any software or
-                    web page with ads, message pop-ups. Please do not leave the
-                    interview page during the whole process.
+                    {bt(lang, {
+                      en: "Before the interview starts, please shut down any software or web page with ads, message pop-ups. Please do not leave the interview page during the whole process.",
+                      zh: "Before the interview starts, please shut down any software or web page with ads, message pop-ups. Please do not leave the interview page during the whole process.",
+                      id: "Sebelum wawancara dimulai, matikan perangkat lunak atau halaman web yang menampilkan iklan atau pop-up pesan. Jangan meninggalkan halaman wawancara selama proses berlangsung.",
+                    })}
                   </li>
                   <li>
-                    This interview requires a camera to collect your registration
-                    photo and capture your behavior. All photos are privacy
-                    protected.
+                    {bt(lang, {
+                      en: "This interview requires a camera to collect your registration photo and capture your behavior. All photos are privacy protected.",
+                      zh: "This interview requires a camera to collect your registration photo and capture your behavior. All photos are privacy protected.",
+                      id: "Wawancara ini memerlukan kamera untuk mengambil foto pendaftaran dan merekam perilakumu. Semua foto dilindungi privasi.",
+                    })}
                   </li>
                   <li>
-                    The interview will screen capture throughout. Screen capture
-                    requires authorization.
+                    {bt(lang, {
+                      en: "The interview will screen capture throughout. Screen capture requires authorization.",
+                      zh: "The interview will screen capture throughout. Screen capture requires authorization.",
+                      id: "Wawancara ini akan merekam layar selama sesi berlangsung. Perekaman layar memerlukan otorisasi.",
+                    })}
                   </li>
                 </ol>
               )}
@@ -1453,7 +1616,11 @@ export function IntervieweeOnboarding({
                 checked={agreed}
                 onCheckedChange={(v) => setAgreed(v === true)}
               />
-              I agree to the above notice and interview guidelines
+              {bt(lang, {
+                en: "I agree to the above notice and interview guidelines",
+                zh: "I agree to the above notice and interview guidelines",
+                id: "Saya menyetujui pemberitahuan dan panduan wawancara di atas",
+              })}
             </label>
             <Button
               disabled={!agreed}
@@ -1505,7 +1672,7 @@ export function IntervieweeOnboarding({
 
     return (
       <IntervieweeTourProvider mode={mode}>
-        <PreviewWrapper onReady={handleComplete}>
+        <PreviewWrapper onReady={handleComplete} language={language}>
           <VoiceInterface
             sessionId="__preview__"
             interviewId="__preview__"
@@ -1529,7 +1696,7 @@ export function IntervieweeOnboarding({
       {header}
       <StepIndicator current="checklist" />
       <div className="mx-auto w-full max-w-2xl flex-1 space-y-4 px-4 pb-8">
-        <CameraCheck done={cameraDone} onDone={() => setCameraDone(true)} allowSkip={!antiCheatingEnabled} />
+        <CameraCheck done={cameraDone} onDone={() => setCameraDone(true)} allowSkip={!antiCheatingEnabled} language={language} />
         <MicCheck
           done={micDone}
           onDone={() => setMicDone(true)}
@@ -1537,7 +1704,7 @@ export function IntervieweeOnboarding({
           allowSkip={!antiCheatingEnabled}
           externalSkipped={micExternallySkipped}
         />
-        <ScreenCheck done={screenDone} onDone={() => setScreenDone(true)} allowSkip={!antiCheatingEnabled} />
+        <ScreenCheck done={screenDone} onDone={() => setScreenDone(true)} allowSkip={!antiCheatingEnabled} language={language} />
 
         <div className="flex items-center justify-center gap-3 pt-4">
           <Button variant="outline" onClick={() => setStep("info")}>
@@ -1560,23 +1727,37 @@ export function IntervieweeOnboarding({
           </Button>
         </div>
         <p className="text-center text-xs text-muted-foreground">
-          Chrome is recommended for a better experience.
+          {bt(lang, {
+            en: "Chrome is recommended for a better experience.",
+            zh: "Chrome is recommended for a better experience.",
+            id: "Chrome direkomendasikan untuk pengalaman yang lebih baik.",
+          })}
         </p>
       </div>
       <AlertDialog open={showSkipAllDialog} onOpenChange={setShowSkipAllDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Skip all device checks?</AlertDialogTitle>
+            <AlertDialogTitle>
+              {bt(lang, {
+                en: "Skip all device checks?",
+                zh: "Skip all device checks?",
+                id: "Lewati semua pemeriksaan perangkat?",
+              })}
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              Skipping camera, microphone, and screen capture is not recommended.
-              These checks verify your identity and environment. Skipping may affect
-              your interview experience and results.
+              {bt(lang, {
+                en: "Skipping camera, microphone, and screen capture is not recommended. These checks verify your identity and environment. Skipping may affect your interview experience and results.",
+                zh: "Skipping camera, microphone, and screen capture is not recommended. These checks verify your identity and environment. Skipping may affect your interview experience and results.",
+                id: "Kamu bisa melanjutkan tanpa pemeriksaan perangkat.",
+              })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Go back</AlertDialogCancel>
+            <AlertDialogCancel>
+              {bt(lang, { en: "Go back", zh: "Go back", id: "Kembali" })}
+            </AlertDialogCancel>
             <AlertDialogAction onClick={handleSkipAll}>
-              Skip all
+              {bt(lang, { en: "Skip all", zh: "Skip all", id: "Lewati semua" })}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useRelayAsrInput } from "@/hooks/use-relay-asr-input";
 import { useToast } from "@/hooks/use-toast";
+import { bt, getLanguageKey, getSpeechSynthesisLocale } from "@/lib/i18n";
 import { Mic, Square } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -50,6 +51,11 @@ export function PrepVoiceInput({
   disabled,
 }: Props) {
   const { toast } = useToast();
+  const lang = getLanguageKey(language);
+  const t = useCallback(
+    (text: { en: string; id: string }) => bt(lang, { zh: text.en, ...text }),
+    [lang],
+  );
   const [listening, setListening] = useState(false);
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
   const baseTextRef = useRef(baseText);
@@ -92,8 +98,11 @@ export function PrepVoiceInput({
       speechWindow.SpeechRecognition ?? speechWindow.webkitSpeechRecognition;
     if (!Recognition) {
       toast({
-        title: "Voice input unavailable",
-        description: "Use Chrome or Edge for speech recognition.",
+        title: t({ en: "Voice input unavailable", id: "Input suara tidak tersedia" }),
+        description: t({
+          en: "Use Chrome or Edge for speech recognition.",
+          id: "Gunakan Chrome atau Edge untuk pengenalan suara.",
+        }),
         variant: "destructive",
       });
       return;
@@ -103,7 +112,7 @@ export function PrepVoiceInput({
     const recognition = new Recognition();
     recognition.continuous = true;
     recognition.interimResults = true;
-    recognition.lang = language === "zh" ? "zh-CN" : "en-US";
+    recognition.lang = getSpeechSynthesisLocale(language);
 
     const initialBase = baseTextRef.current.trim();
     recognition.onresult = (event) => {
@@ -120,7 +129,7 @@ export function PrepVoiceInput({
     recognitionRef.current = recognition;
     recognition.start();
     setListening(true);
-  }, [language, onTranscript, toast]);
+  }, [language, onTranscript, t, toast]);
 
   const start = useCallback(async () => {
     if (relayAvailableRef.current) {
@@ -130,12 +139,15 @@ export function PrepVoiceInput({
         return;
       }
       toast({
-        title: "Voice relay unavailable",
-        description: "Falling back to browser speech recognition.",
+        title: t({ en: "Voice relay unavailable", id: "Relay suara tidak tersedia" }),
+        description: t({
+          en: "Falling back to browser speech recognition.",
+          id: "Beralih ke pengenalan suara peramban.",
+        }),
       });
     }
     startBrowser();
-  }, [startBrowser, toast]);
+  }, [startBrowser, t, toast]);
 
   return (
     <Tooltip>
@@ -152,7 +164,9 @@ export function PrepVoiceInput({
         </Button>
       </TooltipTrigger>
       <TooltipContent>
-        {listening ? "Stop voice input" : "Start voice input"}
+        {listening
+          ? t({ en: "Stop voice input", id: "Hentikan input suara" })
+          : t({ en: "Start voice input", id: "Mulai input suara" })}
       </TooltipContent>
     </Tooltip>
   );

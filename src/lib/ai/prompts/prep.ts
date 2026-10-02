@@ -1,3 +1,4 @@
+import { getPromptLanguageName } from "../language-name";
 import {
     prepSampleAnswerRulesBlock,
     prepScoringRubricBlock,
@@ -72,9 +73,9 @@ export interface PrepFollowUpInput {
 }
 
 function languageInstruction(language: string, target: string): string {
-  const isZh = language === "zh" || language.toLowerCase().startsWith("zh");
-  if (isZh) {
-    return `Write ALL ${target} text in Chinese (简体中文). JSON keys stay in English. Do not write feedback in English.`;
+  const name = getPromptLanguageName(language);
+  if (name && name !== "English") {
+    return `Write ALL ${target} text in ${name}. JSON keys stay in English. Do not write the ${target} in English.`;
   }
   return `Write ALL ${target} text in English. JSON keys stay in English.`;
 }
@@ -236,9 +237,7 @@ function buildPrepFeedbackUserContent(
 }
 
 export function buildPrepFeedbackPrompt(input: PrepFeedbackInput): LLMMessage[] {
-  const lang =
-    input.responseLanguage ??
-    (input.interview.language?.toLowerCase().startsWith("zh") ? "zh" : "en");
+  const lang = input.responseLanguage ?? input.interview.language;
   const prior = input.previousAttempts?.length
     ? input.previousAttempts
         .map(

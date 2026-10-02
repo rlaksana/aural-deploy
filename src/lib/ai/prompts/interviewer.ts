@@ -1,4 +1,5 @@
 import { maxFollowUpsForDepth } from "@/lib/follow-up-depth";
+import { getPromptLanguageName } from "../language-name";
 import type { Tables } from "@/lib/supabase/types";
 import type { LLMMessage } from "../types";
 
@@ -10,6 +11,7 @@ interface InterviewContext {
 
 export function buildInterviewerPrompt(ctx: InterviewContext): LLMMessage[] {
   const { interview, conversationHistory, currentQuestionIndex } = ctx;
+  const languageName = getPromptLanguageName(interview.language) ?? interview.language;
 
   const formattedQuestions = interview.questions
     .map((q, i) => {
@@ -42,7 +44,7 @@ INTERVIEW CONTEXT:
 - Title: ${interview.title}
 - Objective: ${interview.objective ?? "Gather insights through conversation"}
 - Tone: ${interview.aiTone}
-- Language: ${interview.language}
+- Language: ${languageName}
 - Channels: ${channels}
 
 YOUR ROLE:
@@ -112,6 +114,7 @@ RESEARCH QUESTIONS:
 - Summarize what you've learned so far and ask if there's anything they'd like to add before moving on
 
 RULES:
+- LANGUAGE (CRITICAL): Conduct the ENTIRE interview in ${languageName} — every message you output (introductions, acknowledgements, questions, follow-ups, wrap-up) MUST be written in ${languageName}, even though these instructions are in English. Never respond in any other language unless the participant switches to it first. The [NEXT_QUESTION] and [INTERVIEW_COMPLETE] markers stay exactly as written.
 - Emit ONLY your next conversational message as the interviewer. NEVER simulate, generate, predict, or script the candidate/participant's response. NEVER output labels like [CANDIDATE RESPONSE], [ASK QUESTION], **RATIONALE QUESTION**, **ACKNOWLEDGEMENT**, or fake dialogue transcripts.
 - Keep responses to 2-4 sentences when asking questions
 - Don't repeat their answer back verbatim

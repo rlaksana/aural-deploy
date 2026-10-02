@@ -9,6 +9,7 @@ import {
     DialogTitle,
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { bt, getLanguageKey } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import {
     ArrowRight,
@@ -44,57 +45,108 @@ export function recommendNextMove({
   score,
   canNext,
   hasSample,
+  language,
 }: {
   score: number;
   canNext: boolean;
   hasSample: boolean;
+  language?: string;
 }): NextMoveRecommendation {
+  const lang = getLanguageKey(language);
+  const t = (text: { en: string; id: string }) =>
+    bt(lang, { zh: text.en, ...text });
   if (score <= 7 && hasSample) {
     return {
       action: "sample",
-      label: "Study the sample answer",
-      reason:
+      label: t({ en: "Study the sample answer", id: "Pelajari contoh jawaban" }),
+      reason: t(
         score <= 5
-          ? "Low score — study a strong sample, then revise your answer below."
-          : "Almost there — compare with a strong sample to sharpen it.",
+          ? {
+              en: "Low score — study a strong sample, then revise your answer below.",
+              id: "Skor rendah — pelajari contoh yang kuat, lalu perbaiki jawabanmu di bawah.",
+            }
+          : {
+              en: "Almost there — compare with a strong sample to sharpen it.",
+              id: "Hampir sampai — bandingkan dengan contoh yang kuat untuk mempertajamnya.",
+            },
+      ),
     };
   }
   if (score >= 8) {
     return {
       action: "real_interview",
-      label: "Practice in real interview",
-      reason: "Strong answer — rehearse it in the real interview setting.",
+      label: t({
+        en: "Practice in real interview",
+        id: "Berlatih di wawancara nyata",
+      }),
+      reason: t({
+        en: "Strong answer — rehearse it in the real interview setting.",
+        id: "Jawaban bagus — latih di suasana wawancara nyata.",
+      }),
     };
   }
   if (canNext) {
     return {
       action: "next",
-      label: "Next question",
-      reason:
+      label: t({ en: "Next question", id: "Pertanyaan berikutnya" }),
+      reason: t(
         score <= 7
-          ? "Apply the feedback below, then keep your momentum going."
-          : "Strong answer — keep your momentum going.",
+          ? {
+              en: "Apply the feedback below, then keep your momentum going.",
+              id: "Terapkan umpan balik di bawah, pertahankan momentummu.",
+            }
+          : {
+              en: "Strong answer — keep your momentum going.",
+              id: "Jawaban bagus — pertahankan momentummu.",
+            },
+      ),
     };
   }
   return {
     action: "finish",
-    label: "Finish & view report",
-    reason: "Last question done — wrap up and review your session report.",
+    label: t({ en: "Finish & view report", id: "Selesai & lihat laporan" }),
+    reason: t({
+      en: "Last question done — wrap up and review your session report.",
+      id: "Pertanyaan terakhir selesai — tutup dan tinjau laporan sesimu.",
+    }),
   };
 }
 
 const ACTION_META: Record<
   PracticeNextAction,
-  { label: string; icon: typeof RotateCcw }
+  { label: { en: string; id: string }; icon: typeof RotateCcw }
 > = {
-  retry: { label: "Retry this answer", icon: RotateCcw },
-  sample: { label: "View sample answer", icon: BookOpenText },
-  next: { label: "Move next", icon: ArrowRight },
-  answer_bank: { label: "Save to answer bank", icon: Bookmark },
-  real_interview: { label: "Practice in real interview", icon: ExternalLink },
-  resume_proof: { label: "Add resume proof", icon: FilePlus2 },
-  finish: { label: "Finish practice", icon: Flag },
+  retry: {
+    label: { en: "Retry this answer", id: "Ulangi jawaban ini" },
+    icon: RotateCcw,
+  },
+  sample: {
+    label: { en: "View sample answer", id: "Lihat contoh jawaban" },
+    icon: BookOpenText,
+  },
+  next: { label: { en: "Move next", id: "Lanjut" }, icon: ArrowRight },
+  answer_bank: {
+    label: { en: "Save to answer bank", id: "Simpan ke bank jawaban" },
+    icon: Bookmark,
+  },
+  real_interview: {
+    label: { en: "Practice in real interview", id: "Berlatih di wawancara nyata" },
+    icon: ExternalLink,
+  },
+  resume_proof: {
+    label: { en: "Add resume proof", id: "Tambah bukti dari CV" },
+    icon: FilePlus2,
+  },
+  finish: { label: { en: "Finish practice", id: "Akhiri latihan" }, icon: Flag },
 };
+
+function actionMetaLabel(
+  meta: { label: { en: string; id: string } },
+  language?: string,
+): string {
+  const lang = getLanguageKey(language);
+  return bt(lang, { zh: meta.label.en, ...meta.label });
+}
 
 /** Inline action row under the latest feedback card. */
 export function NextActionStrip({
@@ -104,6 +156,7 @@ export function NextActionStrip({
   attemptId,
   bookmarked = false,
   onAction,
+  language,
 }: {
   feedback: PrepFeedback;
   canNext: boolean;
@@ -111,6 +164,7 @@ export function NextActionStrip({
   attemptId?: string | null;
   bookmarked?: boolean;
   onAction: (action: PracticeNextAction) => void;
+  language?: string;
 }) {
   const actions: PracticeNextAction[] = [
     "retry",
@@ -123,9 +177,12 @@ export function NextActionStrip({
   return (
     <div className="mt-2 flex flex-wrap items-center gap-1.5">
       {actions.map((action) => {
-        const { label, icon: Icon } = ACTION_META[action];
+        const meta = ACTION_META[action];
+        const { icon: Icon } = meta;
         const isBookmarked = action === "answer_bank" && bookmarked;
-        const actionLabel = isBookmarked ? "Remove from answer bank" : label;
+        const actionLabel = isBookmarked
+          ? "Remove from answer bank"
+          : actionMetaLabel(meta, language);
         const ActionIcon = isBookmarked ? BookmarkCheck : Icon;
         return (
           <Button
@@ -157,6 +214,7 @@ export function NextBestMoveBar({
   onAction,
   onDismiss,
   className,
+  language,
 }: {
   feedback: PrepFeedback;
   canNext: boolean;
@@ -164,12 +222,17 @@ export function NextBestMoveBar({
   onAction: (action: PracticeNextAction) => void;
   onDismiss: () => void;
   className?: string;
+  language?: string;
 }) {
+  const lang = getLanguageKey(language);
+  const t = (text: { en: string; id: string }) =>
+    bt(lang, { zh: text.en, ...text });
   const hasSample = Boolean(feedback.sampleAnswer?.trim());
   const recommendation = recommendNextMove({
     score: feedback.score,
     canNext,
     hasSample,
+    language,
   });
   const PrimaryIcon = ACTION_META[recommendation.action].icon;
 
@@ -183,7 +246,9 @@ export function NextBestMoveBar({
     >
       <Sparkles className="h-3.5 w-3.5 shrink-0 text-primary" aria-hidden />
       <p className="min-w-0 flex-1 truncate text-xs leading-tight">
-        <span className="font-semibold text-foreground">Next best move</span>
+        <span className="font-semibold text-foreground">
+          {t({ en: "Next best move", id: "Langkah terbaik berikutnya" })}
+        </span>
         <span className="text-muted-foreground">
           {" — "}
           {recommendation.reason}
@@ -205,7 +270,10 @@ export function NextBestMoveBar({
         size="icon"
         className="h-7 w-7 shrink-0 text-muted-foreground hover:text-foreground"
         onClick={onDismiss}
-        aria-label="Dismiss next best move"
+        aria-label={t({
+          en: "Dismiss next best move",
+          id: "Tutup langkah terbaik berikutnya",
+        })}
       >
         <X className="h-3.5 w-3.5" />
       </Button>
@@ -219,19 +287,26 @@ export function SampleAnswerDialog({
   onOpenChange,
   sampleAnswer,
   questionText,
+  language,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   sampleAnswer: string;
   questionText?: string | null;
+  language?: string;
 }) {
+  const lang = getLanguageKey(language);
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <BookOpenText className="h-4 w-4 text-primary" aria-hidden />
-            Sample answer
+            {bt(lang, {
+              zh: "Sample answer",
+              en: "Sample answer",
+              id: "Contoh jawaban",
+            })}
           </DialogTitle>
           {questionText ? (
             <DialogDescription className="line-clamp-2">

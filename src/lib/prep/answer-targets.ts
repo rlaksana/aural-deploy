@@ -17,66 +17,97 @@ export type AnswerTarget = {
   wordsLabel: string;
 };
 
-const TARGET_PRESETS: Record<
-  PrepStructureLabel,
-  { signals: string[]; lengthLabel: string; wordsLabel: string }
-> = {
+type TargetPreset = {
+  signals: { en: string[]; id: string[] };
+  lengthLabel: string;
+  wordsLabel: { en: string; id: string };
+};
+
+const TARGET_PRESETS: Record<PrepStructureLabel, TargetPreset> = {
   Intro: {
-    signals: ["Who you are", "Why this role", "One proof point"],
+    signals: {
+      en: ["Who you are", "Why this role", "One proof point"],
+      id: ["Siapa kamu", "Kenapa posisi ini", "Satu bukti konkret"],
+    },
     lengthLabel: "60–90s",
-    wordsLabel: "80–110 words",
+    wordsLabel: { en: "80–110 words", id: "80–110 kata" },
   },
   STAR: {
-    signals: ["Specific situation", "Your actions", "Measurable result"],
+    signals: {
+      en: ["Specific situation", "Your actions", "Measurable result"],
+      id: ["Situasi spesifik", "Tindakanmu", "Hasil terukur"],
+    },
     lengthLabel: "90–120s",
-    wordsLabel: "120–160 words",
+    wordsLabel: { en: "120–160 words", id: "120–160 kata" },
   },
   PAR: {
-    signals: ["Problem framing", "Approach & trade-offs", "Outcome"],
+    signals: {
+      en: ["Problem framing", "Approach & trade-offs", "Outcome"],
+      id: ["Rumusan masalah", "Pendekatan & pertimbangan", "Hasil"],
+    },
     lengthLabel: "90–150s",
-    wordsLabel: "120–180 words",
+    wordsLabel: { en: "120–180 words", id: "120–180 kata" },
   },
   Technical: {
-    signals: ["Problem framing", "Approach & trade-offs", "Outcome"],
+    signals: {
+      en: ["Problem framing", "Approach & trade-offs", "Outcome"],
+      id: ["Rumusan masalah", "Pendekatan & pertimbangan", "Hasil"],
+    },
     lengthLabel: "90–150s",
-    wordsLabel: "120–180 words",
+    wordsLabel: { en: "120–180 words", id: "120–180 kata" },
   },
   Service: {
-    signals: ["Empathy", "Need probe", "Clear next step"],
+    signals: {
+      en: ["Empathy", "Need probe", "Clear next step"],
+      id: ["Empati", "Gali kebutuhan", "Langkah lanjut yang jelas"],
+    },
     lengthLabel: "60–90s",
-    wordsLabel: "80–120 words",
+    wordsLabel: { en: "80–120 words", id: "80–120 kata" },
   },
   Knowledge: {
-    signals: ["Key categories", "Features", "Best-fit customer"],
+    signals: {
+      en: ["Key categories", "Features", "Best-fit customer"],
+      id: ["Kategori utama", "Fitur", "Pelanggan paling cocok"],
+    },
     lengthLabel: "60–90s",
-    wordsLabel: "80–120 words",
+    wordsLabel: { en: "80–120 words", id: "80–120 kata" },
   },
   Choice: {
-    signals: ["Selected option", "Reason", "Trade-off"],
+    signals: {
+      en: ["Selected option", "Reason", "Trade-off"],
+      id: ["Opsi yang dipilih", "Alasan", "Pertimbangan"],
+    },
     lengthLabel: "30–60s",
-    wordsLabel: "50–80 words",
+    wordsLabel: { en: "50–80 words", id: "50–80 kata" },
   },
   WrapUp: {
-    signals: ["Extra signal", "Role fit", "Concise close"],
+    signals: {
+      en: ["Extra signal", "Role fit", "Concise close"],
+      id: ["Sinyal tambahan", "Kesesuaian peran", "Penutup singkat"],
+    },
     lengthLabel: "30–60s",
-    wordsLabel: "50–80 words",
+    wordsLabel: { en: "50–80 words", id: "50–80 kata" },
   },
 };
+
+const isId = (language?: string) => !!language && language.toLowerCase().startsWith("id");
 
 /** Heuristic answer target for a question (structure, expected signals, length). */
 export function buildAnswerTarget(
   questionType: string | null | undefined,
   questionText: string,
+  language?: string,
 ): AnswerTarget {
+  const id = isId(language);
   const structure = inferSuggestedAnswerStructure(questionType, questionText);
-  const { label, hint } = structureTagLabel(structure);
+  const { label, hint } = structureTagLabel(structure, language);
   const preset = TARGET_PRESETS[structure] ?? TARGET_PRESETS.STAR;
   return {
     structure,
     structureLabel: label,
     structureHint: hint,
-    signals: preset.signals,
+    signals: id ? preset.signals.id : preset.signals.en,
     lengthLabel: preset.lengthLabel,
-    wordsLabel: preset.wordsLabel,
+    wordsLabel: id ? preset.wordsLabel.id : preset.wordsLabel.en,
   };
 }

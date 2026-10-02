@@ -11,6 +11,7 @@ import {
     TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
+import { bt, getLanguageKey, type LangKey } from "@/lib/i18n";
 import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
 import {
@@ -145,9 +146,11 @@ function BookmarkButton({
 function QuestionOptionsBlock({
   type,
   options,
+  lang,
 }: {
   type?: string | null;
   options: PrepQuestionOption[];
+  lang: LangKey;
 }) {
   if (options.length === 0) return null;
 
@@ -156,7 +159,11 @@ function QuestionOptionsBlock({
   return (
     <div className="mt-3 rounded-lg border bg-muted/20 p-3">
       <div className="mb-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-        {isMultiple ? "Choose one or more" : "Choose one"}
+        {bt(lang, {
+          en: isMultiple ? "Choose one or more" : "Choose one",
+          zh: isMultiple ? "Choose one or more" : "Choose one",
+          id: isMultiple ? "Pilih satu atau lebih" : "Pilih satu",
+        })}
       </div>
       <ol className="grid gap-2 md:grid-cols-2">
         {options.map((option, index) => (
@@ -182,11 +189,13 @@ function AttemptRow({
   bookmarked,
   bookmarkPending,
   onToggleBookmark,
+  lang,
 }: {
   attempt: PrepAttempt;
   bookmarked: boolean;
   bookmarkPending: boolean;
   onToggleBookmark: (attemptId: string) => void;
+  lang: LangKey;
 }) {
   const [expanded, setExpanded] = useState(false);
   const feedback = attempt.feedback;
@@ -223,7 +232,7 @@ function AttemptRow({
           <ScoreChip score={attempt.score} />
         </div>
         <span className="min-w-0 flex-1 text-sm font-medium leading-snug sm:truncate">
-          {feedback.verdict || "Graded answer"}
+          {feedback.verdict || bt(lang, { en: "Graded answer", zh: "Graded answer", id: "Jawaban yang dinilai" })}
         </span>
         <div className="flex shrink-0 items-center gap-1.5 self-end sm:self-auto">
           <span className="hidden text-[11px] text-muted-foreground sm:inline">
@@ -345,12 +354,15 @@ export function PracticeSessionReport({
   sessionId,
   className,
   onPracticeAgain,
+  language,
 }: {
   sessionId: string;
   className?: string;
   /** When provided, "Practice again" resets in place instead of navigating. */
   onPracticeAgain?: () => void;
+  language?: string;
 }) {
+  const lang = getLanguageKey(language);
   const { toast } = useToast();
   const utils = trpc.useUtils();
   const reportQuery = trpc.prep.getSessionReport.useQuery({ sessionId });
@@ -448,7 +460,7 @@ export function PracticeSessionReport({
       <Card className={className}>
         <CardContent className="flex h-[200px] flex-col items-center justify-center gap-3">
           <p className="text-sm text-muted-foreground">
-            {reportQuery.error?.message ?? "Could not load this practice report."}
+            {reportQuery.error?.message ?? bt(lang, { en: "Could not load this practice report.", zh: "Could not load this practice report.", id: "Tidak dapat memuat laporan latihan ini." })}
           </p>
           <Button asChild variant="outline">
             <Link href="/practices">All practices</Link>
@@ -480,19 +492,19 @@ export function PracticeSessionReport({
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <StatTile
             icon={Target}
-            label="Questions answered"
+            label={bt(lang, { en: "Questions answered", zh: "Questions answered", id: "Pertanyaan terjawab" })}
             value={`${stats.answered}/${questions.length || "—"}`}
           />
-          <StatTile icon={BrainCircuit} label="Attempts" value={`${stats.attempts}`} />
+          <StatTile icon={BrainCircuit} label={bt(lang, { en: "Attempts", zh: "Attempts", id: "Percobaan" })} value={`${stats.attempts}`} />
           <StatTile
             icon={Sparkles}
-            label="Avg score"
+            label={bt(lang, { en: "Avg score", zh: "Avg score", id: "Skor rata-rata" })}
             value={stats.averageScore != null ? stats.averageScore.toFixed(1) : "—"}
             tone={stats.averageScore != null ? scoreTone(stats.averageScore) : undefined}
           />
           <StatTile
             icon={TrendingUp}
-            label="Best score"
+            label={bt(lang, { en: "Best score", zh: "Best score", id: "Skor terbaik" })}
             value={stats.bestScore != null ? stats.bestScore.toFixed(1) : "—"}
             tone={stats.bestScore != null ? scoreTone(stats.bestScore) : undefined}
           />
@@ -503,7 +515,7 @@ export function PracticeSessionReport({
             <div className="min-w-0">
               <p className="flex items-center gap-2 text-sm font-semibold">
                 <Sparkles className="h-4 w-4 text-primary" aria-hidden />
-                Suggested next run
+                {bt(lang, { en: "Suggested next run", zh: "Suggested next run", id: "Saran sesi berikutnya" })}
               </p>
               {nextRun.length > 0 ? (
                 <ul className="mt-2 space-y-1">
@@ -517,14 +529,20 @@ export function PracticeSessionReport({
                         Q{questions.indexOf(question) + 1}: {question.text}
                       </span>
                       <span className="shrink-0 text-xs">
-                        {bestScore != null ? `best ${bestScore.toFixed(1)}` : "unanswered"}
+                        {bestScore != null
+                          ? bt(lang, { en: `best ${bestScore.toFixed(1)}`, zh: `best ${bestScore.toFixed(1)}`, id: `terbaik ${bestScore.toFixed(1)}` })
+                          : bt(lang, { en: "unanswered", zh: "unanswered", id: "belum dijawab" })}
                       </span>
                     </li>
                   ))}
                 </ul>
               ) : (
                 <p className="mt-2 text-sm text-muted-foreground">
-                  Every question scored 7+ — run the full set again to lock it in.
+                  {bt(lang, {
+                    en: "Every question scored 7+ — run the full set again to lock it in.",
+                    zh: "Every question scored 7+ — run the full set again to lock it in.",
+                    id: "Semua pertanyaan mencapai 7+ — jalankan seluruh set lagi untuk mengukuhkannya.",
+                  })}
                 </p>
               )}
             </div>
@@ -596,6 +614,7 @@ export function PracticeSessionReport({
                   <QuestionOptionsBlock
                     type={question.type}
                     options={questionOptions}
+                    lang={lang}
                   />
                   <div className="mt-3 space-y-2">
                     {rows.map((attempt) => (
@@ -607,6 +626,7 @@ export function PracticeSessionReport({
                         onToggleBookmark={(attemptId) =>
                           toggleBookmark.mutate({ attemptId })
                         }
+                        lang={lang}
                       />
                     ))}
                   </div>

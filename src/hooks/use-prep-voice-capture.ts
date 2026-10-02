@@ -3,6 +3,7 @@
 import { useRelayAsrInput } from "@/hooks/use-relay-asr-input";
 import { useToast } from "@/hooks/use-toast";
 import { micLevelForDisplay } from "@/lib/audio-level-display";
+import { getSpeechSynthesisLocale } from "@/lib/i18n";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 type SpeechRecognitionInstance = {
@@ -229,7 +230,7 @@ export function usePrepVoiceCapture({
       const recognition = new Recognition();
       recognition.continuous = true;
       recognition.interimResults = true;
-      recognition.lang = language === "zh" ? "zh-CN" : "en-US";
+      recognition.lang = getSpeechSynthesisLocale(language);
 
       recognition.onresult = (event) => {
         let interim = "";

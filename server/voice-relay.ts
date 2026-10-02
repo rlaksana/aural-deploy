@@ -23,7 +23,7 @@ import { randomUUID } from "crypto";
 import { config } from "dotenv";
 import { WebSocket, WebSocketServer } from "ws";
 import { maxFollowUpsForDepth } from "../src/lib/follow-up-depth";
-import { bt } from "../src/lib/i18n";
+import { bt, getLanguageKey, ROLE_LABELS, type LangKey } from "../src/lib/i18n";
 import { createLogger } from "../src/lib/logger";
 import { callRelayLLM, logRelayLlmStartup } from "./relay-llm";
 import {
@@ -310,12 +310,15 @@ async function callWhiteboardVisionApi(
   return { text, finishReason: choice?.finish_reason };
 }
 
-async function describeWhiteboard(imageDataUrl: string, isZh: boolean): Promise<string> {
+async function describeWhiteboard(imageDataUrl: string, lang: LangKey): Promise<string> {
   if (!VISION_LLM_API_KEY || !imageDataUrl) return "";
 
-  const userPrompt = isZh
-    ? "用1-2句话描述这个白板上画了什么。重点说明结构、组件和它们之间的关系。只输出描述本体，不要输出思考过程。"
-    : "Describe what is drawn on this whiteboard in 1-2 sentences. Focus on the structure, components, and relationships shown. Output only the description itself, no reasoning or preamble.";
+  const userPrompt =
+    lang === "zh"
+      ? "用1-2句话描述这个白板上画了什么。重点说明结构、组件和它们之间的关系。只输出描述本体，不要输出思考过程。"
+      : lang === "id"
+        ? "Deskripsikan apa yang digambar di whiteboard ini dalam 1-2 kalimat. Fokuskan pada struktur, komponen, dan hubungannya. Keluarkan hanya deskripsinya, tanpa alasan atau pembuka."
+        : "Describe what is drawn on this whiteboard in 1-2 sentences. Focus on the structure, components, and relationships shown. Output only the description itself, no reasoning or preamble.";
 
   const startMs = Date.now();
   try {
@@ -369,9 +372,15 @@ const CORRECTION_PATTERNS_EN = [
   /need to (?:select|choose|pick)/i, /try again/i, /that'?s not quite/i,
   /please select/i, /must pick/i, /can only choose one/i,
 ];
+const CORRECTION_PATTERNS_ID = [
+  /mohon pertimbangkan lagi/i, /coba pikirkan lagi/i,
+  /silakan pilih satu/i, /jawab ulang/i, /bukan itu\b/i,
+];
 
 function isCorrection(text: string, isZh: boolean): boolean {
-  const patterns = isZh ? CORRECTION_PATTERNS_ZH : CORRECTION_PATTERNS_EN;
+  const patterns = isZh
+    ? CORRECTION_PATTERNS_ZH
+    : [...CORRECTION_PATTERNS_EN, ...CORRECTION_PATTERNS_ID];
   return patterns.some((p) => p.test(text));
 }
 
@@ -395,10 +404,14 @@ function isSimilarResponse(a: string, b: string): boolean {
 
 const FAST_NEXT_PATTERNS = [
   /^(?:下一个问题|下一题|跳过|next\s*question|skip)\.?$/i,
+  // Indonesian: "lanjut", "pertanyaan berikutnya/selanjutnya" (bare commands).
+  /^(?:lanjut|berikutnya|selanjutnya|pertanyaan\s+(?:berikutnya|selanjutnya))\.?$/i,
 ];
 
 const FAST_PREV_PATTERNS = [
   /^(?:上一个问题|上一题|previous\s*question)\.?$/i,
+  // Indonesian: "kembali", "pertanyaan sebelumnya" (bare commands).
+  /^(?:kembali|sebelumnya|pertanyaan\s+sebelumnya)\.?$/i,
 ];
 
 const USER_PREV_PATTERNS = [
@@ -410,6 +423,11 @@ const USER_PREV_PATTERNS = [
   /previous\s+question/i,
   /(?:回到|返回|回去)(?:上一(?:个问题|题)|之前(?:的问题|那题))/,
   /(?:我(?:想|要|需要)|请|可以)(?:回到|返回|回去)上一/,
+  // Indonesian: "kembali ke pertanyaan sebelumnya", "pertanyaan sebelumnya".
+  // Bare "kembali"/"sebelumnya" would match ordinary answers ("Sebelumnya
+  // saya bekerja di..."), so they require question context here.
+  /\bkembali\s+(?:ke\s+)?(?:pertanyaan|soal)\b/i,
+  /\bpertanyaan\s+sebelumnya\b/i,
 ];
 
 const IMPLICIT_NEXT_PATTERNS = [
@@ -419,6 +437,11 @@ const IMPLICIT_NEXT_PATTERNS = [
   /我们(?:进入|开始|来看)下一(?:个问题|题)/,
   /(?:进入|开始)下一(?:个问题|题)/,
   /那我们(?:继续|进入)下一/,
+  // Indonesian: "lanjut/pindah ke pertanyaan berikutnya", "pertanyaan
+  // selanjutnya" (these run against the model's own spoken text, so bare
+  // "lanjut"/"berikutnya" are bound to question context).
+  /\b(?:lanjut|pindah|masuk)\b.{0,15}\b(?:berikutnya|selanjutnya)\b/i,
+  /\bpertanyaan\s+(?:berikutnya|selanjutnya)\b/i,
 ];
 
 function hasImplicitTransition(text: string): boolean {
@@ -432,6 +455,9 @@ const IMPLICIT_PREV_PATTERNS = [
   /(?:let'?s|we(?:'ll|\s+can))\s+(?:go\s+back|return|revisit)/i,
   /(?:回到|返回|回去)(?:上一(?:个问题|题)|之前(?:的问题|那题))/,
   /我们(?:回到|返回)上一/,
+  // Indonesian: "kembali ke pertanyaan sebelumnya" (assistant speech).
+  /\b(?:kembali|mundur)\b.{0,15}\b(?:pertanyaan|soal|sebelumnya)\b/i,
+  /\bpertanyaan\s+sebelumnya\b/i,
 ];
 
 function hasImplicitPrevTransition(text: string): boolean {
@@ -445,6 +471,10 @@ function looksLikeQuestion(text: string): boolean {
   if (/\b(?:how|what|why|where|when)\s+(?:do|did|does|would|could|can|will|is|are|was|were)\s+(?:you|they|the|this|that|it)\b/i.test(text)) return true;
   if (/请.{0,4}(?:分享|描述|解释|说明|告诉|讲述?|谈谈?)/.test(text)) return true;
   if (/能否.{0,4}(?:分享|描述|解释|说明|告诉|讲述?|谈谈?)/.test(text)) return true;
+  // Indonesian wh-words. Bare "apa" is anchored to a question start — "apa pun"
+  // ("whatever") must not match.
+  if (/\b(?:apakah|bisakah|bolehkah|bagaimana|mengapa|kenapa)\b/i.test(text)) return true;
+  if (/(?:^|[.?!。！？]\s+)apa(?:kah)?\b(?! pun)/i.test(text)) return true;
   return false;
 }
 
@@ -539,6 +569,8 @@ function shouldIgnoreContinuationFragment(
 
     const looksLikeMidPhraseTail =
       /^(?:and|or|but|if|for|to)\s+/i.test(t) ||
+      // Indonesian connectors: dan/atau/tapi/kalau/karena/yang/terus/lalu/jadi.
+      /^(?:dan|atau|tapi|kalau|karena|yang|terus|lalu|jadi)\s+/i.test(t) ||
       /^(?:the|a|an)\s+\w+\s*\.?\s*$/i.test(t);
 
     if (!looksLikeMidPhraseTail) return false;
@@ -556,10 +588,18 @@ function isChineseInterview(ctx: InterviewContext): boolean {
   );
 }
 
+function relayLang(ctx: InterviewContext): LangKey {
+  const l = (ctx.language ?? "").toLowerCase();
+  if (l === "zh" || l.includes("chinese")) return "zh";
+  if (l.includes("indones")) return "id";
+  // getLanguageKey slices to 2 chars, so locale strings like "id-ID" resolve too.
+  return getLanguageKey(l);
+}
+
 function buildChoiceSuffix(
   type: string,
   opts: { options: string[]; allowMultiple?: boolean } | null | undefined,
-  isZh: boolean,
+  lang: LangKey,
 ): string {
   if (
     (type !== "SINGLE_CHOICE" && type !== "MULTIPLE_CHOICE") ||
@@ -570,42 +610,42 @@ function buildChoiceSuffix(
   const labels = opts.options
     .map((o, i) => `${String.fromCharCode(65 + i)}, ${o}`)
     .join("; ");
-  return bt(isZh, type === "MULTIPLE_CHOICE"
+  return bt(lang, type === "MULTIPLE_CHOICE"
     ? SPOKEN.multipleChoiceSuffix(labels)
     : SPOKEN.singleChoiceSuffix(labels));
 }
 
 function buildGreeting(ctx: InterviewContext): string {
-  const isZh = isChineseInterview(ctx);
+  const lang = relayLang(ctx);
   const firstQ = ctx.questions.sort((a, b) => a.order - b.order)[0];
-  const q1Text = firstQ?.text || bt(isZh, SPOKEN.defaultQuestion);
+  const q1Text = firstQ?.text || bt(lang, SPOKEN.defaultQuestion);
 
   const opts = firstQ?.options as { options: string[]; allowMultiple?: boolean } | null | undefined;
   const isCodingOrWb = firstQ && (firstQ.type === "CODING" || firstQ.type === "WHITEBOARD");
   const spokenQuestion = isCodingOrWb
-    ? bt(isZh, SPOKEN.codingWbIntro(firstQ.type))
-    : `${q1Text}${buildChoiceSuffix(firstQ?.type ?? "", opts, isZh)}`;
+    ? bt(lang, SPOKEN.codingWbIntro(firstQ.type))
+    : `${q1Text}${buildChoiceSuffix(firstQ?.type ?? "", opts, lang)}`;
 
-  return bt(isZh, SPOKEN.greeting(ctx.aiName, ctx.title, ctx.questions.length, spokenQuestion));
+  return bt(lang, SPOKEN.greeting(ctx.aiName, ctx.title, ctx.questions.length, spokenQuestion));
 }
 
 function buildTransitionSayHello(
   questionIndex: number,
   nextQuestion: { text: string; type: string; options?: { options: string[]; allowMultiple?: boolean } | null },
-  isZh: boolean
+  lang: LangKey
 ): string {
   const isCodingOrWb = nextQuestion.type === "CODING" || nextQuestion.type === "WHITEBOARD";
   const opts = nextQuestion.options as { options: string[]; allowMultiple?: boolean } | null | undefined;
   const qNum = questionIndex + 1;
 
   if (isCodingOrWb) {
-    return bt(isZh, SPOKEN.transition.codingWb(qNum, bt(isZh, SPOKEN.codingWbIntro(nextQuestion.type))));
+    return bt(lang, SPOKEN.transition.codingWb(qNum, bt(lang, SPOKEN.codingWbIntro(nextQuestion.type))));
   }
-  return bt(isZh, SPOKEN.transition.normal(qNum, nextQuestion.text, buildChoiceSuffix(nextQuestion.type, opts, isZh)));
+  return bt(lang, SPOKEN.transition.normal(qNum, nextQuestion.text, buildChoiceSuffix(nextQuestion.type, opts, lang)));
 }
 
 function buildResumeGreeting(ctx: InterviewContext, questionIndex: number): string {
-  const isZh = isChineseInterview(ctx);
+  const lang = relayLang(ctx);
   const sortedQs = ctx.questions.sort((a, b) => a.order - b.order);
   const q = sortedQs[questionIndex];
   const qNum = questionIndex + 1;
@@ -614,21 +654,21 @@ function buildResumeGreeting(ctx: InterviewContext, questionIndex: number): stri
   const isCodingOrWb = q && (q.type === "CODING" || q.type === "WHITEBOARD");
 
   if (isCodingOrWb) {
-    return bt(isZh, SPOKEN.resume.codingWb(qNum, bt(isZh, SPOKEN.codingWbIntro(q.type))));
+    return bt(lang, SPOKEN.resume.codingWb(qNum, bt(lang, SPOKEN.codingWbIntro(q.type))));
   }
-  return bt(isZh, SPOKEN.resume.normal(qNum, q?.text || "", buildChoiceSuffix(q?.type ?? "", opts, isZh)));
+  return bt(lang, SPOKEN.resume.normal(qNum, q?.text || "", buildChoiceSuffix(q?.type ?? "", opts, lang)));
 }
 
 function buildReturnSayHello(
   questionIndex: number,
   question: { text: string; type: string; options?: { options: string[]; allowMultiple?: boolean } | null },
-  isZh: boolean
+  lang: LangKey
 ): string {
   const isCodingOrWb = question.type === "CODING" || question.type === "WHITEBOARD";
   const qNum = questionIndex + 1;
 
   if (isCodingOrWb) {
-    return bt(isZh, SPOKEN.returnTo.codingWb(qNum, bt(isZh, SPOKEN.codingWbIntro(question.type, "continue"))));
+    return bt(lang, SPOKEN.returnTo.codingWb(qNum, bt(lang, SPOKEN.codingWbIntro(question.type, "continue"))));
   }
 
   const opts = question.options as { options: string[]; allowMultiple?: boolean } | null | undefined;
@@ -636,37 +676,39 @@ function buildReturnSayHello(
   const isChoice = question.type === "SINGLE_CHOICE" || question.type === "MULTIPLE_CHOICE";
   if (isChoice && opts?.options?.length) {
     const labels = opts.options.map((o, i) => `${String.fromCharCode(65 + i)}, ${o}`).join("; ");
-    optionsSuffix = bt(isZh, SPOKEN.optionsList(labels));
+    optionsSuffix = bt(lang, SPOKEN.optionsList(labels));
   }
-  return bt(isZh, SPOKEN.returnTo.normal(qNum, question.text, optionsSuffix));
+  return bt(lang, SPOKEN.returnTo.normal(qNum, question.text, optionsSuffix));
 }
 
-function buildWrapUpSayHello(isZh: boolean): string {
-  return bt(isZh, SPOKEN.wrapUp);
+function buildWrapUpSayHello(lang: LangKey): string {
+  return bt(lang, SPOKEN.wrapUp);
 }
 
-function buildFarewellSayHello(isZh: boolean): string {
-  return bt(isZh, SPOKEN.farewell);
+function buildFarewellSayHello(lang: LangKey): string {
+  return bt(lang, SPOKEN.farewell);
 }
 
 async function summarizeQuestion(
   questionText: string,
   transcript: TranscriptEntry[],
-  isZh: boolean
+  lang: LangKey
 ): Promise<string> {
   if (transcript.length === 0) return "";
 
   const t = transcript
-    .map((m) => `${m.role === "user" ? "Participant" : "Interviewer"}: ${m.text}`)
+    .map((m) =>
+      `${bt(lang, m.role === "user" ? ROLE_LABELS.participant : ROLE_LABELS.interviewer)}: ${m.text}`,
+    )
     .join("\n");
 
   try {
-    const result = await callRelayLLM(bt(isZh, PROMPTS.summarize(questionText, t)));
+    const result = await callRelayLLM(bt(lang, PROMPTS.summarize(questionText, t)));
     log.info(`Q summary: "${result.slice(0, 100)}..."`);
     return result;
   } catch (err) {
     log.error("LLM summarization failed:", err);
-    return bt(isZh, PROMPTS.summaryError);
+    return bt(lang, PROMPTS.summaryError);
   }
 }
 
@@ -948,7 +990,16 @@ async function handleBrowserConnection(browserWs: WebSocket, ctx: InterviewConte
 
   const sortedQuestions = ctx.questions.sort((a, b) => a.order - b.order);
   const configIsZh = isChineseInterview(ctx);
+  const configLang = relayLang(ctx);
   let isZh = configIsZh;
+  /**
+   * Output language for spoken text and relay prompts: Chinese whenever detected or
+   * configured, otherwise the interview's configured language (id keeps its own
+   * spoken templates, everything else falls back to en).
+   */
+  function spokenLang(): LangKey {
+    return isZh ? "zh" : configIsZh ? "en" : configLang;
+  }
 
   const userLangSamples: string[] = [];
   function updateUserLanguage(text: string) {
@@ -1004,7 +1055,7 @@ async function handleBrowserConnection(browserWs: WebSocket, ctx: InterviewConte
     const looksShortAndComplete =
       wordCount <= 9 &&
       terminalPunctuation &&
-      (/[?？]\s*$/.test(text) || /\b(?:yes|yeah|yep|no|okay|ok|hello|hi)\b/i.test(text));
+      (/[?？]\s*$/.test(text) || /\b(?:yes|yeah|yep|no|okay|ok|hello|hi|ya|oke|iya|tidak)\b/i.test(text));
 
     if (looksShortAndComplete) return ASR_SHORT_FINAL_COALESCE_MS;
     if (wordCount >= 18 || text.length >= 120) return ASR_LONG_FINAL_COALESCE_MS;
@@ -1321,7 +1372,7 @@ async function handleBrowserConnection(browserWs: WebSocket, ctx: InterviewConte
           clearTimeout(finalResponseTimeout);
           finalResponseTimeout = null;
         }
-        const farewell = buildFarewellSayHello(isZh);
+        const farewell = buildFarewellSayHello(spokenLang());
         log.info("No final response after timeout, sending farewell");
         speakAndHandle(farewell, { pendingFarewell: true }).catch(log.error);
       }, 15_000);
@@ -1401,7 +1452,7 @@ async function handleBrowserConnection(browserWs: WebSocket, ctx: InterviewConte
       );
       if (summaryTarget) {
         const transcriptSnapshot = [...questionTranscript];
-        summarizeQuestion(summaryTarget.text, transcriptSnapshot, isZh)
+        summarizeQuestion(summaryTarget.text, transcriptSnapshot, spokenLang())
           .then((summary) => questionSummaries.push(summary))
           .catch(log.error);
       }
@@ -1409,7 +1460,7 @@ async function handleBrowserConnection(browserWs: WebSocket, ctx: InterviewConte
       log.error("Failed to summarize the final question:", err);
     }
 
-    const farewell = buildFarewellSayHello(isZh);
+    const farewell = buildFarewellSayHello(spokenLang());
     log.info(reason);
 
     speakAndHandle(farewell, { pendingFarewell: true }).catch((err) => {
@@ -1446,7 +1497,7 @@ async function handleBrowserConnection(browserWs: WebSocket, ctx: InterviewConte
 
       if (whiteboardDirty && latestWhiteboardImage) {
         log.info(`Whiteboard vision: calling vision LLM (inline wait ${WHITEBOARD_VISION_INLINE_TIMEOUT_MS}ms)`);
-        const visionPromise = describeWhiteboard(latestWhiteboardImage, isZh);
+        const visionPromise = describeWhiteboard(latestWhiteboardImage, spokenLang());
         const result = await Promise.race([
           visionPromise.then((desc) => ({ desc, timedOut: false })),
           new Promise<{ desc: string; timedOut: boolean }>((resolve) =>
@@ -1483,18 +1534,22 @@ async function handleBrowserConnection(browserWs: WebSocket, ctx: InterviewConte
     }
 
     if (lastResponseWasCorrection) {
-      agentCtx.correctionGuard = isZh
-        ? "\n**重要：你上一条回复要求受访者重新考虑或修改答案。他们还没有回应你的纠正。等待他们的回答，绝对不要加 [NEXT]。**\n"
-        : "\n**IMPORTANT: Your last response asked the participant to reconsider or revise their answer. They have NOT yet responded to your correction. Wait for their answer. Do NOT add [NEXT] under any circumstances.**\n";
+      agentCtx.correctionGuard = bt(spokenLang(), {
+        zh: "\n**重要：你上一条回复要求受访者重新考虑或修改答案。他们还没有回应你的纠正。等待他们的回答，绝对不要加 [NEXT]。**\n",
+        en: "\n**IMPORTANT: Your last response asked the participant to reconsider or revise their answer. They have NOT yet responded to your correction. Wait for their answer. Do NOT add [NEXT] under any circumstances.**\n",
+        id: "\n**PENTING: Balasan terakhirmu meminta peserta untuk mempertimbangkan kembali atau memperbaiki jawabannya. Mereka BELUM menanggapi koreksimu. Tunggu jawaban mereka. JANGAN sekali pun menambahkan [NEXT].**\n",
+      });
     }
 
     if (recentAgentResponses.length >= 2) {
       const last = recentAgentResponses[recentAgentResponses.length - 1];
       const prev = recentAgentResponses[recentAgentResponses.length - 2];
       if (last && prev && isSimilarResponse(last, prev)) {
-        agentCtx.antiRepetition = isZh
-          ? `\n**重要：你上面的回复已经重复了（"${last.slice(0, 40)}..."）。你必须用完全不同的方式回应。仔细阅读受访者最后一句话，如果他们在问你问题，请直接回答。不要再说类似的话。不要像结束整场访谈那样告别（除非当前已是最后一题且流程要求收尾）。**\n`
-          : `\n**IMPORTANT: Your previous responses have been repetitive ("${last.slice(0, 40)}..."). You MUST respond differently. Read the participant's last message carefully — if they are asking you a question, answer it directly. Do NOT repeat similar phrasing. Do NOT speak as if the entire interview is ending (unless this is truly the final wrap-up for the last question).**\n`;
+        agentCtx.antiRepetition = bt(spokenLang(), {
+          zh: `\n**重要：你上面的回复已经重复了（"${last.slice(0, 40)}..."）。你必须用完全不同的方式回应。仔细阅读受访者最后一句话，如果他们在问你问题，请直接回答。不要再说类似的话。不要像结束整场访谈那样告别（除非当前已是最后一题且流程要求收尾）。**\n`,
+          en: `\n**IMPORTANT: Your previous responses have been repetitive ("${last.slice(0, 40)}..."). You MUST respond differently. Read the participant's last message carefully — if they are asking you a question, answer it directly. Do NOT repeat similar phrasing. Do NOT speak as if the entire interview is ending (unless this is truly the final wrap-up for the last question).**\n`,
+          id: `\n**PENTING: Balasan-balasanmu sebelumnya sudah berulang ("${last.slice(0, 40)}..."). Kamu HARUS merespons dengan cara yang berbeda. Baca pesan terakhir peserta dengan saksama — jika mereka bertanya, jawab langsung. JANGAN mengulang kalimat yang mirip. JANGAN berucap seolah seluruh wawancara sudah berakhir (kecuali ini benar-benar penutup untuk pertanyaan terakhir).**\n`,
+        });
         log.info("Anti-repetition guard activated");
       }
     }
@@ -1519,7 +1574,7 @@ async function handleBrowserConnection(browserWs: WebSocket, ctx: InterviewConte
   async function generateControlledResponse(opts?: { forceSkip?: boolean }): Promise<string> {
     const forceSkip = opts?.forceSkip ?? false;
     const currentQ = sortedQuestions[currentQuestionIndex];
-    const history = PROMPTS.formatHistory(questionTranscript, isZh);
+    const history = PROMPTS.formatHistory(questionTranscript, spokenLang());
     const agentCtx = await buildAgentContext();
     const latestAnsweredExchange = getLatestAnsweredExchange();
 
@@ -1527,16 +1582,16 @@ async function handleBrowserConnection(browserWs: WebSocket, ctx: InterviewConte
     let choiceInstruction = "";
     if (currentQ.type === "SINGLE_CHOICE" && qOpts?.options?.length) {
       const labels = qOpts.options.map((o, i) => `${String.fromCharCode(65 + i)}. ${o}`).join(", ");
-      choiceInstruction = bt(isZh, PROMPTS.choiceInstruction.singleChoice(labels));
+      choiceInstruction = bt(spokenLang(),PROMPTS.choiceInstruction.singleChoice(labels));
     } else if (currentQ.type === "MULTIPLE_CHOICE" && qOpts?.options?.length) {
       const labels = qOpts.options.map((o, i) => `${String.fromCharCode(65 + i)}. ${o}`).join(", ");
-      choiceInstruction = bt(isZh, PROMPTS.choiceInstruction.multipleChoice(labels));
+      choiceInstruction = bt(spokenLang(),PROMPTS.choiceInstruction.multipleChoice(labels));
     } else if (currentQ.type === "CODING") {
-      choiceInstruction = bt(isZh, PROMPTS.choiceInstruction.coding(NEXT_TOKEN, PREV_TOKEN));
+      choiceInstruction = bt(spokenLang(),PROMPTS.choiceInstruction.coding(NEXT_TOKEN, PREV_TOKEN));
     } else if (currentQ.type === "WHITEBOARD") {
-      choiceInstruction = bt(isZh, PROMPTS.choiceInstruction.whiteboard(NEXT_TOKEN, PREV_TOKEN));
+      choiceInstruction = bt(spokenLang(),PROMPTS.choiceInstruction.whiteboard(NEXT_TOKEN, PREV_TOKEN));
     } else if (currentQ.type === "RESEARCH") {
-      choiceInstruction = bt(isZh, PROMPTS.choiceInstruction.research(NEXT_TOKEN, PREV_TOKEN));
+      choiceInstruction = bt(spokenLang(),PROMPTS.choiceInstruction.research(NEXT_TOKEN, PREV_TOKEN));
     }
 
     const effectiveMaxFollowUps = maxFollowUpsForDepth(ctx.followUpDepth, currentQ.type);
@@ -1558,24 +1613,26 @@ async function handleBrowserConnection(browserWs: WebSocket, ctx: InterviewConte
     };
 
     if (forceSkip) {
-      followUpInstruction = bt(isZh, PROMPTS.followUp.skipOverride(NEXT_TOKEN, followBudgetCtx));
+      followUpInstruction = bt(spokenLang(),PROMPTS.followUp.skipOverride(NEXT_TOKEN, followBudgetCtx));
       choiceInstruction = "";
     } else if (lastResponseWasCorrection) {
-      followUpInstruction = isZh
-        ? `等待受访者回应你的纠正。不要加 ${NEXT_TOKEN}。`
-        : `Wait for the participant to respond to your correction. Do NOT add ${NEXT_TOKEN}.`;
+      followUpInstruction = bt(spokenLang(), {
+        zh: `等待受访者回应你的纠正。不要加 ${NEXT_TOKEN}。`,
+        en: `Wait for the participant to respond to your correction. Do NOT add ${NEXT_TOKEN}.`,
+        id: `Tunggu peserta menanggapi koreksimu. Jangan tambahkan ${NEXT_TOKEN}.`,
+      });
     } else if (isCodingOrWhiteboard) {
-      followUpInstruction = bt(isZh, PROMPTS.followUp.codingWb(NEXT_TOKEN));
+      followUpInstruction = bt(spokenLang(),PROMPTS.followUp.codingWb(NEXT_TOKEN));
     } else if (turnsLeft <= 0 && !hasAnswered) {
-      followUpInstruction = bt(isZh, PROMPTS.followUp.awaitingAnswer(NEXT_TOKEN));
+      followUpInstruction = bt(spokenLang(),PROMPTS.followUp.awaitingAnswer(NEXT_TOKEN));
     } else if (turnsLeft <= -1) {
-      followUpInstruction = bt(isZh, PROMPTS.followUp.pastLimit(NEXT_TOKEN, followBudgetCtx));
+      followUpInstruction = bt(spokenLang(),PROMPTS.followUp.pastLimit(NEXT_TOKEN, followBudgetCtx));
     } else if (turnsLeft <= 0) {
-      followUpInstruction = bt(isZh, PROMPTS.followUp.atLimit(NEXT_TOKEN, followBudgetCtx));
+      followUpInstruction = bt(spokenLang(),PROMPTS.followUp.atLimit(NEXT_TOKEN, followBudgetCtx));
     } else if (turnsLeft === 1) {
-      followUpInstruction = bt(isZh, PROMPTS.followUp.oneLeft(NEXT_TOKEN, followBudgetCtx));
+      followUpInstruction = bt(spokenLang(),PROMPTS.followUp.oneLeft(NEXT_TOKEN, followBudgetCtx));
     } else {
-      followUpInstruction = bt(isZh, PROMPTS.followUp.remaining(turnsLeft, NEXT_TOKEN, followBudgetCtx));
+      followUpInstruction = bt(spokenLang(),PROMPTS.followUp.remaining(turnsLeft, NEXT_TOKEN, followBudgetCtx));
     }
     const mustAdvanceForFollowUpLimit =
       !forceSkip &&
@@ -1608,11 +1665,14 @@ async function handleBrowserConnection(browserWs: WebSocket, ctx: InterviewConte
       recentInterviewerResponses: recentAgentResponses.slice(-3),
       latestInterviewerPrompt: latestAnsweredExchange?.interviewer,
       latestParticipantAnswer: latestAnsweredExchange?.participant,
-      forceLanguage: userLangSamples.length > 0 ? (isZh ? "zh" : "en") : undefined,
+      // Unconditional: spokenLang() already folds in zh auto-detection. The old
+      // user-sample gate let ultra-short answers ("ya", "ok") produce prompts
+      // with NO output-language instruction, so id sessions could get English.
+      forceLanguage: spokenLang(),
       isLastQuestion: followBudgetCtx.isLastQuestion,
     };
 
-    const prompt = bt(isZh, isCodingOrWhiteboard
+    const prompt = bt(spokenLang(),isCodingOrWhiteboard
       ? PROMPTS.response.codingWb(promptParams)
       : PROMPTS.response.normal(promptParams));
 
@@ -1630,7 +1690,12 @@ async function handleBrowserConnection(browserWs: WebSocket, ctx: InterviewConte
         response.replace(NEXT_TOKEN, "").replace(PREV_TOKEN, "").trim(),
         isZh,
       ),
-      transitionResponse: isZh ? "好的，谢谢你的分享。" : "Thanks for sharing.",
+      transitionResponse:
+        spokenLang() === "zh"
+          ? "好的，谢谢你的分享。"
+          : spokenLang() === "id"
+            ? "Baik, terima kasih sudah berbagi."
+            : "Thanks for sharing.",
     });
     if (turnBudgetFinalized.changed) {
       log.info("Forced [NEXT] — follow-up limit reached");
@@ -1797,12 +1862,12 @@ async function handleBrowserConnection(browserWs: WebSocket, ctx: InterviewConte
 
       if (currentQuestionIndex < sortedQuestions.length) {
         const summary = transcriptSnapshot.length > 0
-          ? await summarizeQuestion(currentQ.text, transcriptSnapshot, isZh)
+          ? await summarizeQuestion(currentQ.text, transcriptSnapshot, spokenLang())
           : "";
         questionSummaries.push(summary);
 
         const nextQ = sortedQuestions[currentQuestionIndex];
-        const transition = buildTransitionSayHello(currentQuestionIndex, nextQ, isZh);
+        const transition = buildTransitionSayHello(currentQuestionIndex, nextQ, spokenLang());
 
         browserWs.send(
           JSON.stringify({
@@ -1818,7 +1883,7 @@ async function handleBrowserConnection(browserWs: WebSocket, ctx: InterviewConte
         await speakAndHandle(transition, { trackInTranscript: false });
       } else {
         if (transcriptSnapshot.length > 0) {
-          const lastSummary = await summarizeQuestion(currentQ.text, transcriptSnapshot, isZh);
+          const lastSummary = await summarizeQuestion(currentQ.text, transcriptSnapshot, spokenLang());
           questionSummaries.push(lastSummary);
         }
 
@@ -1828,7 +1893,7 @@ async function handleBrowserConnection(browserWs: WebSocket, ctx: InterviewConte
         }
 
         awaitingFinalResponse = true;
-        const wrapUp = buildWrapUpSayHello(isZh);
+        const wrapUp = buildWrapUpSayHello(spokenLang());
 
         log.info("All questions covered, awaiting final response");
         await speakAndHandle(wrapUp, { pendingFinalTimeout: true });
@@ -1889,14 +1954,14 @@ async function handleBrowserConnection(browserWs: WebSocket, ctx: InterviewConte
         transcriptSnapshot.length,
       );
       if (summaryTarget) {
-        const summary = await summarizeQuestion(summaryTarget.text, transcriptSnapshot, isZh);
+        const summary = await summarizeQuestion(summaryTarget.text, transcriptSnapshot, spokenLang());
         questionSummaries.push(summary);
       }
 
       currentQuestionIndex--;
 
       const prevQ = sortedQuestions[currentQuestionIndex];
-      const transition = buildReturnSayHello(currentQuestionIndex, prevQ, isZh);
+      const transition = buildReturnSayHello(currentQuestionIndex, prevQ, spokenLang());
 
       browserWs.send(
         JSON.stringify({
@@ -2096,7 +2161,7 @@ async function handleBrowserConnection(browserWs: WebSocket, ctx: InterviewConte
           clearTimeout(finalResponseTimeout);
           finalResponseTimeout = null;
         }
-        const farewell = buildFarewellSayHello(isZh);
+        const farewell = buildFarewellSayHello(spokenLang());
         log.info("Final response received, sending farewell");
         await speakAndHandle(farewell, { pendingFarewell: true });
         return;

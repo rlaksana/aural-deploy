@@ -154,6 +154,8 @@ export async function synthesizePcm(
   opts: TtsRequestOptions = {},
 ): Promise<Buffer> {
   const isZh = opts.language?.toLowerCase().startsWith("zh");
+  // ponytail: zh/en voice split only — id reuses the en voice + ASR header; add a
+  // MINIMAX_TTS_VOICE_ID / ASR language mapping if live Indonesian quality demands it.
   const voiceId = isZh ? cfg.voiceZh : cfg.voiceEn;
 
   const res = await fetch(`${cfg.baseUrl}/t2a_v2`, {

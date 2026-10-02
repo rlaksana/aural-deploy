@@ -92,7 +92,7 @@ export default function SlugSessionPage() {
 
   if (session.data.status === "COMPLETED" || completed) {
     try { localStorage.removeItem(STORAGE_PREFIX + slug); } catch { /* noop */ }
-    return <SessionEndedScreen reason={completionReason} />;
+    return <SessionEndedScreen reason={completionReason} language={interview.data.language} />;
   }
 
   if (!onboardingDone) {
@@ -203,7 +203,7 @@ export default function SlugSessionPage() {
 
     return (
       <>
-        <AntiCheatingGuard enabled={antiCheatingEnabled} sessionId={sessionId!} />
+        <AntiCheatingGuard enabled={antiCheatingEnabled} sessionId={sessionId!} language={interview.data.language} />
         <VoiceInterface
           sessionId={sessionId!}
           interviewId={interview.data.id}

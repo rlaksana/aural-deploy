@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { PROMPTS, type ResponsePromptParams } from "../server/voice-relay-prompts";
+import { PROMPTS, SPOKEN, type ResponsePromptParams } from "../server/voice-relay-prompts";
+import { bt } from "../src/lib/i18n";
 
 function basePromptParams(overrides: Partial<ResponsePromptParams> = {}): ResponsePromptParams {
   return {
@@ -164,4 +165,18 @@ test("normal response prompt defaults to moving on after a direct answer", () =>
   assert.match(prompt, /如果已经正面回答了你刚才的问题/);
   assert.match(prompt, /默认应简短确认并进入下一题/);
   assert.match(prompt, /只有当关键信息仍明显缺失时/);
+});
+
+test("forced language instruction names Indonesian for id sessions", () => {
+  const prompt = PROMPTS.response.normal(basePromptParams({ forceLanguage: "id" })).en;
+  assert.match(prompt, /ONLY in Indonesian \(Bahasa Indonesia\)/);
+  assert.match(prompt, /Every word you speak must be in Indonesian/);
+});
+
+test("Indonesian sessions get Indonesian spoken templates", () => {
+  const greeting = bt("id", SPOKEN.greeting("Aural", "Tes", 3, "Ceritakan tentang dirimu."));
+  assert.match(greeting, /Halo, saya Aural/);
+  assert.match(greeting, /Pertanyaan pertama: Ceritakan tentang dirimu\./);
+  assert.match(bt("id", SPOKEN.wrapUp), /semua pertanyaan sudah selesai/i);
+  assert.match(bt("id", SPOKEN.farewell), /terima kasih banyak/i);
 });

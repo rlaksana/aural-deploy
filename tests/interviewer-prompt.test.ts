@@ -6,13 +6,13 @@ import { maxFollowUpsForDepth } from "../src/lib/follow-up-depth";
 
 type PromptArgs = Parameters<typeof buildInterviewerPrompt>[0];
 
-function systemPromptFor(followUpDepth: string | null): string {
+function systemPromptFor(followUpDepth: string | null, language = "en"): string {
   const interview = {
     aiName: "Aural",
     title: "Beauty advisor screening",
     objective: "Assess sales and communication skills",
     aiTone: "Professional",
-    language: "en",
+    language,
     followUpDepth,
     chatEnabled: true,
     voiceEnabled: false,
@@ -81,4 +81,12 @@ test("system prompt forbids simulating candidate responses or dialog labels", ()
   const prompt = systemPromptFor("MODERATE");
   assert.match(prompt, /NEVER simulate, generate, predict, or script the candidate/);
   assert.match(prompt, /NEVER output labels like \[CANDIDATE RESPONSE\]/);
+});
+
+test("Indonesian interviews must be conducted entirely in Indonesian", () => {
+  const prompt = systemPromptFor("MODERATE", "id");
+  assert.match(prompt, /Language: Indonesian \(Bahasa Indonesia\)/);
+  assert.match(prompt, /Conduct the ENTIRE interview in Indonesian \(Bahasa Indonesia\)/);
+  // The navigation markers must survive the language rule untouched.
+  assert.match(prompt, /markers stay exactly as written/);
 });

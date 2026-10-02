@@ -92,7 +92,7 @@ export type GeneratedQuestionValidated = z.infer<typeof generatedQuestionSchema>
 export const generateRequestSchema = z.object({
   description: z.string().trim().min(1).max(2_000),
   durationMinutes: z.number().int().min(1).max(480).optional(),
-  language: languageCode.optional(),
+  language: languageCode.default("id"),
   jobDescription: z.string().max(15_000).optional(),
   resumeText: z.string().max(15_000).optional(),
 });
@@ -128,7 +128,7 @@ export const refineRequestSchema = z.object({
       .max(25),
   }),
   feedback: z.string().trim().min(1).max(1_000),
-  language: languageCode.optional(),
+  language: languageCode.default("id"),
   jobDescription: z.string().max(15_000).optional(),
   resumeText: z.string().max(15_000).optional(),
 });

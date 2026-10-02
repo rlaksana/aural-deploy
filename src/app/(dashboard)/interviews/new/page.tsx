@@ -59,7 +59,7 @@ export default function NewInterviewPage() {
   const [followUpDepth, setFollowUpDepth] = useState<
     "LIGHT" | "MODERATE" | "DEEP"
   >("MODERATE");
-  const [language, setLanguage] = useState("en");
+  const [language, setLanguage] = useState("id");
   const [duration, setDuration] = useState<number | undefined>(undefined);
   const [antiCheatingEnabled, setAntiCheatingEnabled] = useState(false);
   const [loading, setLoading] = useState(false);

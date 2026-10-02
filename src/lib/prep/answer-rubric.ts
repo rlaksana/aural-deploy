@@ -117,57 +117,52 @@ export function inferSuggestedAnswerStructure(
   return "STAR";
 }
 
-/** User-facing label for the answer structure tag. */
-export function structureTagLabel(structure: PrepStructureLabel): {
+/** User-facing label for the answer structure tag (id supported; zh/en status quo). */
+export function structureTagLabel(
+  structure: PrepStructureLabel,
+  language?: string,
+): {
   label: string;
   hint: string;
 } {
+  const id = !!language && language.toLowerCase().startsWith("id");
   switch (structure) {
     case "STAR":
-      return {
-        label: "STAR story",
-        hint: "Situation → action → result",
-      };
+      return id
+        ? { label: "Cerita STAR", hint: "Situasi → tindakan → hasil" }
+        : { label: "STAR story", hint: "Situation → action → result" };
     case "PAR":
-      return {
-        label: "Case walkthrough",
-        hint: "Problem → approach → outcome",
-      };
+      return id
+        ? { label: "Studi kasus", hint: "Masalah → pendekatan → hasil" }
+        : { label: "Case walkthrough", hint: "Problem → approach → outcome" };
     case "Intro":
-      return {
-        label: "Intro arc",
-        hint: "Who you are → why this role → proof point",
-      };
+      return id
+        ? { label: "Alur perkenalan", hint: "Siapa kamu → kenapa posisi ini → bukti konkret" }
+        : { label: "Intro arc", hint: "Who you are → why this role → proof point" };
     case "Technical":
-      return {
-        label: "Technical flow",
-        hint: "Problem → approach → tradeoffs → outcome",
-      };
+      return id
+        ? { label: "Alur teknis", hint: "Masalah → pendekatan → pertimbangan → hasil" }
+        : { label: "Technical flow", hint: "Problem → approach → tradeoffs → outcome" };
     case "Service":
-      return {
-        label: "Service flow",
-        hint: "Acknowledge → probe → recommend/resolve",
-      };
+      return id
+        ? { label: "Alur pelayanan", hint: "Sapa → gali kebutuhan → rekomendasi/selesaikan" }
+        : { label: "Service flow", hint: "Acknowledge → probe → recommend/resolve" };
     case "Knowledge":
-      return {
-        label: "Knowledge map",
-        hint: "Category → features → fit",
-      };
+      return id
+        ? { label: "Peta produk", hint: "Kategori → fitur → kesesuaian" }
+        : { label: "Knowledge map", hint: "Category → features → fit" };
     case "Choice":
-      return {
-        label: "Choice rationale",
-        hint: "Pick → explain → qualify",
-      };
+      return id
+        ? { label: "Alasan memilih", hint: "Pilih → jelaskan → kualifikasi" }
+        : { label: "Choice rationale", hint: "Pick → explain → qualify" };
     case "WrapUp":
-      return {
-        label: "Closing note",
-        hint: "Add signal → summarize fit → invite follow-up",
-      };
+      return id
+        ? { label: "Catatan penutup", hint: "Sinyal tambahan → ringkas kesesuaian → buka tindak lanjut" }
+        : { label: "Closing note", hint: "Add signal → summarize fit → invite follow-up" };
     default:
-      return {
-        label: "STAR story",
-        hint: "Situation → action → result",
-      };
+      return id
+        ? { label: "Cerita STAR", hint: "Situasi → tindakan → hasil" }
+        : { label: "STAR story", hint: "Situation → action → result" };
   }
 }
 

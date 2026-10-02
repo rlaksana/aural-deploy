@@ -116,3 +116,43 @@ test("rationale text is accepted regardless of length or content", () => {
   assert.equal(result.questionAdvanced, true);
   assert.equal(result.isComplete, false);
 });
+
+test("Indonesian sessions get Indonesian replies and recognize Indonesian selections", () => {
+  const rationale = resolveChoiceQuestionFlow({
+    questions: QUESTIONS,
+    currentQuestionIndex: 1,
+    conversationHistory: makeHistory([
+      { role: "user", content: "Memilih opsi B" },
+    ]),
+    language: "id",
+  });
+  assert.ok(rationale, "expected deterministic flow result");
+  assert.match(rationale.content, /memilih opsi/i);
+  assert.doesNotMatch(rationale.content, /got it/i);
+
+  const advance = resolveChoiceQuestionFlow({
+    questions: QUESTIONS,
+    currentQuestionIndex: 1,
+    conversationHistory: makeHistory([
+      { role: "user", content: "Memilih opsi: A, C" },
+      { role: "assistant", content: "Baik. Kenapa kamu memilih opsi itu?" },
+      { role: "user", content: "karena lebih cocok" },
+    ]),
+    language: "id",
+  });
+  assert.ok(advance, "expected deterministic flow result");
+  assert.equal(advance.questionAdvanced, true);
+  assert.match(advance.content, /lanjut/i);
+
+  // English protocol tokens must still work for id sessions (legacy transcripts).
+  const legacy = resolveChoiceQuestionFlow({
+    questions: QUESTIONS,
+    currentQuestionIndex: 1,
+    conversationHistory: makeHistory([
+      { role: "user", content: "Selected option B" },
+    ]),
+    language: "id",
+  });
+  assert.ok(legacy, "expected deterministic flow result");
+  assert.match(legacy.content, /memilih opsi/i);
+});

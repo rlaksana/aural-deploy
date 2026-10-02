@@ -121,7 +121,7 @@ export async function POST(request: Request) {
   const aiName = typeof body.aiName === "string" && body.aiName.trim() ? body.aiName.trim() : "Aural";
   const aiTone = body.aiTone === "CASUAL" || body.aiTone === "PROFESSIONAL" || body.aiTone === "FORMAL" || body.aiTone === "FRIENDLY" ? body.aiTone : "PROFESSIONAL";
   const followUpDepth = body.followUpDepth === "LIGHT" || body.followUpDepth === "MODERATE" || body.followUpDepth === "DEEP" ? body.followUpDepth : "MODERATE";
-  const language = typeof body.language === "string" && body.language.trim() ? body.language.trim() : "en";
+  const language = typeof body.language === "string" && body.language.trim() ? body.language.trim() : "id";
   const antiCheatingEnabled = typeof body.antiCheatingEnabled === "boolean" ? body.antiCheatingEnabled : false;
 
   let timeLimitMinutes: number | null = null;

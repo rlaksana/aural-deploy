@@ -19,6 +19,12 @@ test("buildSummaryPrompt returns system and user messages", () => {
   assert.equal(messages[0].role, "system");
   assert.equal(messages[1].role, "user");
   assert.match(String(messages[1].content), /analyze the interview transcript/i);
+
+  // Regression: language "id" used to resolve to the English display name and the
+  // report prompt literally ordered the model to write the report in English.
+  const system = String(messages[0].content);
+  assert.match(system, /in Indonesian \(Bahasa Indonesia\)/);
+  assert.doesNotMatch(system, /in English/);
 });
 
 test("MinimaxProvider appends user message when messages only contain system prompt", () => {

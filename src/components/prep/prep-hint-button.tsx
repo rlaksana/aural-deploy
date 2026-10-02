@@ -3,6 +3,7 @@
 import { AiButton } from "@/components/ui/ai-button";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import { bt, getLanguageKey } from "@/lib/i18n";
 import { Lightbulb, X } from "lucide-react";
 import { useState } from "react";
 import { readPrepStream } from "./prep-stream";
@@ -11,10 +12,19 @@ type Props = {
   interviewId: string;
   questionId: string;
   disabledReason?: string;
+  language?: string;
 };
 
-export function PrepHintButton({ interviewId, questionId, disabledReason }: Props) {
+export function PrepHintButton({
+  interviewId,
+  questionId,
+  disabledReason,
+  language,
+}: Props) {
   const { toast } = useToast();
+  const lang = getLanguageKey(language);
+  const t = (text: { en: string; id: string }) =>
+    bt(lang, { zh: text.en, ...text });
   const [hint, setHint] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -33,7 +43,11 @@ export function PrepHintButton({ interviewId, questionId, disabledReason }: Prop
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : "Hint failed";
-      toast({ title: "Hint failed", description: message, variant: "destructive" });
+      toast({
+        title: t({ en: "Hint failed", id: "Gagal membuat jawaban" }),
+        description: message,
+        variant: "destructive",
+      });
       setHint("");
     } finally {
       setLoading(false);
@@ -52,7 +66,7 @@ export function PrepHintButton({ interviewId, questionId, disabledReason }: Prop
         title={disabledReason}
       >
         <Lightbulb className="h-4 w-4" />
-        Show suggested answer
+        {t({ en: "Show suggested answer", id: "Tampilkan jawaban yang disarankan" })}
       </AiButton>
     );
   }
@@ -62,7 +76,7 @@ export function PrepHintButton({ interviewId, questionId, disabledReason }: Prop
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-2 text-sm font-medium text-amber-900 dark:text-amber-300">
           <Lightbulb className="h-4 w-4" />
-          Suggested answer
+          {t({ en: "Suggested answer", id: "Jawaban yang disarankan" })}
         </div>
         <Button
           variant="ghost"
@@ -71,13 +85,16 @@ export function PrepHintButton({ interviewId, questionId, disabledReason }: Prop
           onClick={() => {
             setHint("");
           }}
-          aria-label="Hide suggested answer"
+          aria-label={t({
+            en: "Hide suggested answer",
+            id: "Sembunyikan jawaban yang disarankan",
+          })}
         >
           <X className="h-4 w-4" />
         </Button>
       </div>
       <p className="mt-2 whitespace-pre-wrap text-sm text-amber-900/90 dark:text-amber-100/80">
-        {hint || "Generating..."}
+        {hint || t({ en: "Generating...", id: "Sedang membuat..." })}
       </p>
     </div>
   );

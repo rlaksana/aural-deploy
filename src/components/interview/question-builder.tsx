@@ -645,7 +645,7 @@ function ParseTextDialog({
       const response = await fetch("/api/ai/parse-questions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text, language: "en" }),
+        body: JSON.stringify({ text }),
       });
 
       if (!response.ok) {

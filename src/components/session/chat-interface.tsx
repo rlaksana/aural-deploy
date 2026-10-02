@@ -1,6 +1,7 @@
 "use client";
 
 import { CodeBlock } from "@/components/code-editor/code-block";
+import { bt, getLanguageKey } from "@/lib/i18n";
 import {
     CodeEditorCanvas,
     type CodeEditorCanvasRef,
@@ -56,6 +57,7 @@ interface Interview {
   title: string;
   aiName: string;
   mode: string;
+  language?: string;
   questions: {
     id: string;
     text: string;
@@ -97,6 +99,7 @@ export function ChatInterface({
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === "dark";
   const isMobile = useIsMobile();
+  const lang = getLanguageKey(interview.language);
 
   const [messages, setMessages] = useState<Message[]>(initialMessages ?? []);
   const [input, setInput] = useState("");
@@ -160,7 +163,7 @@ export function ChatInterface({
     snapshotData: string | null;
   }
   const [drawings, setDrawings] = useState<Drawing[]>([
-    { id: crypto.randomUUID(), label: "Drawing 1", snapshotData: null },
+    { id: crypto.randomUUID(), label: bt(lang, { en: "Drawing 1", zh: "Drawing 1", id: "Gambar 1" }), snapshotData: null },
   ]);
   const [activeDrawingIdx, setActiveDrawingIdx] = useState(0);
 
@@ -171,7 +174,7 @@ export function ChatInterface({
     snapshotData: string | null;
   }
   const [codeSnippets, setCodeSnippets] = useState<CodeSnippet[]>([
-    { id: crypto.randomUUID(), label: "Snippet 1", snapshotData: null },
+    { id: crypto.randomUUID(), label: bt(lang, { en: "Snippet 1", zh: "Snippet 1", id: "Cuplikan 1" }), snapshotData: null },
   ]);
   const [activeSnippetIdx, setActiveSnippetIdx] = useState(0);
 
@@ -395,8 +398,8 @@ export function ChatInterface({
           else codeEditorRef.current?.resetScene();
         }, 150);
       } else {
-        const freshDrawings = [{ id: crypto.randomUUID(), label: "Drawing 1", snapshotData: null as string | null }];
-        const freshSnippets = [{ id: crypto.randomUUID(), label: "Snippet 1", snapshotData: null as string | null }];
+        const freshDrawings = [{ id: crypto.randomUUID(), label: bt(lang, { en: "Drawing 1", zh: "Drawing 1", id: "Gambar 1" }), snapshotData: null as string | null }];
+        const freshSnippets = [{ id: crypto.randomUUID(), label: bt(lang, { en: "Snippet 1", zh: "Snippet 1", id: "Cuplikan 1" }), snapshotData: null as string | null }];
         setDrawings(freshDrawings);
         setActiveDrawingIdx(0);
         setCodeSnippets(freshSnippets);
@@ -565,7 +568,7 @@ export function ChatInterface({
       );
       return [...updated, {
         id: crypto.randomUUID(),
-        label: `Drawing ${updated.length + 1}`,
+        label: bt(lang, { en: `Drawing ${updated.length + 1}`, zh: `Drawing ${updated.length + 1}`, id: `Gambar ${updated.length + 1}` }),
         snapshotData: null,
       }];
     });
@@ -576,7 +579,7 @@ export function ChatInterface({
     wb.resetScene();
     setActiveDrawingIdx(drawings.length);
     lastAutoSave.current = null;
-  }, [activeDrawingIdx, drawings, persistDrawing]);
+  }, [activeDrawingIdx, drawings, persistDrawing, lang]);
 
   const [editingDrawingId, setEditingDrawingId] = useState<string | null>(null);
 
@@ -593,7 +596,11 @@ export function ChatInterface({
 
       const drawing = drawings[idx];
 
-      if (!window.confirm(`Delete "${drawing.label}"? This cannot be undone.`)) return;
+      if (!window.confirm(bt(lang, {
+        en: `Delete "${drawing.label}"? This cannot be undone.`,
+        zh: `Delete "${drawing.label}"? This cannot be undone.`,
+        id: `Hapus "${drawing.label}"? Tindakan ini tidak dapat dibatalkan.`,
+      }))) return;
 
       fetch("/api/trpc/session.deleteWhiteboard", {
         method: "POST",
@@ -617,7 +624,7 @@ export function ChatInterface({
       }
       lastAutoSave.current = null;
     },
-    [drawings, activeDrawingIdx, sessionId],
+    [drawings, activeDrawingIdx, sessionId, lang],
   );
 
   // ── Save status tracking (whiteboard) ─────────────────────────
@@ -744,7 +751,7 @@ export function ChatInterface({
       );
       return [...updated, {
         id: crypto.randomUUID(),
-        label: `Snippet ${updated.length + 1}`,
+        label: bt(lang, { en: `Snippet ${updated.length + 1}`, zh: `Snippet ${updated.length + 1}`, id: `Cuplikan ${updated.length + 1}` }),
         snapshotData: null,
       }];
     });
@@ -755,7 +762,7 @@ export function ChatInterface({
     ce.resetScene();
     setActiveSnippetIdx(codeSnippets.length);
     lastCodeAutoSave.current = null;
-  }, [activeSnippetIdx, codeSnippets, persistCodeSnippet]);
+  }, [activeSnippetIdx, codeSnippets, persistCodeSnippet, lang]);
 
   const [editingSnippetId, setEditingSnippetId] = useState<string | null>(null);
 
@@ -771,7 +778,11 @@ export function ChatInterface({
       if (codeSnippets.length <= 1) return;
 
       const snippet = codeSnippets[idx];
-      if (!window.confirm(`Delete "${snippet.label}"? This cannot be undone.`)) return;
+      if (!window.confirm(bt(lang, {
+        en: `Delete "${snippet.label}"? This cannot be undone.`,
+        zh: `Delete "${snippet.label}"? This cannot be undone.`,
+        id: `Hapus "${snippet.label}"? Tindakan ini tidak dapat dibatalkan.`,
+      }))) return;
 
       fetch("/api/trpc/session.deleteCode", {
         method: "POST",
@@ -795,7 +806,7 @@ export function ChatInterface({
       }
       lastCodeAutoSave.current = null;
     },
-    [codeSnippets, activeSnippetIdx, sessionId],
+    [codeSnippets, activeSnippetIdx, sessionId, lang],
   );
 
   // ── Code save status tracking ───────────────────────────────────
@@ -1103,7 +1114,12 @@ export function ChatInterface({
 
     const option = choiceOptions[index];
     if (!option) return;
-    void submitMessage(`Selected option ${String.fromCharCode(65 + index)}`);
+    const letter = String.fromCharCode(65 + index);
+    void submitMessage(
+      getLanguageKey(interview.language) === "id"
+        ? `Memilih opsi ${letter}`
+        : `Selected option ${letter}`,
+    );
   }
 
   function submitMultipleChoiceSelection() {
@@ -1112,7 +1128,11 @@ export function ChatInterface({
       .join(", ");
     if (!letters) return;
     setSelectedChoiceIndices([]);
-    void submitMessage(`Selected options: ${letters}`);
+    void submitMessage(
+      getLanguageKey(interview.language) === "id"
+        ? `Memilih opsi: ${letters}`
+        : `Selected options: ${letters}`,
+    );
   }
 
   const progress =
@@ -1210,8 +1230,26 @@ export function ChatInterface({
   );
 
   const previewMessages: Message[] = preview ? [
-    { id: "p-1", role: "ASSISTANT", content: `Hi! I'm ${interview.aiName}. Let's start — ${interview.questions[0]?.text ?? "tell me about yourself."}`, timestamp: "" },
-    { id: "p-2", role: "USER", content: "Sure, I have been working as a software engineer for...", timestamp: "" },
+    {
+      id: "p-1",
+      role: "ASSISTANT",
+      content: bt(lang, {
+        en: `Hi! I'm ${interview.aiName}. Let's start — ${interview.questions[0]?.text ?? "tell me about yourself."}`,
+        zh: `Hi! I'm ${interview.aiName}. Let's start — ${interview.questions[0]?.text ?? "tell me about yourself."}`,
+        id: `Hai! Saya ${interview.aiName}. Mari mulai — ${interview.questions[0]?.text ?? "ceritakan tentang dirimu."}`,
+      }),
+      timestamp: "",
+    },
+    {
+      id: "p-2",
+      role: "USER",
+      content: bt(lang, {
+        en: "Sure, I have been working as a software engineer for...",
+        zh: "Sure, I have been working as a software engineer for...",
+        id: "Tentu, saya telah bekerja sebagai software engineer selama...",
+      }),
+      timestamp: "",
+    },
   ] : [];
   const displayMessages = (preview ? previewMessages : messages).filter(
     (m) => m.role !== "SYSTEM",
@@ -1248,7 +1286,7 @@ export function ChatInterface({
         )}
       >
         <Clock className="h-3.5 w-3.5" />
-        <span>{formatTime(remainingSeconds)} left</span>
+        <span>{bt(lang, { en: `${formatTime(remainingSeconds)} left`, zh: `${formatTime(remainingSeconds)} left`, id: `${formatTime(remainingSeconds)} tersisa` })}</span>
       </div>
     ) : null;
 
@@ -1269,7 +1307,7 @@ export function ChatInterface({
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <IntervieweeHelpPopover mode="chat" />
+            <IntervieweeHelpPopover mode="chat" language={interview.language} />
           </div>
         </div>
         <div
@@ -1291,7 +1329,11 @@ export function ChatInterface({
           choiceOptions.length > 0 && (
             <div className="mt-2 space-y-1.5">
               <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                {isMultipleChoiceQuestion ? "Select one or more" : "Select one"}
+                {bt(lang, {
+                  en: isMultipleChoiceQuestion ? "Select one or more" : "Select one",
+                  zh: isMultipleChoiceQuestion ? "Select one or more" : "Select one",
+                  id: isMultipleChoiceQuestion ? "Pilih satu atau lebih" : "Pilih satu",
+                })}
               </p>
               <div className="grid gap-1.5 sm:grid-cols-2">
                 {choiceOptions.map((option, index) => {
@@ -1341,7 +1383,7 @@ export function ChatInterface({
                       selectedChoiceIndices.length === 0
                     }
                   >
-                    Submit selection
+                    {bt(lang, { en: "Submit selection", zh: "Submit selection", id: "Kirim pilihan" })}
                   </Button>
                 </div>
               )}
@@ -1355,14 +1397,21 @@ export function ChatInterface({
     <AlertDialog open={finishDialogOpen} onOpenChange={setFinishDialogOpen}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Finish interview?</AlertDialogTitle>
+          <AlertDialogTitle>
+            {bt(lang, { en: "Finish interview?", zh: "Finish interview?", id: "Akhiri wawancara?" })}
+          </AlertDialogTitle>
           <AlertDialogDescription>
-            Your responses will be saved and submitted. You won&apos;t be able to
-            continue this session afterward.
+            {bt(lang, {
+              en: "Your responses will be saved and submitted. You won't be able to continue this session afterward.",
+              zh: "Your responses will be saved and submitted. You won't be able to continue this session afterward.",
+              id: "Jawabanmu akan disimpan dan dikirim. Kamu tidak bisa melanjutkan sesi ini setelahnya.",
+            })}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel disabled={finishing}>Keep going</AlertDialogCancel>
+          <AlertDialogCancel disabled={finishing}>
+            {bt(lang, { en: "Keep going", zh: "Keep going", id: "Lanjutkan" })}
+          </AlertDialogCancel>
           <AlertDialogAction
             disabled={finishing}
             onClick={(event) => {
@@ -1373,10 +1422,10 @@ export function ChatInterface({
             {finishing ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Saving...
+                {bt(lang, { en: "Saving...", zh: "Saving...", id: "Menyimpan..." })}
               </>
             ) : (
-              "Finish interview"
+              bt(lang, { en: "Finish interview", zh: "Finish interview", id: "Akhiri wawancara" })
             )}
           </AlertDialogAction>
         </AlertDialogFooter>
@@ -1406,7 +1455,7 @@ export function ChatInterface({
           isGenerating={sending || aiTyping}
           disabled={preview}
           submitDisabled={preview || !input.trim()}
-          placeholder="Type your response..."
+          placeholder={bt(lang, { en: "Type your response...", zh: "Type your response...", id: "Ketik jawabanmu..." })}
           compact={compact}
           textareaRef={inputRef}
           questionNav={composerQuestionNav}

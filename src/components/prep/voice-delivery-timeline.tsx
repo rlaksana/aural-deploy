@@ -5,6 +5,7 @@ import {
     TooltipContent,
     TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { bt, getLanguageKey, type LangKey } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { Gauge, MicOff, Timer, Waves } from "lucide-react";
 import type { PrepVoiceDeliveryFeedback, PrepVoiceTimelineSegment } from "./prep-types";
@@ -32,14 +33,23 @@ const STATE_STYLES: Record<ReturnType<typeof segmentState>, string> = {
   pause: "bg-muted-foreground/25",
 };
 
-const STATE_LABELS: Record<ReturnType<typeof segmentState>, string> = {
-  ok: "Steady delivery",
-  dip: "Energy dip",
-  filler: "Filler-heavy",
-  pause: "Pause",
+const STATE_LABELS: Record<
+  ReturnType<typeof segmentState>,
+  { zh: string; en: string; id: string }
+> = {
+  ok: { zh: "Steady delivery", en: "Steady delivery", id: "Penyampaian stabil" },
+  dip: { zh: "Energy dip", en: "Energy dip", id: "Penurunan energi" },
+  filler: { zh: "Filler-heavy", en: "Filler-heavy", id: "Banyak kata pengisi" },
+  pause: { zh: "Pause", en: "Pause", id: "Jeda" },
 };
 
-function SegmentBar({ segment }: { segment: PrepVoiceTimelineSegment }) {
+function SegmentBar({
+  segment,
+  lang,
+}: {
+  segment: PrepVoiceTimelineSegment;
+  lang: LangKey;
+}) {
   const state = segmentState(segment);
   const height = segment.pause
     ? 18
@@ -51,7 +61,7 @@ function SegmentBar({ segment }: { segment: PrepVoiceTimelineSegment }) {
         <div
           className="group flex h-full min-w-0 flex-1 cursor-default items-end px-px"
           role="img"
-          aria-label={`${formatClock(segment.startSec)}–${formatClock(segment.endSec)}: ${STATE_LABELS[state]}`}
+          aria-label={`${formatClock(segment.startSec)}–${formatClock(segment.endSec)}: ${bt(lang, STATE_LABELS[state])}`}
         >
           <div
             className={cn(
@@ -66,21 +76,53 @@ function SegmentBar({ segment }: { segment: PrepVoiceTimelineSegment }) {
       <TooltipContent side="top" className="max-w-[220px] text-xs">
         <p className="font-medium">
           {formatClock(segment.startSec)}–{formatClock(segment.endSec)} ·{" "}
-          {STATE_LABELS[state]}
+          {bt(lang, STATE_LABELS[state])}
         </p>
         <ul className="mt-1 space-y-0.5 text-[11px] opacity-90">
           {segment.pause ? (
-            <li>Mostly silence</li>
+            <li>{bt(lang, { zh: "Mostly silence", en: "Mostly silence", id: "Hampir hening" })}</li>
           ) : (
             <>
-              {segment.wpm != null ? <li>Pace ~{segment.wpm} wpm</li> : null}
-              <li>Energy {(segment.energy * 100).toFixed(0)}%</li>
-              {segment.fillers > 0 ? (
+              {segment.wpm != null ? (
                 <li>
-                  {segment.fillers} filler word{segment.fillers === 1 ? "" : "s"}
+                  {bt(lang, {
+                    zh: `Pace ~${segment.wpm} wpm`,
+                    en: `Pace ~${segment.wpm} wpm`,
+                    id: `Tempo ±${segment.wpm} kpm`,
+                  })}
                 </li>
               ) : null}
-              {segment.lowConfidence ? <li>Quieter than the rest</li> : null}
+              <li>
+                {bt(lang, {
+                  zh: `Energy ${(segment.energy * 100).toFixed(0)}%`,
+                  en: `Energy ${(segment.energy * 100).toFixed(0)}%`,
+                  id: `Energi ${(segment.energy * 100).toFixed(0)}%`,
+                })}
+              </li>
+              {segment.fillers > 0 ? (
+                <li>
+                  {bt(lang, {
+                    zh:
+                      segment.fillers === 1
+                        ? `${segment.fillers} filler word`
+                        : `${segment.fillers} filler words`,
+                    en:
+                      segment.fillers === 1
+                        ? `${segment.fillers} filler word`
+                        : `${segment.fillers} filler words`,
+                    id: `${segment.fillers} kata pengisi`,
+                  })}
+                </li>
+              ) : null}
+              {segment.lowConfidence ? (
+                <li>
+                  {bt(lang, {
+                    zh: "Quieter than the rest",
+                    en: "Quieter than the rest",
+                    id: "Lebih pelan dari sisanya",
+                  })}
+                </li>
+              ) : null}
             </>
           )}
         </ul>
@@ -107,12 +149,15 @@ export function VoiceDeliveryTimeline({
   durationSeconds,
   compact = false,
   className,
+  language,
 }: {
   delivery: PrepVoiceDeliveryFeedback;
   durationSeconds?: number | null;
   compact?: boolean;
   className?: string;
+  language?: string;
 }) {
+  const lang = getLanguageKey(language);
   const timeline = delivery.timeline ?? [];
   if (timeline.length === 0) return null;
 
@@ -128,19 +173,50 @@ export function VoiceDeliveryTimeline({
 
   const stats = [
     avgPace != null
-      ? { icon: Gauge, label: `~${avgPace} wpm avg` }
+      ? {
+          icon: Gauge,
+          label: bt(lang, {
+            zh: `~${avgPace} wpm avg`,
+            en: `~${avgPace} wpm avg`,
+            id: `rata-rata ±${avgPace} kpm`,
+          }),
+        }
       : null,
     {
       icon: Timer,
-      label: `${delivery.pauseCount ?? 0} pause${(delivery.pauseCount ?? 0) === 1 ? "" : "s"}${
-        delivery.longestPauseSec && delivery.longestPauseSec > 0
-          ? ` · longest ${delivery.longestPauseSec.toFixed(1)}s`
-          : ""
-      }`,
+      label: bt(lang, {
+        zh: `${delivery.pauseCount ?? 0} pause${
+          (delivery.pauseCount ?? 0) === 1 ? "" : "s"
+        }${
+          delivery.longestPauseSec && delivery.longestPauseSec > 0
+            ? ` · longest ${delivery.longestPauseSec.toFixed(1)}s`
+            : ""
+        }`,
+        en: `${delivery.pauseCount ?? 0} pause${
+          (delivery.pauseCount ?? 0) === 1 ? "" : "s"
+        }${
+          delivery.longestPauseSec && delivery.longestPauseSec > 0
+            ? ` · longest ${delivery.longestPauseSec.toFixed(1)}s`
+            : ""
+        }`,
+        id: `${delivery.pauseCount ?? 0} jeda${
+          delivery.longestPauseSec && delivery.longestPauseSec > 0
+            ? ` · terpanjang ${delivery.longestPauseSec.toFixed(1)} dtk`
+            : ""
+        }`,
+      }),
     },
     {
       icon: MicOff,
-      label: `${delivery.fillerCount ?? 0} filler word${(delivery.fillerCount ?? 0) === 1 ? "" : "s"}`,
+      label: bt(lang, {
+        zh: `${delivery.fillerCount ?? 0} filler word${
+          (delivery.fillerCount ?? 0) === 1 ? "" : "s"
+        }`,
+        en: `${delivery.fillerCount ?? 0} filler word${
+          (delivery.fillerCount ?? 0) === 1 ? "" : "s"
+        }`,
+        id: `${delivery.fillerCount ?? 0} kata pengisi`,
+      }),
     },
   ].filter(Boolean) as Array<{ icon: typeof Gauge; label: string }>;
 
@@ -149,7 +225,11 @@ export function VoiceDeliveryTimeline({
       {!compact ? (
         <div className="flex items-center gap-2 text-sm font-semibold">
           <Waves className="h-4 w-4 text-violet-600 dark:text-violet-400" />
-          Delivery timeline
+          {bt(lang, {
+            zh: "Delivery timeline",
+            en: "Delivery timeline",
+            id: "Garis waktu penyampaian",
+          })}
         </div>
       ) : null}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -170,16 +250,28 @@ export function VoiceDeliveryTimeline({
         )}
       >
         {timeline.map((segment, index) => (
-          <SegmentBar key={index} segment={segment} />
+          <SegmentBar key={index} segment={segment} lang={lang} />
         ))}
       </div>
       <div className="flex items-center justify-between">
         <span className="text-[10px] tabular-nums text-muted-foreground">0:00</span>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-          <LegendDot className={STATE_STYLES.ok} label="Steady" />
-          <LegendDot className={STATE_STYLES.dip} label="Energy dip" />
-          <LegendDot className={STATE_STYLES.filler} label="Fillers" />
-          <LegendDot className={STATE_STYLES.pause} label="Pause" />
+          <LegendDot
+            className={STATE_STYLES.ok}
+            label={bt(lang, { zh: "Steady", en: "Steady", id: "Stabil" })}
+          />
+          <LegendDot
+            className={STATE_STYLES.dip}
+            label={bt(lang, { zh: "Energy dip", en: "Energy dip", id: "Penurunan energi" })}
+          />
+          <LegendDot
+            className={STATE_STYLES.filler}
+            label={bt(lang, { zh: "Fillers", en: "Fillers", id: "Pengisi" })}
+          />
+          <LegendDot
+            className={STATE_STYLES.pause}
+            label={bt(lang, { zh: "Pause", en: "Pause", id: "Jeda" })}
+          />
         </div>
         <span className="text-[10px] tabular-nums text-muted-foreground">
           {formatClock(totalSec)}

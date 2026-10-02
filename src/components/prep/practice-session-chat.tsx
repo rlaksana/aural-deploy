@@ -41,6 +41,7 @@ import type { PrepVoiceRecording } from "@/hooks/use-prep-voice-capture";
 import { useToast } from "@/hooks/use-toast";
 import { useMinimaxTts } from "@/hooks/use-minimax-tts";
 import { isAbortError } from "@/lib/abort-error";
+import { bt, getLanguageKey, type LangKey } from "@/lib/i18n";
 import { computeMediaRetention, type PlanTier } from "@/lib/media-retention";
 import { formatPrepAudioDuration, resolveBlobDuration } from "@/lib/prep/answer-audio";
 import { resolvePrepResponseLanguage } from "@/lib/prep/answer-quality";
@@ -322,15 +323,22 @@ function questionMessage(question: PrepQuestion, index: number): ChatMessage {
   };
 }
 
-function feedbackPhaseLabel(phase?: Phase, streamingLength = 0): string {
-  if (phase === "thinking") return "Reading your answer";
+function feedbackPhaseLabel(
+  phase?: Phase,
+  streamingLength = 0,
+  lang: LangKey = "en",
+): string {
+  if (phase === "thinking")
+    return bt(lang, { zh: "Reading your answer", en: "Reading your answer", id: "Membaca jawabanmu" });
   if (phase === "writing") {
-    if (streamingLength > 900) return "Structuring feedback";
-    if (streamingLength > 300) return "Scoring signals";
-    return "Drafting coaching";
+    if (streamingLength > 900)
+      return bt(lang, { zh: "Structuring feedback", en: "Structuring feedback", id: "Menyusun masukan" });
+    if (streamingLength > 300)
+      return bt(lang, { zh: "Scoring signals", en: "Scoring signals", id: "Menilai sinyal" });
+    return bt(lang, { zh: "Drafting coaching", en: "Drafting coaching", id: "Menyusun masukan" });
   }
-  if (phase === "finalizing") return "Finalizing";
-  return "Preparing feedback";
+  if (phase === "finalizing") return bt(lang, { zh: "Finalizing", en: "Finalizing", id: "Finalisasi" });
+  return bt(lang, { zh: "Preparing feedback", en: "Preparing feedback", id: "Menyiapkan masukan" });
 }
 
 export function PracticeSessionChat({
@@ -1760,6 +1768,7 @@ export function PracticeSessionChat({
                 </SheetHeader>
                 <div className="flex min-h-0 flex-1 flex-col pt-9">
                   <PracticeQuestionNavigator
+                    language={language}
                     statuses={questionStatuses}
                     currentIndex={questionIndex}
                     disabled={submitting}
@@ -1809,6 +1818,7 @@ export function PracticeSessionChat({
               data-tour="practice-navigator"
             >
               <PracticeQuestionNavigator
+                language={language}
                 statuses={questionStatuses}
                 currentIndex={questionIndex}
                 disabled={submitting}
@@ -1852,6 +1862,7 @@ export function PracticeSessionChat({
                   key={message.id}
                   message={message}
                   inputMode={mode}
+                  language={language}
                   speakingQuestionIndex={speakingQuestionIndex}
                   registerQuestionAnchor={registerQuestionAnchor}
                   registerMessageAnchor={registerMessageAnchor}
@@ -1882,6 +1893,7 @@ export function PracticeSessionChat({
             <div className="pointer-events-auto mx-auto w-full max-w-4xl">
               {showNextMoveBar && latestFeedback?.feedback ? (
                 <NextBestMoveBar
+                  language={language}
                   feedback={latestFeedback.feedback}
                   canNext={canGoNextQuestion}
                   disabled={submitting || previewMutation.isLoading}
@@ -1891,7 +1903,7 @@ export function PracticeSessionChat({
                 />
               ) : null}
               {drillScript !== null ? (
-                <DrillBanner onDismiss={() => setDrillScript(null)} />
+                <DrillBanner language={language} onDismiss={() => setDrillScript(null)} />
               ) : null}
               <div data-tour="practice-composer">
               <ChatComposer
@@ -1982,6 +1994,7 @@ export function PracticeSessionChat({
               data-tour="practice-suggested"
             >
               <PrepSuggestedAnswerPanel
+                language={language}
                 interviewId={interviewId}
                 interviewTitle={interviewTitle}
                 questionId={currentQuestion?.id ?? null}
@@ -2019,6 +2032,7 @@ export function PracticeSessionChat({
                   key={message.id}
                   message={message}
                   inputMode={mode}
+                  language={language}
                   speakingQuestionIndex={speakingQuestionIndex}
                   registerQuestionAnchor={registerQuestionAnchor}
                   registerMessageAnchor={registerMessageAnchor}
@@ -2048,6 +2062,7 @@ export function PracticeSessionChat({
             <div className="pointer-events-auto">
               {showNextMoveBar && latestFeedback?.feedback ? (
                 <NextBestMoveBar
+                  language={language}
                   feedback={latestFeedback.feedback}
                   canNext={canGoNextQuestion}
                   disabled={submitting || previewMutation.isLoading}
@@ -2057,7 +2072,7 @@ export function PracticeSessionChat({
                 />
               ) : null}
               {drillScript !== null ? (
-                <DrillBanner onDismiss={() => setDrillScript(null)} />
+                <DrillBanner language={language} onDismiss={() => setDrillScript(null)} />
               ) : null}
               <ChatComposer
                 className="border bg-card/95 shadow-lg backdrop-blur-sm"
@@ -2106,6 +2121,7 @@ export function PracticeSessionChat({
           data-tour="practice-suggested"
         >
           <PrepSuggestedAnswerPanel
+            language={language}
             interviewId={interviewId}
             interviewTitle={interviewTitle}
             questionId={currentQuestion?.id ?? null}
@@ -2127,9 +2143,11 @@ export function PracticeSessionChat({
         }
         sampleAnswer={sampleDialog.sampleAnswer}
         questionText={sampleDialog.questionText}
+        language={language}
       />
 
       <PrepContextDrawer
+        language={language}
         interviewId={interviewId}
         open={proofDrawerOpen}
         onOpenChange={setProofDrawerOpen}
@@ -2143,7 +2161,14 @@ export function PracticeSessionChat({
   );
 }
 
-function DrillBanner({ onDismiss }: { onDismiss: () => void }) {
+function DrillBanner({
+  onDismiss,
+  language,
+}: {
+  onDismiss: () => void;
+  language?: string;
+}) {
+  const lang = getLanguageKey(language);
   return (
     <div className="mb-2 flex items-center gap-2 rounded-xl border border-violet-300/60 bg-violet-50/95 px-3 py-2 text-xs shadow-sm backdrop-blur-sm dark:border-violet-900/50 dark:bg-violet-950/60">
       <Mic
@@ -2151,8 +2176,14 @@ function DrillBanner({ onDismiss }: { onDismiss: () => void }) {
         aria-hidden
       />
       <p className="min-w-0 flex-1 leading-relaxed">
-        <span className="font-semibold">Speaking drill:</span> deliver the
-        suggested answer aloud in your own words, then send it for feedback.
+        <span className="font-semibold">
+          {bt(lang, { zh: "Speaking drill:", en: "Speaking drill:", id: "Latihan bicara:" })}
+        </span>{" "}
+        {bt(lang, {
+          zh: "deliver the suggested answer aloud in your own words, then send it for feedback.",
+          en: "deliver the suggested answer aloud in your own words, then send it for feedback.",
+          id: "ucapkan jawaban yang disarankan dengan kata-katamu sendiri, lalu kirim untuk mendapat masukan.",
+        })}
       </p>
       <Button
         type="button"
@@ -2247,6 +2278,7 @@ function ChatMessageView({
   bookmarkPending = false,
   onToggleBookmark,
   onNextAction,
+  language,
 }: {
   message: ChatMessage;
   inputMode?: Mode;
@@ -2270,6 +2302,7 @@ function ChatMessageView({
     action: PracticeNextAction,
     message: Extract<ChatMessage, { kind: "feedback" }>,
   ) => void;
+  language?: string;
 }) {
   if (message.role === "system") {
     return (
@@ -2332,6 +2365,7 @@ function ChatMessageView({
             questionOptions={message.questionOptions}
             showCoachWave={showQuestionWave}
             coachSpeakingPhase={coachSpeakingPhase}
+            language={language}
             isCurrent={
               currentQuestionIndex !== null &&
               message.questionIndex === currentQuestionIndex
@@ -2394,11 +2428,13 @@ function ChatMessageView({
                     ? () => onToggleBookmark(message.attemptId!)
                     : undefined
                 }
+                language={language}
               />
               {message.feedbackPartial === false &&
               message.id === latestFeedbackId &&
               onNextAction ? (
                 <NextActionStrip
+                  language={language}
                   feedback={normalizeFeedback(message.feedback)}
                   canNext={canNextQuestion}
                   disabled={actionsDisabled}
@@ -2418,18 +2454,20 @@ function ChatMessageView({
               thinkingText={message.thinkingText}
               streamingText={message.streamingText}
               inputMode={inputMode}
+              language={language}
             />
           )
         ) : null}
         {message.kind === "refinement" ? (
           message.refinement ? (
-            <RefinementCard refinement={message.refinement} />
+            <RefinementCard refinement={message.refinement} language={language} />
           ) : (
             <StreamingFeedback
               phase={message.phase}
               thinkingText={message.thinkingText}
               streamingText={message.streamingText}
               inputMode={inputMode}
+              language={language}
             />
           )
         ) : null}
@@ -2485,6 +2523,7 @@ function QuestionBubble({
   showCoachWave = false,
   coachSpeakingPhase,
   isCurrent = false,
+  language,
 }: {
   content: string;
   questionIndex?: number;
@@ -2493,6 +2532,7 @@ function QuestionBubble({
   showCoachWave?: boolean;
   coachSpeakingPhase?: CoachSpeakingPhase;
   isCurrent?: boolean;
+  language?: string;
 }) {
   const isChoiceQuestion =
     questionType === "SINGLE_CHOICE" || questionType === "MULTIPLE_CHOICE";
@@ -2536,6 +2576,7 @@ function QuestionBubble({
       <AnswerTargetChips
         questionType={questionType}
         questionText={content}
+        language={language}
         data-tour={isCurrent ? "practice-target" : undefined}
       />
     </div>
@@ -2580,12 +2621,15 @@ function StreamingFeedback({
   thinkingText = "",
   streamingText = "",
   inputMode = "TEXT",
+  language,
 }: {
   phase?: Phase;
   thinkingText?: string;
   streamingText?: string;
   inputMode?: Mode;
+  language?: string;
 }) {
+  const lang = getLanguageKey(language);
   const [gradingStep, setGradingStep] = useState(0);
 
   useEffect(() => {
@@ -2602,14 +2646,14 @@ function StreamingFeedback({
   const gradingLabels =
     inputMode === "VOICE"
       ? [
-          "Analyzing delivery & tone",
-          "Matching answer to role requirements",
-          "Generating coaching feedback",
+          bt(lang, { zh: "Analyzing delivery & tone", en: "Analyzing delivery & tone", id: "Menganalisis cara bicara & nada" }),
+          bt(lang, { zh: "Matching answer to role requirements", en: "Matching answer to role requirements", id: "Mencocokkan jawaban dengan persyaratan peran" }),
+          bt(lang, { zh: "Generating coaching feedback", en: "Generating coaching feedback", id: "Menyusun masukan coach" }),
         ]
       : [
-          "Matching answer to role requirements",
-          "Scoring key signals",
-          "Generating coaching feedback",
+          bt(lang, { zh: "Matching answer to role requirements", en: "Matching answer to role requirements", id: "Mencocokkan jawaban dengan persyaratan peran" }),
+          bt(lang, { zh: "Scoring key signals", en: "Scoring key signals", id: "Menilai sinyal kunci" }),
+          bt(lang, { zh: "Generating coaching feedback", en: "Generating coaching feedback", id: "Menyusun masukan coach" }),
         ];
 
   const showCompactGrading =
@@ -2632,8 +2676,16 @@ function StreamingFeedback({
             </div>
             <p className="text-xs leading-relaxed text-muted-foreground">
               {inputMode === "VOICE"
-                ? "Reviewing your recording and transcript before scoring."
-                : "Reviewing your answer before scoring."}
+                ? bt(lang, {
+                    zh: "Reviewing your recording and transcript before scoring.",
+                    en: "Reviewing your recording and transcript before scoring.",
+                    id: "Meninjau rekaman dan transkripsimu sebelum penilaian.",
+                  })
+                : bt(lang, {
+                    zh: "Reviewing your answer before scoring.",
+                    en: "Reviewing your answer before scoring.",
+                    id: "Meninjau jawabanmu sebelum penilaian.",
+                  })}
             </p>
           </div>
         </div>
@@ -2651,15 +2703,15 @@ function StreamingFeedback({
             phase={phase}
             thinkingText={thinkingText}
             contentText={streamingText}
-            thinkingLabel="Reading your answer"
-            thinkingCompleteLabel="Analysis complete"
-            contentLabel="Drafting feedback"
-            contentCompleteLabel="Finalizing feedback"
+            thinkingLabel={bt(lang, { zh: "Reading your answer", en: "Reading your answer", id: "Membaca jawabanmu" })}
+            thinkingCompleteLabel={bt(lang, { zh: "Analysis complete", en: "Analysis complete", id: "Analisis selesai" })}
+            contentLabel={bt(lang, { zh: "Drafting feedback", en: "Drafting feedback", id: "Menyusun masukan" })}
+            contentCompleteLabel={bt(lang, { zh: "Finalizing feedback", en: "Finalizing feedback", id: "Finalisasi masukan" })}
           />
         ) : (
           <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
             <Loader2 className="h-4 w-4 shrink-0 animate-spin text-primary" />
-            <span>{feedbackPhaseLabel(phase)}</span>
+            <span>{feedbackPhaseLabel(phase, 0, lang)}</span>
           </div>
         )}
       </div>
@@ -2689,6 +2741,7 @@ function FeedbackCard({
   bookmarked = false,
   bookmarkPending = false,
   onToggleBookmark,
+  language,
 }: {
   feedback: PrepFeedback;
   partial?: boolean;
@@ -2697,7 +2750,9 @@ function FeedbackCard({
   bookmarked?: boolean;
   bookmarkPending?: boolean;
   onToggleBookmark?: () => void;
+  language?: string;
 }) {
+  const lang = getLanguageKey(language);
   const showDetails = !partial || hasFeedbackDetails(feedback);
   const showPartialDetailsLoading = partial && !hasFeedbackDetails(feedback);
 
@@ -2766,7 +2821,7 @@ function FeedbackCard({
             {showPartialDetailsLoading ? (
               <div className="flex items-center gap-2 border-t border-primary/10 pt-3 text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 shrink-0 animate-spin text-primary" />
-                Building detailed coaching…
+                {bt(lang, { zh: "Building detailed coaching…", en: "Building detailed coaching…", id: "Menyusun detail masukan…" })}
               </div>
             ) : null}
           </div>
@@ -2777,25 +2832,25 @@ function FeedbackCard({
       <div className="space-y-4 p-5">
         <div className="grid gap-3 md:grid-cols-2">
           <SignalCard
-            title="What worked"
+            title={bt(lang, { zh: "What worked", en: "What worked", id: "Yang berhasil" })}
             items={feedback.strengths}
             tone="positive"
             icon={CheckCircle2}
           />
           <SignalCard
-            title="Improve next"
+            title={bt(lang, { zh: "Improve next", en: "Improve next", id: "Untuk diperbaiki" })}
             items={feedback.improvements}
             tone="action"
             icon={TrendingUp}
           />
           <SignalCard
-            title="Missing signals"
+            title={bt(lang, { zh: "Missing signals", en: "Missing signals", id: "Sinyal yang hilang" })}
             items={feedback.missingSignals}
             tone="neutral"
             icon={Target}
           />
           <SignalCard
-            title="Resume leverage"
+            title={bt(lang, { zh: "Resume leverage", en: "Resume leverage", id: "Manfaat dari CV" })}
             items={feedback.resumeLeverage}
             tone="neutral"
             icon={Sparkles}
@@ -2803,14 +2858,17 @@ function FeedbackCard({
         </div>
 
         {feedback.voiceDelivery ? (
-          <VoiceDeliveryPanel delivery={feedback.voiceDelivery} />
+          <VoiceDeliveryPanel
+            delivery={feedback.voiceDelivery}
+            language={language}
+          />
         ) : null}
 
         {feedback.structureSuggestion ? (
           <div className="rounded-lg border bg-muted/25 p-4">
             <div className="flex items-center gap-2 text-sm font-semibold">
               <Target className="h-4 w-4 text-primary" />
-              Structure to try
+              {bt(lang, { zh: "Structure to try", en: "Structure to try", id: "Struktur yang bisa dicoba" })}
             </div>
             <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-muted-foreground">
               {feedback.structureSuggestion}
@@ -2820,7 +2878,9 @@ function FeedbackCard({
 
         {feedback.needsUserVerification.length > 0 ? (
           <div className="rounded-lg border border-amber-200/80 bg-amber-50/90 p-4 text-sm text-amber-950 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-100">
-            <p className="font-medium">Verify before using</p>
+            <p className="font-medium">
+              {bt(lang, { zh: "Verify before using", en: "Verify before using", id: "Verifikasi sebelum dipakai" })}
+            </p>
             <ul className="mt-2 list-disc space-y-1 pl-5">
               {feedback.needsUserVerification.map((item) => (
                 <li key={item}>{item}</li>
@@ -2897,20 +2957,35 @@ function ScoreRing({ score }: { score: number }) {
 
 function VoiceDeliveryPanel({
   delivery,
+  language,
 }: {
   delivery: NonNullable<PrepFeedback["voiceDelivery"]>;
+  language?: string;
 }) {
+  const lang = getLanguageKey(language);
   const metrics = [
-    { label: "Confidence", value: delivery.confidence, hint: "Volume & steadiness" },
-    { label: "Clarity", value: delivery.clarity, hint: "Pace & articulation" },
-    { label: "Tone", value: delivery.tone, hint: "Energy & variation" },
+    {
+      label: bt(lang, { zh: "Confidence", en: "Confidence", id: "Kepercayaan diri" }),
+      value: delivery.confidence,
+      hint: bt(lang, { zh: "Volume & steadiness", en: "Volume & steadiness", id: "Volume & kestabilan" }),
+    },
+    {
+      label: bt(lang, { zh: "Clarity", en: "Clarity", id: "Kejelasan" }),
+      value: delivery.clarity,
+      hint: bt(lang, { zh: "Pace & articulation", en: "Pace & articulation", id: "Tempo & artikulasi" }),
+    },
+    {
+      label: bt(lang, { zh: "Tone", en: "Tone", id: "Nada" }),
+      value: delivery.tone,
+      hint: bt(lang, { zh: "Energy & variation", en: "Energy & variation", id: "Energi & variasi" }),
+    },
   ] as const;
 
   return (
     <div className="rounded-lg border border-violet-200/60 bg-gradient-to-br from-violet-50/80 to-background p-4 dark:border-violet-900/40 dark:from-violet-950/25">
       <div className="flex items-center gap-2 text-sm font-semibold">
         <Waves className="h-4 w-4 text-violet-600 dark:text-violet-400" />
-        Voice delivery
+        {bt(lang, { zh: "Voice delivery", en: "Voice delivery", id: "Cara bicara" })}
       </div>
       <div className="mt-4 grid gap-4 sm:grid-cols-3">
         {metrics.map(({ label, value, hint }) => (
@@ -2940,7 +3015,7 @@ function VoiceDeliveryPanel({
       </div>
       {delivery.timeline && delivery.timeline.length > 0 ? (
         <div className="mt-4 border-t border-violet-200/50 pt-3 dark:border-violet-900/30">
-          <VoiceDeliveryTimeline delivery={delivery} compact />
+          <VoiceDeliveryTimeline delivery={delivery} compact language={language} />
         </div>
       ) : null}
       {delivery.tips.length > 0 ? (
@@ -3017,13 +3092,16 @@ function SignalList({ title, items }: { title: string; items: string[] }) {
 
 function RefinementCard({
   refinement,
+  language,
 }: {
   refinement: {
     verdict: string;
     stillStrong: string[];
     stillMissing: string[];
   };
+  language?: string;
 }) {
+  const lang = getLanguageKey(language);
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-2 text-base font-semibold">
@@ -3031,8 +3109,8 @@ function RefinementCard({
         {refinement.verdict}
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
-        <SignalList title="Still strong" items={refinement.stillStrong} />
-        <SignalList title="Still missing" items={refinement.stillMissing} />
+        <SignalList title={bt(lang, { zh: "Still strong", en: "Still strong", id: "Masih kuat" })} items={refinement.stillStrong} />
+        <SignalList title={bt(lang, { zh: "Still missing", en: "Still missing", id: "Masih kurang" })} items={refinement.stillMissing} />
       </div>
     </div>
   );

@@ -80,6 +80,19 @@ test("feedback prompt omits voiceDelivery JSON when no audio or metrics", () => 
   assert.match(system, /Do NOT output voiceDelivery/i);
 });
 
+test("Indonesian interviews get Indonesian prep feedback, not English", () => {
+  const messages = buildPrepFeedbackPrompt({
+    interview: { ...baseInterview, language: "id" },
+    question: baseQuestion,
+    answerText: "Saya memimpin peluncuran fitur dengan metrik yang jelas.",
+    practiceMode: true,
+  });
+
+  const system = String(messages[0].content);
+  assert.match(system, /in Indonesian \(Bahasa Indonesia\)/);
+  assert.doesNotMatch(system, /Write ALL [^.]* in English\./);
+});
+
 test("feedback prompt attaches audio parts when answer audio is provided", () => {
   const messages = buildPrepFeedbackPrompt({
     interview: baseInterview,

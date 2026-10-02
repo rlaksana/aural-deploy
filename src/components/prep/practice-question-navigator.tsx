@@ -8,6 +8,7 @@ import {
     TooltipProvider,
     TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { bt, getLanguageKey, type LangKey } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { CheckCircle2, Circle, PanelLeftClose, RotateCcw } from "lucide-react";
 import { scoreTone } from "./prep-types";
@@ -29,15 +30,17 @@ export const PRACTICE_RETRY_SCORE_BAR = 6;
 function StatusIcon({
   status,
   isCurrent,
+  lang,
 }: {
   status: PracticeQuestionStatus;
   isCurrent: boolean;
+  lang: LangKey;
 }) {
   if (status.needsRetry) {
     return (
       <RotateCcw
         className="h-3.5 w-3.5 shrink-0 text-orange-500"
-        aria-label="Needs retry"
+        aria-label={bt(lang, { zh: "Needs retry", en: "Needs retry", id: "Perlu diulang" })}
       />
     );
   }
@@ -45,7 +48,7 @@ function StatusIcon({
     return (
       <CheckCircle2
         className="h-3.5 w-3.5 shrink-0 text-emerald-600 dark:text-emerald-400"
-        aria-label="Answered"
+        aria-label={bt(lang, { zh: "Answered", en: "Answered", id: "Terjawab" })}
       />
     );
   }
@@ -55,17 +58,27 @@ function StatusIcon({
         "h-3.5 w-3.5 shrink-0",
         isCurrent ? "text-primary" : "text-muted-foreground/40",
       )}
-      aria-label="Unanswered"
+      aria-label={bt(lang, { zh: "Unanswered", en: "Unanswered", id: "Belum dijawab" })}
     />
   );
 }
 
-function statusCaption(status: PracticeQuestionStatus): string {
-  if (status.attemptCount === 0) return "Unanswered";
+function statusCaption(
+  status: PracticeQuestionStatus,
+  lang: LangKey,
+): string {
+  if (status.attemptCount === 0)
+    return bt(lang, { zh: "Unanswered", en: "Unanswered", id: "Belum dijawab" });
   const best =
-    status.bestScore != null ? `Best ${status.bestScore.toFixed(1)}` : "Answered";
-  if (status.needsRetry) return `${best} · retry`;
-  return `${best} · ${status.attemptCount} attempt${status.attemptCount === 1 ? "" : "s"}`;
+    status.bestScore != null
+      ? `${bt(lang, { zh: "Best", en: "Best", id: "Terbaik" })} ${status.bestScore.toFixed(1)}`
+      : bt(lang, { zh: "Answered", en: "Answered", id: "Terjawab" });
+  if (status.needsRetry) return `${best} · ${bt(lang, { zh: "retry", en: "retry", id: "ulangi" })}`;
+  return `${best} · ${status.attemptCount} ${bt(lang, {
+    zh: status.attemptCount === 1 ? "attempt" : "attempts",
+    en: status.attemptCount === 1 ? "attempt" : "attempts",
+    id: "percobaan",
+  })}`;
 }
 
 /**
@@ -79,6 +92,7 @@ export function PracticeQuestionNavigator({
   onNavigate,
   onToggleSidebar,
   className,
+  language,
 }: {
   statuses: PracticeQuestionStatus[];
   currentIndex: number;
@@ -87,9 +101,16 @@ export function PracticeQuestionNavigator({
   /** Desktop: collapse the questions rail. */
   onToggleSidebar?: () => void;
   className?: string;
+  language?: string;
 }) {
+  const lang = getLanguageKey(language);
   const answered = statuses.filter((status) => status.attemptCount > 0).length;
   const needRetry = statuses.filter((status) => status.needsRetry).length;
+  const hidePanelLabel = bt(lang, {
+    zh: "Hide questions panel",
+    en: "Hide questions panel",
+    id: "Sembunyikan panel pertanyaan",
+  });
 
   return (
     <TooltipProvider delayDuration={200}>
@@ -98,8 +119,15 @@ export function PracticeQuestionNavigator({
         <div className="min-w-0">
           <p className="text-sm font-semibold tracking-tight">Questions</p>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            {answered}/{statuses.length} answered
-            {needRetry > 0 ? ` · ${needRetry} to retry` : ""}
+            {answered}/{statuses.length}{" "}
+            {bt(lang, { zh: "answered", en: "answered", id: "terjawab" })}
+            {needRetry > 0
+              ? ` · ${needRetry} ${bt(lang, {
+                  zh: "to retry",
+                  en: "to retry",
+                  id: "perlu diulang",
+                })}`
+              : ""}
           </p>
         </div>
         {onToggleSidebar ? (
@@ -111,13 +139,13 @@ export function PracticeQuestionNavigator({
                 size="icon"
                 className="h-7 w-7 shrink-0 text-muted-foreground hover:text-foreground"
                 onClick={onToggleSidebar}
-                aria-label="Hide questions panel"
+                aria-label={hidePanelLabel}
               >
                 <PanelLeftClose className="h-4 w-4" />
               </Button>
             </TooltipTrigger>
             <TooltipContent side="bottom" className="text-xs">
-              Hide questions panel
+              {hidePanelLabel}
             </TooltipContent>
           </Tooltip>
         ) : null}
@@ -141,7 +169,7 @@ export function PracticeQuestionNavigator({
                 >
                   <span className="flex items-start gap-2">
                     <span className="mt-0.5 flex items-center gap-1.5">
-                      <StatusIcon status={status} isCurrent={isCurrent} />
+                      <StatusIcon status={status} isCurrent={isCurrent} lang={lang} />
                     </span>
                     <span className="min-w-0 flex-1">
                       <span className="flex items-baseline justify-between gap-2">
@@ -168,7 +196,7 @@ export function PracticeQuestionNavigator({
                         {status.text}
                       </span>
                       <span className="mt-0.5 block text-[10px] text-muted-foreground">
-                        {statusCaption(status)}
+                        {statusCaption(status, lang)}
                       </span>
                     </span>
                   </span>

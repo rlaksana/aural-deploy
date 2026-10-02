@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
+import { bt, getLanguageKey } from "@/lib/i18n";
 import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
 import {
@@ -24,6 +25,7 @@ type Props = {
   interviewId: string;
   initial: PrepContextInitial;
   onSaved?: () => void | Promise<void>;
+  language?: string;
 };
 
 function normalizeContext(ctx: PrepContextInitial): PrepContextInitial {
@@ -59,9 +61,17 @@ function applyContext(
   setters.setRoleTitle(ctx.roleTitle ?? "");
 }
 
-export function PrepJdResumePanel({ interviewId, initial, onSaved }: Props) {
+export function PrepJdResumePanel({
+  interviewId,
+  initial,
+  onSaved,
+  language,
+}: Props) {
   const { toast } = useToast();
   const utils = trpc.useUtils();
+  const lang = getLanguageKey(language);
+  const t = (text: { en: string; id: string }) =>
+    bt(lang, { zh: text.en, ...text });
   const normalizedInitial = normalizeContext(initial);
   const [baseline, setBaseline] = useState(normalizedInitial);
   const [jobDescription, setJobDescription] = useState(
@@ -120,12 +130,12 @@ export function PrepJdResumePanel({ interviewId, initial, onSaved }: Props) {
         utils.prep.getBundle.invalidate({ interviewId }),
         utils.interview.getById.invalidate({ id: interviewId }),
       ]);
-      toast({ title: "Practice context saved" });
+      toast({ title: t({ en: "Practice context saved", id: "Konteks latihan disimpan" }) });
       await onSaved?.();
     },
     onError: (err) => {
       toast({
-        title: "Could not save",
+        title: t({ en: "Could not save", id: "Tidak dapat menyimpan" }),
         description: err.message,
         variant: "destructive",
       });
@@ -156,10 +166,18 @@ export function PrepJdResumePanel({ interviewId, initial, onSaved }: Props) {
       }
       if (target === "jd") setJobDescription(data.text);
       else setResumeText(data.text);
-      toast({ title: target === "jd" ? "JD extracted" : "Resume extracted" });
+      toast({
+        title:
+          target === "jd"
+            ? t({ en: "JD extracted", id: "JD diekstrak" })
+            : t({ en: "Resume extracted", id: "CV diekstrak" }),
+      });
     } catch (err) {
       toast({
-        title: target === "jd" ? "JD upload failed" : "Resume upload failed",
+        title:
+          target === "jd"
+            ? t({ en: "JD upload failed", id: "Gagal mengunggah JD" })
+            : t({ en: "Resume upload failed", id: "Gagal mengunggah CV" }),
         description: err instanceof Error ? err.message : "Paste text instead.",
         variant: "destructive",
       });
@@ -180,8 +198,11 @@ export function PrepJdResumePanel({ interviewId, initial, onSaved }: Props) {
       <Section
         index={1}
         icon={Briefcase}
-        title="Target role"
-        description="Where you're interviewing — used to phrase questions and frame feedback."
+        title={t({ en: "Target role", id: "Posisi yang dituju" })}
+        description={t({
+          en: "Where you're interviewing — used to phrase questions and frame feedback.",
+          id: "Tempat kamu melamar kerja — dipakai untuk merumuskan pertanyaan dan membingkai umpan balik.",
+        })}
       >
         <div className="grid gap-4 sm:grid-cols-2">
           <Field htmlFor="prep-role" label="Role">
@@ -206,8 +227,11 @@ export function PrepJdResumePanel({ interviewId, initial, onSaved }: Props) {
       <Section
         index={2}
         icon={FileText}
-        title="Job description"
-        description="Paste the JD or upload a PDF. The AI grades your answers against the signals it asks for."
+        title={t({ en: "Job description", id: "Deskripsi pekerjaan" })}
+        description={t({
+          en: "Paste the JD or upload a PDF. The AI grades your answers against the signals it asks for.",
+          id: "Tempel JD atau unggah PDF. AI menilai jawabanmu berdasarkan sinyal yang diminta di dalamnya.",
+        })}
         action={
           <PdfUploadButton
             ariaLabel="Upload JD as PDF"
@@ -229,8 +253,11 @@ export function PrepJdResumePanel({ interviewId, initial, onSaved }: Props) {
       <Section
         index={3}
         icon={UserSquare2}
-        title="Your resume"
-        description="Paste your resume or upload a PDF. The AI grounds hints and sample answers in your real experience."
+        title={t({ en: "Your resume", id: "CV-mu" })}
+        description={t({
+          en: "Paste your resume or upload a PDF. The AI grounds hints and sample answers in your real experience.",
+          id: "Tempel CV atau unggah PDF. AI menyelaraskan petunjuk dan contoh jawaban dengan pengalaman aslimu.",
+        })}
         action={
           <PdfUploadButton
             ariaLabel="Upload resume as PDF"

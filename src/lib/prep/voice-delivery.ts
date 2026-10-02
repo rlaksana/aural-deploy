@@ -63,13 +63,19 @@ export async function decodeAudioBlobToSamples(
   }
 }
 
+/** Pick candidate-facing tip text by response language (zh/id, else en). */
+function pick(responseLanguage: string, texts: { zh: string; en: string; id?: string }): string {
+  if (responseLanguage === "zh") return texts.zh;
+  if (responseLanguage === "id") return texts.id ?? texts.en;
+  return texts.en;
+}
+
 export async function buildVoiceDeliveryMetrics(
   blob: Blob,
   transcript: string,
   durationMs: number,
   responseLanguage: string,
 ): Promise<VoiceDeliveryMetrics> {
-  const isZh = responseLanguage === "zh";
   const durationSeconds = Math.max(0.5, durationMs / 1000);
   const words = countWords(transcript);
   const wordsPerMinute = Math.round((words / durationSeconds) * 60);
@@ -105,44 +111,56 @@ export async function buildVoiceDeliveryMetrics(
   const tips: string[] = [];
   if (avgRms < 0.03) {
     tips.push(
-      isZh
-        ? "声音偏小，靠近麦克风并提高一些音量，让教练听清重点。"
-        : "Speak a bit louder and closer to the mic so key points come through.",
+      pick(responseLanguage, {
+        zh: "声音偏小，靠近麦克风并提高一些音量，让教练听清重点。",
+        en: "Speak a bit louder and closer to the mic so key points come through.",
+        id: "Suaramu terlalu pelan. Dekatkan mic dan bicara sedikit lebih keras agar poin penting terdengar jelas.",
+      }),
     );
   }
   if (variance < 0.0005) {
     tips.push(
-      isZh
-        ? "语调偏平，在关键句上加重语气，听起来会更有说服力。"
-        : "Add more vocal emphasis on key phrases to sound more persuasive.",
+      pick(responseLanguage, {
+        zh: "语调偏平，在关键句上加重语气，听起来会更有说服力。",
+        en: "Add more vocal emphasis on key phrases to sound more persuasive.",
+        id: "Nada bicaramu terlalu datar. Beri penekanan pada kalimat penting agar terdengar lebih meyakinkan.",
+      }),
     );
   }
   if (wordsPerMinute > 0 && wordsPerMinute < 80) {
     tips.push(
-      isZh
-        ? "语速偏慢，可稍微加快节奏，同时保持吐字清晰。"
-        : "Pace is a bit slow — pick up slightly while staying clear.",
+      pick(responseLanguage, {
+        zh: "语速偏慢，可稍微加快节奏，同时保持吐字清晰。",
+        en: "Pace is a bit slow — pick up slightly while staying clear.",
+        id: "Tempo bicaramu agak lambat. Sedikit lebih cepat sambil tetap artikulasimu jelas.",
+      }),
     );
   } else if (wordsPerMinute > 190) {
     tips.push(
-      isZh
-        ? "语速偏快，适当停顿，让听众跟上你的结构。"
-        : "You're speaking fast — add brief pauses so the structure lands.",
+      pick(responseLanguage, {
+        zh: "语速偏快，适当停顿，让听众跟上你的结构。",
+        en: "You're speaking fast — add brief pauses so the structure lands.",
+        id: "Tempo bicaramu terlalu cepat. Beri jeda singkat agar pendengar bisa mengikuti alur jawabanmu.",
+      }),
     );
   }
 
   if (timeline.pauseCount >= 3) {
     tips.push(
-      isZh
-        ? `回答中有 ${timeline.pauseCount} 次明显停顿，提前列好要点可以让表达更连贯。`
-        : `There were ${timeline.pauseCount} noticeable pauses — sketch your key points first so the answer flows.`,
+      pick(responseLanguage, {
+        zh: `回答中有 ${timeline.pauseCount} 次明显停顿，提前列好要点可以让表达更连贯。`,
+        en: `There were ${timeline.pauseCount} noticeable pauses — sketch your key points first so the answer flows.`,
+        id: `Ada ${timeline.pauseCount} jeda cukup panjang dalam jawabanmu. Susun poin-poin utamamu lebih dulu agar jawaban lebih mengalir.`,
+      }),
     );
   }
   if (timeline.fillerCount >= 5) {
     tips.push(
-      isZh
-        ? "口头语偏多（嗯、就是等），关键句前停半拍代替填充词。"
-        : "Frequent filler words — replace them with a short pause before key phrases.",
+      pick(responseLanguage, {
+        zh: "口头语偏多（嗯、就是等），关键句前停半拍代替填充词。",
+        en: "Frequent filler words — replace them with a short pause before key phrases.",
+        id: "Kata pengisi seperti 'eh' atau 'gimana ya' terlalu sering. Ganti dengan jeda singkat sebelum kalimat penting.",
+      }),
     );
   }
 

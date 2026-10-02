@@ -30,6 +30,7 @@ import {
     TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
+import { bt, getLanguageKey } from "@/lib/i18n";
 import {
     countSpeakableUnits,
     estimateSpeakMinutes,
@@ -48,8 +49,8 @@ import {
     setSuggestedAnswerCache,
 } from "@/lib/prep/suggested-answer-cache";
 import {
-    PREP_SUGGESTED_ANSWER_EMPTY_HINT,
-    PREP_SUGGESTED_ANSWER_EMPTY_HINT_NO_CONTEXT,
+    getPrepSuggestedAnswerEmptyHint,
+    getPrepSuggestedAnswerEmptyHintNoContext,
 } from "@/lib/prep/ui-copy";
 import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
@@ -90,34 +91,39 @@ type Props = {
   onPracticeAnswer?: (answerText: string) => void;
   /** Desktop: collapse the suggested-answer rail. */
   onToggleRightPanel?: () => void;
+  language?: string;
 };
 
 type HintRefinement = {
   instruction: string;
 };
 
+function t(lang: ReturnType<typeof getLanguageKey>, text: { en: string; id: string }) {
+  return bt(lang, { zh: text.en, ...text });
+}
+
 const REFINEMENT_PRESETS = [
   {
     id: "concise",
-    label: "More concise",
+    label: { en: "More concise", id: "Lebih ringkas" },
     instruction:
       "Make it more concise: tighten to the essentials, cut hedging, keep only the strongest proof points.",
   },
   {
     id: "senior",
-    label: "More senior",
+    label: { en: "More senior", id: "Lebih senior" },
     instruction:
       "Make it sound more senior: emphasize ownership, strategic framing, measurable impact, and leadership signals.",
   },
   {
     id: "technical",
-    label: "More technical",
+    label: { en: "More technical", id: "Lebih teknis" },
     instruction:
       "Make it more technical: add concrete technical depth, precise terminology, and trade-off reasoning the role expects.",
   },
   {
     id: "conversational",
-    label: "More conversational",
+    label: { en: "More conversational", id: "Lebih santai" },
     instruction:
       "Make it more conversational: natural spoken tone, shorter sentences, contractions, less formal phrasing.",
   },
@@ -152,9 +158,11 @@ function HighlightedParagraph({ text }: { text: string }) {
 function SuggestedAnswerMeta({
   answerText,
   questionType,
+  lang,
 }: {
   answerText: string;
   questionType?: string | null;
+  lang: ReturnType<typeof getLanguageKey>;
 }) {
   const units = countSpeakableUnits(answerText);
   const minutes = estimateSpeakMinutes(units);
@@ -165,11 +173,15 @@ function SuggestedAnswerMeta({
   return (
     <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
       <Badge variant="secondary" className="gap-1 font-normal">
-        {units} words
+        {units} {t(lang, { en: "words", id: "kata" })}
       </Badge>
       <Badge variant="secondary" className="gap-1 font-normal">
         <Clock className="h-3 w-3" aria-hidden />
-        ~{minutes} min
+        {bt(lang, {
+          zh: `~${minutes} min`,
+          en: `~${minutes} min`,
+          id: `±${minutes} mnt`,
+        })}
       </Badge>
       <Badge
         variant="outline"
@@ -232,10 +244,12 @@ function AskForChangesPopover({
   loading,
   disabled,
   onSubmit,
+  lang,
 }: {
   loading: boolean;
   disabled?: boolean;
   onSubmit: (instruction: string) => void;
+  lang: ReturnType<typeof getLanguageKey>;
 }) {
   const [open, setOpen] = useState(false);
   const [text, setText] = useState("");
@@ -259,20 +273,28 @@ function AskForChangesPopover({
               size="icon"
               className="h-7 w-7 shrink-0 text-muted-foreground hover:text-foreground"
               disabled={disabled || loading}
-              aria-label="Ask for changes"
+              aria-label={t(lang, {
+                en: "Ask for changes",
+                id: "Minta perubahan",
+              })}
             >
               <MessageSquarePlus className="h-3.5 w-3.5" />
             </Button>
           </PopoverTrigger>
         </TooltipTrigger>
         <TooltipContent side="bottom" className="text-xs">
-          Ask for changes
+          {t(lang, { en: "Ask for changes", id: "Minta perubahan" })}
         </TooltipContent>
       </Tooltip>
       <PopoverContent side="bottom" align="end" className="w-72 p-3">
-        <p className="text-xs font-semibold">Ask for changes</p>
+        <p className="text-xs font-semibold">
+          {t(lang, { en: "Ask for changes", id: "Minta perubahan" })}
+        </p>
         <p className="mt-0.5 text-[11px] text-muted-foreground">
-          Tell the coach how to rewrite this answer.
+          {t(lang, {
+            en: "Tell the coach how to rewrite this answer.",
+            id: "Beri tahu coach bagaimana menulis ulang jawaban ini.",
+          })}
         </p>
         <Textarea
           value={text}
@@ -283,7 +305,10 @@ function AskForChangesPopover({
               submit();
             }
           }}
-          placeholder="e.g. Lead with the metrics, drop the second example…"
+          placeholder={t(lang, {
+            en: "e.g. Lead with the metrics, drop the second example…",
+            id: "mis. Utamakan metrik, hilangkan contoh kedua…",
+          })}
           rows={3}
           maxLength={280}
           className="mt-2 resize-none text-sm"
@@ -297,7 +322,7 @@ function AskForChangesPopover({
             onClick={submit}
           >
             <Wand2 className="h-3 w-3" aria-hidden />
-            Rewrite
+            {t(lang, { en: "Rewrite", id: "Tulis ulang" })}
           </Button>
         </div>
       </PopoverContent>
@@ -305,13 +330,19 @@ function AskForChangesPopover({
   );
 }
 
-function AnswerOutline({ outline }: { outline: string[] }) {
+function AnswerOutline({
+  outline,
+  lang,
+}: {
+  outline: string[];
+  lang: ReturnType<typeof getLanguageKey>;
+}) {
   if (outline.length === 0) return null;
   return (
     <div className="rounded-lg border border-primary/15 bg-primary/5 px-3 py-2.5">
       <p className="flex items-center gap-1.5 text-xs font-semibold text-foreground/80">
         <ListTree className="h-3.5 w-3.5 text-primary" aria-hidden />
-        Outline
+        {bt(lang, { zh: "Outline", en: "Outline", id: "Kerangka" })}
       </p>
       <ol className="mt-1.5 space-y-1">
         {outline.map((item, index) => (
@@ -356,7 +387,9 @@ export function PrepSuggestedAnswerPanel({
   onAiTokensSpent,
   onPracticeAnswer,
   onToggleRightPanel,
+  language,
 }: Props) {
+  const lang = getLanguageKey(language);
   const { user } = useAuth();
   const userId = user?.id ?? null;
   const { toast } = useToast();
@@ -375,11 +408,14 @@ export function PrepSuggestedAnswerPanel({
   const saveAnswer = trpc.answerBank.create.useMutation({
     onSuccess: () => {
       void utils.answerBank.list.invalidate();
-      toast({ title: "Saved to your answer bank" });
+      toast({ title: t(lang, { en: "Saved to your answer bank", id: "Disimpan ke bank jawabanmu" }) });
     },
     onError: (err) => {
       toast({
-        title: "Could not save answer",
+        title: t(lang, {
+          en: "Could not save answer",
+          id: "Tidak dapat menyimpan jawaban",
+        }),
         description: err.message,
         variant: "destructive",
       });
@@ -470,14 +506,20 @@ export function PrepSuggestedAnswerPanel({
             });
           }
           toast({
-            title: "Suggested answer incomplete",
+            title: t(lang, {
+              en: "Suggested answer incomplete",
+              id: "Jawaban yang disarankan belum lengkap",
+            }),
             description: message,
             variant: "destructive",
           });
         } else {
           setLoadError(message);
           toast({
-            title: "Suggested answer failed",
+            title: t(lang, {
+              en: "Suggested answer failed",
+              id: "Jawaban yang disarankan gagal",
+            }),
             description: message,
             variant: "destructive",
           });
@@ -494,6 +536,7 @@ export function PrepSuggestedAnswerPanel({
       editedAnswer,
       hint,
       interviewId,
+      lang,
       questionType,
       onAiTokensSpent,
       toast,
@@ -563,8 +606,14 @@ export function PrepSuggestedAnswerPanel({
     if (!questionId || loading) return false;
     if (!canUseHint) {
       toast({
-        title: "Suggested answer unavailable",
-        description: "AI token limits are not enforced in self-hosted builds.",
+        title: t(lang, {
+          en: "Suggested answer unavailable",
+          id: "Jawaban yang disarankan tidak tersedia",
+        }),
+        description: t(lang, {
+          en: "AI token limits are not enforced in self-hosted builds.",
+          id: "Batas token AI tidak ditegakkan pada build self-hosted.",
+        }),
         variant: "destructive",
       });
       return false;
@@ -620,8 +669,15 @@ export function PrepSuggestedAnswerPanel({
             <Lightbulb className="h-4 w-4" aria-hidden />
           </div>
           <div className="min-w-0">
-            <h3 className="text-sm font-semibold tracking-tight">Suggested answer</h3>
-            <p className="text-xs text-muted-foreground">Based on your JD and resume</p>
+            <h3 className="text-sm font-semibold tracking-tight">
+              {t(lang, {
+                en: "Suggested answer",
+                id: "Jawaban yang disarankan",
+              })}
+            </h3>
+            <p className="text-xs text-muted-foreground">
+              {t(lang, { en: "Based on your JD and resume", id: "Berdasarkan JD dan CV-mu" })}
+            </p>
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-0.5">
@@ -634,13 +690,16 @@ export function PrepSuggestedAnswerPanel({
                   size="icon"
                   className="h-8 w-8 shrink-0 text-muted-foreground hover:text-foreground"
                   onClick={() => setContextOpen(true)}
-                  aria-label="Practice context"
+                  aria-label={t(lang, {
+                    en: "Practice context",
+                    id: "Konteks latihan",
+                  })}
                 >
                   <SlidersHorizontal className="h-4 w-4 shrink-0" />
                 </Button>
               </TooltipTrigger>
               <TooltipContent side="bottom" className="text-xs">
-                Practice context
+                {t(lang, { en: "Practice context", id: "Konteks latihan" })}
               </TooltipContent>
             </Tooltip>
           ) : null}
@@ -672,12 +731,16 @@ export function PrepSuggestedAnswerPanel({
         onOpenChange={setContextOpen}
         fallbackInitial={prepContext}
         onContextSaved={onContextSaved}
+        language={language}
       />
 
       {!questionId ? (
         <div className="px-5 py-6">
           <p className="text-sm leading-relaxed text-muted-foreground">
-            Select a question to generate a suggested answer.
+            {t(lang, {
+              en: "Select a question to generate a suggested answer.",
+              id: "Pilih pertanyaan untuk membuat jawaban yang disarankan.",
+            })}
           </p>
         </div>
       ) : (
@@ -695,15 +758,23 @@ export function PrepSuggestedAnswerPanel({
                 <div className="flex flex-col items-center justify-center gap-5 py-6 text-center">
                   <p className="text-sm text-muted-foreground">
                     {hasContext
-                      ? PREP_SUGGESTED_ANSWER_EMPTY_HINT
-                      : PREP_SUGGESTED_ANSWER_EMPTY_HINT_NO_CONTEXT}
+                      ? getPrepSuggestedAnswerEmptyHint(language)
+                      : getPrepSuggestedAnswerEmptyHintNoContext(language)}
                   </p>
                   {!canUseHint ? (
                     <p className="text-xs text-destructive">
-                      You need {hintTokenCost} AI tokens for a suggested answer
-                      {aiTokensRemaining != null
-                        ? ` (${aiTokensRemaining.toLocaleString()} remaining).`
-                        : "."}
+                      {t(lang, {
+                        en: `You need ${hintTokenCost} AI tokens for a suggested answer${
+                          aiTokensRemaining != null
+                            ? ` (${aiTokensRemaining.toLocaleString()} remaining).`
+                            : "."
+                        }`,
+                        id: `Kamu butuh ${hintTokenCost} token AI untuk jawaban yang disarankan${
+                          aiTokensRemaining != null
+                            ? ` (${aiTokensRemaining.toLocaleString()} tersisa).`
+                            : "."
+                        }`,
+                      })}
                     </p>
                   ) : null}
                   <AiButton
@@ -714,14 +785,22 @@ export function PrepSuggestedAnswerPanel({
                     onClick={handleShow}
                   >
                     <Sparkles className="mr-2 h-4 w-4" />
-                    Show suggested answer
+                    {t(lang, {
+                      en: "Show suggested answer",
+                      id: "Tampilkan jawaban yang disarankan",
+                    })}
                   </AiButton>
                 </div>
               ) : null}
               {showPreparing ? (
                 <div className="flex items-center gap-2 py-6 text-sm text-muted-foreground">
                   <Loader2 className="h-4 w-4 shrink-0 animate-spin text-primary" />
-                  <span>Preparing suggested answer…</span>
+                  <span>
+                    {t(lang, {
+                      en: "Preparing suggested answer…",
+                      id: "Menyiapkan jawaban yang disarankan…",
+                    })}
+                  </span>
                 </div>
               ) : null}
               {showStreamPanels ? (
@@ -729,9 +808,12 @@ export function PrepSuggestedAnswerPanel({
                   <div className="flex flex-col gap-3 py-2">
                     <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
                       <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-primary" />
-                      Writing suggested answer…
+                      {t(lang, {
+                        en: "Writing suggested answer…",
+                        id: "Menulis jawaban yang disarankan…",
+                      })}
                     </div>
-                    <AnswerOutline outline={layers.outline} />
+                    <AnswerOutline outline={layers.outline} lang={lang} />
                     {layers.answer.trim() ? (
                       <AnswerParagraphs answerText={layers.answer} />
                     ) : null}
@@ -741,10 +823,22 @@ export function PrepSuggestedAnswerPanel({
                     phase={streamPhase}
                     thinkingText={thinkingText}
                     contentText=""
-                    thinkingLabel="Preparing suggested answer"
-                    thinkingCompleteLabel="Outline ready"
-                    contentLabel="Writing suggested answer"
-                    contentCompleteLabel="Finishing up"
+                    thinkingLabel={t(lang, {
+                      en: "Preparing suggested answer",
+                      id: "Menyiapkan jawaban yang disarankan",
+                    })}
+                    thinkingCompleteLabel={t(lang, {
+                      en: "Outline ready",
+                      id: "Kerangka siap",
+                    })}
+                    contentLabel={t(lang, {
+                      en: "Writing suggested answer",
+                      id: "Menulis jawaban yang disarankan",
+                    })}
+                    contentCompleteLabel={t(lang, {
+                      en: "Finishing up",
+                      id: "Menyelesaikan",
+                    })}
                     className="py-2"
                   />
                 )
@@ -755,10 +849,11 @@ export function PrepSuggestedAnswerPanel({
                     <SuggestedAnswerMeta
                       answerText={answerPlain || hint}
                       questionType={questionType ?? cachedType}
+                      lang={lang}
                     />
                     <IconActionButton
                       icon={Bookmark}
-                      label="Save answer"
+                      label={t(lang, { en: "Save answer", id: "Simpan jawaban" })}
                       loading={saveAnswer.isLoading}
                       disabled={!hasAnswer || saveAnswer.isLoading}
                       onClick={handleSaveAnswer}
@@ -767,23 +862,27 @@ export function PrepSuggestedAnswerPanel({
                       loading={loading}
                       disabled={!canUseHint}
                       onSubmit={handleRefine}
+                      lang={lang}
                     />
                     <IconActionButton
                       icon={RefreshCw}
-                      label="Refresh"
+                      label={t(lang, { en: "Refresh", id: "Segarkan" })}
                       disabled={loading || !canUseHint}
                       spinning={loading}
                       onClick={handleRegenerate}
                     />
                   </div>
 
-                  <AnswerOutline outline={layers.outline} />
+                  <AnswerOutline outline={layers.outline} lang={lang} />
 
                   {hasAnswer || editedAnswer ? (
                     <RichTextEditor
                       value={editedAnswer}
                       onChange={setEditedAnswer}
-                      placeholder="Edit the suggested answer…"
+                      placeholder={t(lang, {
+                        en: "Edit the suggested answer…",
+                        id: "Sunting jawaban yang disarankan…",
+                      })}
                       resizable
                     />
                   ) : null}
@@ -791,7 +890,7 @@ export function PrepSuggestedAnswerPanel({
                   <div className="space-y-3 border-t border-border/60 pt-3">
                     <div className="flex flex-wrap items-center gap-1.5">
                       <span className="mr-0.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                        Tune
+                        {t(lang, { en: "Tune", id: "Sesuaikan" })}
                       </span>
                       {REFINEMENT_PRESETS.map((preset) => (
                         <Button
@@ -803,7 +902,7 @@ export function PrepSuggestedAnswerPanel({
                           className="h-6 rounded-full px-2.5 text-[11px] font-normal"
                           onClick={() => handleRefine(preset.instruction)}
                         >
-                          {preset.label}
+                          {t(lang, preset.label)}
                         </Button>
                       ))}
                     </div>
@@ -816,7 +915,10 @@ export function PrepSuggestedAnswerPanel({
                         onClick={handlePractice}
                       >
                         <Mic className="h-3.5 w-3.5" aria-hidden />
-                        Practice this answer
+                        {t(lang, {
+                          en: "Practice this answer",
+                          id: "Latih jawaban ini",
+                        })}
                       </Button>
                     ) : null}
                   </div>
@@ -831,7 +933,7 @@ export function PrepSuggestedAnswerPanel({
                     size="sm"
                     onClick={handleRegenerate}
                   >
-                    Try again
+                    {t(lang, { en: "Try again", id: "Coba lagi" })}
                   </Button>
                 </div>
               ) : null}

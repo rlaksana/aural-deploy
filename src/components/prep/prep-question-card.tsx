@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useToast } from "@/hooks/use-toast";
+import { bt, getLanguageKey } from "@/lib/i18n";
 import { ArrowRight, RotateCcw, Timer } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { PrepFeedbackStream } from "./prep-feedback-stream";
@@ -73,6 +74,9 @@ export function PrepQuestionCard({
   onFinish,
 }: Props) {
   const { toast } = useToast();
+  const lang = getLanguageKey(language);
+  const t = (text: { en: string; id: string }) =>
+    bt(lang, { zh: text.en, ...text });
 
   const [answer, setAnswer] = useState("");
   const [streaming, setStreaming] = useState("");
@@ -157,7 +161,7 @@ export function PrepQuestionCard({
     } catch (err) {
       const message = err instanceof Error ? err.message : "Feedback failed";
       toast({
-        title: "Feedback failed",
+        title: t({ en: "Feedback failed", id: "Umpan balik gagal" }),
         description: message,
         variant: "destructive",
       });
@@ -192,9 +196,15 @@ export function PrepQuestionCard({
         </div>
         <Progress value={progress} className="h-2" />
         <p className="text-sm text-muted-foreground">
-          Question {questionIndex + 1} of {totalQuestions}
+          {t({
+            en: `Question ${questionIndex + 1} of ${totalQuestions}`,
+            id: `Pertanyaan ${questionIndex + 1} dari ${totalQuestions}`,
+          })}
           {bestScoreForQuestion !== null
-            ? ` · best score so far ${bestScoreForQuestion.toFixed(1)}`
+            ? ` · ${t({
+                en: `best score so far ${bestScoreForQuestion.toFixed(1)}`,
+                id: `skor terbaik sejauh ini ${bestScoreForQuestion.toFixed(1)}`,
+              })}`
             : null}
         </p>
         <div className="rounded-md border bg-muted/30 p-5">
@@ -211,12 +221,18 @@ export function PrepQuestionCard({
         interviewId={interviewId}
         questionId={question.id}
         disabledReason={
-          !hasContext ? "Add JD or resume to enable hints" : undefined
+          !hasContext
+            ? t({
+                en: "Add JD or resume to enable hints",
+                id: "Tambahkan JD atau CV untuk mengaktifkan petunjuk",
+              })
+            : undefined
         }
+        language={language}
       />
 
       <div className="space-y-2">
-        <Label htmlFor="prep-answer">Your answer</Label>
+        <Label htmlFor="prep-answer">{t({ en: "Your answer", id: "Jawabanmu" })}</Label>
         <ChatComposer
           value={answer}
           onChange={setAnswer}
@@ -227,8 +243,11 @@ export function PrepQuestionCard({
           minLength={8}
           placeholder={
             mode === "VOICE"
-              ? "Your transcript will appear here..."
-              : "Type your answer..."
+              ? t({
+                  en: "Your transcript will appear here...",
+                  id: "Transkripmu akan muncul di sini...",
+                })
+              : t({ en: "Type your answer...", id: "Ketik jawabanmu..." })
           }
           voice={mode === "VOICE" ? { language, disabled: submitting } : undefined}
         />
@@ -239,17 +258,17 @@ export function PrepQuestionCard({
           <TooltipTrigger asChild>
             <Button variant="outline" className="gap-2" onClick={retry}>
               <RotateCcw className="h-4 w-4" />
-              Retry
+              {t({ en: "Retry", id: "Ulangi" })}
             </Button>
           </TooltipTrigger>
-          <TooltipContent>Clear and answer again</TooltipContent>
+          <TooltipContent>{t({ en: "Clear and answer again", id: "Hapus dan jawab lagi" })}</TooltipContent>
         </Tooltip>
         <Button variant="outline" onClick={onFinish}>
-          Finish session
+          {t({ en: "Finish session", id: "Akhiri sesi" })}
         </Button>
         {feedback && questionIndex < totalQuestions - 1 ? (
           <Button className="ml-auto gap-2" onClick={onNext}>
-            Next
+            {t({ en: "Next", id: "Lanjut" })}
             <ArrowRight className="h-4 w-4" />
           </Button>
         ) : null}
@@ -268,6 +287,7 @@ export function PrepQuestionCard({
         existingTurns={followUpTurns}
         maxTurns={maxFollowUps}
         onTurnSaved={onAttemptCreated}
+        language={language}
       />
     </div>
   );

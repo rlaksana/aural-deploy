@@ -323,7 +323,7 @@ export const interviewRouter = router({
         followUpDepth: z
           .enum(["LIGHT", "MODERATE", "DEEP"])
           .default("MODERATE"),
-        language: z.string().default("en"),
+        language: z.string().default("id"),
         timeLimitMinutes: z.number().int().min(1).optional(),
         llmProvider: z.string().optional(),
         llmModel: z.string().optional(),
@@ -456,7 +456,7 @@ export const interviewRouter = router({
         followUpDepth: z
           .enum(["LIGHT", "MODERATE", "DEEP"])
           .default("MODERATE"),
-        language: z.string().default("en"),
+        language: z.string().default("id"),
         timeLimitMinutes: z.number().int().min(1).optional(),
         antiCheatingEnabled: z.boolean().default(false),
         questions: z
@@ -698,6 +698,9 @@ export const interviewRouter = router({
           aiTone: template.aiTone,
           followUpDepth: template.followUpDepth,
           assessmentCriteria: template.assessmentCriteria,
+          // ponytail: template content is English — pin language to match; add
+          // id template variants when templates get translated.
+          language: "en",
           chatEnabled: template.chatEnabled,
           voiceEnabled: template.voiceEnabled,
           videoEnabled: template.videoEnabled,

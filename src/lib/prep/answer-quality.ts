@@ -9,16 +9,26 @@ export function detectAnswerLanguage(text: string): "zh" | "en" | null {
   return null;
 }
 
-/** Language for coach feedback / TTS — prefer the candidate's spoken language. */
+/** Language for coach feedback / TTS — Chinese wins on CJK detection; otherwise the interview language (id supported), never a blind "en". */
 export function resolvePrepResponseLanguage(
   interviewLanguage: string,
   answerText?: string,
 ): string {
+  // CJK detection is reliable; bare Latin text must not override the interview
+  // language (Indonesian answers used to fall through to "en" feedback).
   const detected = answerText ? detectAnswerLanguage(answerText) : null;
-  if (detected) return detected;
+  if (detected === "zh") return "zh";
   const lang = interviewLanguage?.toLowerCase() ?? "en";
   if (lang.startsWith("zh")) return "zh";
+  if (lang.startsWith("id")) return "id";
   return "en";
+}
+
+/** Pick candidate-facing text by response language (zh/id, else en). */
+function pick<T>(responseLanguage: string, texts: { zh: T; en: T; id?: T }): T {
+  if (responseLanguage === "zh") return texts.zh;
+  if (responseLanguage === "id") return texts.id ?? texts.en;
+  return texts.en;
 }
 
 const NON_SUBSTANTIVE_PATTERNS: RegExp[] = [
@@ -365,32 +375,47 @@ export function applyPrepScoreGuardrails<
 
 /** Rough score when structured LLM JSON is unavailable. */
 export function buildMetaPromptFeedback(responseLanguage: string) {
-  const isZh = responseLanguage === "zh";
   return {
     score: 1,
-    verdict: isZh ? "未作答，仅粘贴提示语" : "Did not answer — pasted a prompt",
-    summary: isZh
-      ? "你提交的是让系统生成参考答案的提示语，并不是你自己的面试回答。请用自己的话直接回答问题（例如自我介绍与求职动机），不要粘贴侧栏或教练的文案。"
-      : "You submitted a prompt asking for a sample answer, not your own response. Answer the interview question in your own words (e.g. intro and motivation)—do not paste sidebar or coach text.",
+    verdict: pick(responseLanguage, {
+      zh: "未作答，仅粘贴提示语",
+      en: "Did not answer — pasted a prompt",
+      id: "Tidak menjawab — menempelkan prompt",
+    }),
+    summary: pick(responseLanguage, {
+      zh: "你提交的是让系统生成参考答案的提示语，并不是你自己的面试回答。请用自己的话直接回答问题（例如自我介绍与求职动机），不要粘贴侧栏或教练的文案。",
+      en: "You submitted a prompt asking for a sample answer, not your own response. Answer the interview question in your own words (e.g. intro and motivation)—do not paste sidebar or coach text.",
+      id: "Yang kamu kirim adalah prompt untuk meminta jawaban contoh, bukan jawabanmu sendiri. Jawab pertanyaan wawancara dengan kata-katamu sendiri (misalnya perkenalan dan motivasi) — jangan menempel teks dari sidebar atau coach.",
+    }),
     strengths: [] as string[],
-    improvements: isZh
-      ? [
-          "阅读题目后，用第一人称写 3-5 句自我介绍。",
-          "说明为什么想做美妆 BA，并举一个与客户沟通相关的经历。",
-          "不要粘贴「Generate a sample answer…」或参考答案面板中的文字。",
-        ]
-      : [
-          "Read the question and write 3-5 sentences in the first person.",
-          "Explain why you want this BA role with one customer-facing example.",
-          'Do not paste "Generate a sample answer…" or sidebar placeholder text.',
-        ],
-    missingSignals: isZh
-      ? ["自我介绍", "求职动机", "真实经历细节"]
-      : ["Self-introduction", "Motivation", "Real experience details"],
+    improvements: pick(responseLanguage, {
+      zh: [
+        "阅读题目后，用第一人称写 3-5 句自我介绍。",
+        "说明为什么想做美妆 BA，并举一个与客户沟通相关的经历。",
+        "不要粘贴「Generate a sample answer…」或参考答案面板中的文字。",
+      ],
+      en: [
+        "Read the question and write 3-5 sentences in the first person.",
+        "Explain why you want this BA role with one customer-facing example.",
+        'Do not paste "Generate a sample answer…" or sidebar placeholder text.',
+      ],
+      id: [
+        "Baca pertanyaannya lalu tulis 3-5 kalimat perkenalan dengan sudut pandang pertama.",
+        "Jelaskan alasan kamu tertarik pada posisi ini beserta satu contoh berhubungan dengan pelanggan.",
+        "Jangan menempel teks seperti \"Generate a sample answer…\" atau placeholder dari sidebar.",
+      ],
+    }),
+    missingSignals: pick(responseLanguage, {
+      zh: ["自我介绍", "求职动机", "真实经历细节"],
+      en: ["Self-introduction", "Motivation", "Real experience details"],
+      id: ["Perkenalan diri", "Motivasi", "Detail pengalaman nyata"],
+    }),
     resumeLeverage: [] as string[],
-    structureSuggestion: isZh
-      ? "结构：我是谁 → 为什么这个岗位 → 一个相关经历。"
-      : "Structure: who you are → why this role → one relevant story.",
+    structureSuggestion: pick(responseLanguage, {
+      zh: "结构：我是谁 → 为什么这个岗位 → 一个相关经历。",
+      en: "Structure: who you are → why this role → one relevant story.",
+      id: "Struktur: siapa kamu → kenapa posisi ini → satu pengalaman relevan.",
+    }),
     followUpQuestion: "",
     sampleAnswer: "",
     needsUserVerification: [] as string[],
@@ -425,32 +450,47 @@ export function scoreAnswerHeuristically(answerText: string): number {
 }
 
 export function buildCoachEchoFeedback(responseLanguage: string) {
-  const isZh = responseLanguage === "zh";
   return {
     score: 2,
-    verdict: isZh ? "未作答，仅复述建议" : "Did not answer — repeated coaching tips",
-    summary: isZh
-      ? "你的回复是在重复教练建议或描述“应该怎么做”，并没有针对题目情境给出你会说的具体话术或行动。请直接进入角色，用第一人称回答顾客。"
-      : "You repeated coaching tips or described what you should do, without answering the scenario in your own words. Respond in-role with the exact words and actions you would use.",
+    verdict: pick(responseLanguage, {
+      zh: "未作答，仅复述建议",
+      en: "Did not answer — repeated coaching tips",
+      id: "Tidak menjawab — mengulang saran coach",
+    }),
+    summary: pick(responseLanguage, {
+      zh: "你的回复是在重复教练建议或描述“应该怎么做”，并没有针对题目情境给出你会说的具体话术或行动。请直接进入角色，用第一人称回答顾客。",
+      en: "You repeated coaching tips or described what you should do, without answering the scenario in your own words. Respond in-role with the exact words and actions you would use.",
+      id: "Jawabanmu hanya mengulang saran coach atau menjelaskan \"seharusnya bagaimana\", tanpa memberikan kata-kata atau tindakan konkret untuk situasi di soal. Jawab langsung dalam peran dengan kalimatmu sendiri.",
+    }),
     strengths: [] as string[],
-    improvements: isZh
-      ? [
-          "不要复述上轮反馈；直接模拟 BA 对顾客说的话。",
-          "针对题干里的具体情境（如“随便看看”）给出 2-3 句完整话术。",
-          "可结合简历举一个简短例子，但主体必须是情境应对。",
-        ]
-      : [
-          "Do not repeat prior feedback — speak as the BA to the customer.",
-          "Give 2-3 complete sentences for the exact scenario in the question.",
-          "Optional: one brief resume tie-in, but the core must be the scenario response.",
-        ],
-    missingSignals: isZh
-      ? ["情境中的具体话术", "可观察的服务行动", "与题干直接对应"]
-      : ["Concrete script for the scenario", "Observable service actions", "Direct question alignment"],
+    improvements: pick(responseLanguage, {
+      zh: [
+        "不要复述上轮反馈；直接模拟 BA 对顾客说的话。",
+        "针对题干里的具体情境（如“随便看看”）给出 2-3 句完整话术。",
+        "可结合简历举一个简短例子，但主体必须是情境应对。",
+      ],
+      en: [
+        "Do not repeat prior feedback — speak as the BA to the customer.",
+        "Give 2-3 complete sentences for the exact scenario in the question.",
+        "Optional: one brief resume tie-in, but the core must be the scenario response.",
+      ],
+      id: [
+        "Jangan ulangi feedback sebelumnya — ucapkan langsung kata-kata yang kamu katakan ke pelanggan.",
+        "Beri 2-3 kalimat lengkap untuk situasi spesifik di soal.",
+        "Boleh menyisipkan satu contoh singkat dari CV, tapi intinya tetap respons terhadap situasinya.",
+      ],
+    }),
+    missingSignals: pick(responseLanguage, {
+      zh: ["情境中的具体话术", "可观察的服务行动", "与题干直接对应"],
+      en: ["Concrete script for the scenario", "Observable service actions", "Direct question alignment"],
+      id: ["Skrip konkret untuk situasinya", "Tindakan layanan yang teramati", "Selaras langsung dengan soal"],
+    }),
     resumeLeverage: [] as string[],
-    structureSuggestion: isZh
-      ? "结构：面对顾客的第一句话 → 如何破冰/提问 → 如何自然引出需求或推荐。"
-      : "Structure: opening line to the customer → how you engage → how you surface needs or recommend.",
+    structureSuggestion: pick(responseLanguage, {
+      zh: "结构：面对顾客的第一句话 → 如何破冰/提问 → 如何自然引出需求或推荐。",
+      en: "Structure: opening line to the customer → how you engage → how you surface needs or recommend.",
+      id: "Struktur: kalimat pembuka ke pelanggan → cara membangun kedekatan/menanyakan kebutuhan → cara mengarah ke rekomendasi.",
+    }),
     followUpQuestion: "",
     sampleAnswer: "",
     needsUserVerification: [] as string[],
@@ -461,7 +501,6 @@ export function buildHeuristicFeedback(
   answerText: string,
   responseLanguage: string,
 ) {
-  const isZh = responseLanguage === "zh";
   const score = scoreAnswerHeuristically(answerText);
 
   if (score <= 2) {
@@ -477,29 +516,45 @@ export function buildHeuristicFeedback(
   if (score <= 4) {
     return {
       score,
-      verdict: isZh ? "回答过短" : "Answer too brief",
-      summary: isZh
-        ? "你已开始回应问题，但内容还太短。下一步请补充自我介绍、求职动机，并举一个与客户沟通相关的具体例子。"
-        : "You started on the question but the answer is still too short. Add a brief intro, your motivation, and one concrete customer-facing example.",
+      verdict: pick(responseLanguage, {
+        zh: "回答过短",
+        en: "Answer too brief",
+        id: "Jawaban terlalu singkat",
+      }),
+      summary: pick(responseLanguage, {
+        zh: "你已开始回应问题，但内容还太短。下一步请补充自我介绍、求职动机，并举一个与客户沟通相关的具体例子。",
+        en: "You started on the question but the answer is still too short. Add a brief intro, your motivation, and one concrete customer-facing example.",
+        id: "Kamu sudah mulai menjawab, tapi terlalu singkat. Tambahkan perkenalan singkat, motivasimu, dan satu contoh konkret berhubungan dengan pelanggan.",
+      }),
       strengths: [] as string[],
-      improvements: isZh
-        ? [
-            "用 1-2 句话介绍你的背景。",
-            "说明为什么想做美妆 BA。",
-            "举一个与客户沟通相关的具体例子。",
-          ]
-        : [
-            "Add a 1-2 sentence background intro.",
-            "Explain why you want this BA role.",
-            "Include one concrete customer-facing example.",
-          ],
-      missingSignals: isZh
-        ? ["完整自我介绍", "求职动机", "可验证的经历细节"]
-        : ["Full intro", "Motivation", "Verifiable experience details"],
+      improvements: pick(responseLanguage, {
+        zh: [
+          "用 1-2 句话介绍你的背景。",
+          "说明为什么想做美妆 BA。",
+          "举一个与客户沟通相关的具体例子。",
+        ],
+        en: [
+          "Add a 1-2 sentence background intro.",
+          "Explain why you want this BA role.",
+          "Include one concrete customer-facing example.",
+        ],
+        id: [
+          "Perkenalkan latar belakangmu dalam 1-2 kalimat.",
+          "Jelaskan kenapa kamu tertarik dengan posisi ini.",
+          "Sertakan satu contoh konkret berhubungan dengan pelanggan.",
+        ],
+      }),
+      missingSignals: pick(responseLanguage, {
+        zh: ["完整自我介绍", "求职动机", "可验证的经历细节"],
+        en: ["Full intro", "Motivation", "Verifiable experience details"],
+        id: ["Perkenalan lengkap", "Motivasi", "Detail pengalaman yang bisa diverifikasi"],
+      }),
       resumeLeverage: [] as string[],
-      structureSuggestion: isZh
-        ? "结构：我是谁 → 为什么想做这份工作 → 一个相关经历。"
-        : "Structure: who you are → why this role → one relevant story.",
+      structureSuggestion: pick(responseLanguage, {
+        zh: "结构：我是谁 → 为什么想做这份工作 → 一个相关经历。",
+        en: "Structure: who you are → why this role → one relevant story.",
+        id: "Struktur: siapa kamu → kenapa posisi ini → satu pengalaman relevan.",
+      }),
       followUpQuestion: "",
       sampleAnswer: "",
       needsUserVerification: [] as string[],
@@ -508,33 +563,53 @@ export function buildHeuristicFeedback(
 
   return {
     score,
-    verdict: isZh ? "有基础，可再打磨" : "Solid start, room to sharpen",
-    summary: isZh
-      ? "你的回答已覆盖部分要点，但结构还不够清晰，证据也偏弱。建议用「我是谁 → 为什么这个岗位 → 一个具体案例」重新组织，并补充一个可量化的结果。"
-      : "You hit part of the question, but the structure and evidence are still light. Reorganize as who you are → why this role → one concrete story with a measurable result.",
-    strengths: isZh
-      ? ["已开始回应面试问题，而不是跑题或测试设备。"]
-      : ["You addressed the interview question rather than going off-topic."],
-    improvements: isZh
-      ? [
-          "开头用一句话概括你的定位与相关经验。",
-          "补充一个可量化的结果或客户案例。",
-          "把动机与目标品牌/岗位更紧密地联系起来。",
-        ]
-      : [
-          "Open with a one-sentence positioning statement.",
-          "Add one measurable result or customer story.",
-          "Tie motivation more directly to this brand and role.",
-        ],
-    missingSignals: isZh
-      ? ["更具体的客户转化或销售成果", "与 JD 高度匹配的能力点"]
-      : ["More specific customer or sales outcomes", "Clearer JD alignment"],
-    resumeLeverage: isZh
-      ? ["从简历中挑选 1-2 条与美妆零售/客户沟通最相关的经历展开。"]
-      : ["Pull 1-2 resume bullets most relevant to beauty retail and customer communication."],
-    structureSuggestion: isZh
-      ? "结构：我是谁 → 为什么这个岗位 → 一个 STAR 案例 → 我能带来的价值。"
-      : "Structure: who you are → why this role → one STAR story → value you bring.",
+    verdict: pick(responseLanguage, {
+      zh: "有基础，可再打磨",
+      en: "Solid start, room to sharpen",
+      id: "Sudah bagus, bisa diasah",
+    }),
+    summary: pick(responseLanguage, {
+      zh: "你的回答已覆盖部分要点，但结构还不够清晰，证据也偏弱。建议用「我是谁 → 为什么这个岗位 → 一个具体案例」重新组织，并补充一个可量化的结果。",
+      en: "You hit part of the question, but the structure and evidence are still light. Reorganize as who you are → why this role → one concrete story with a measurable result.",
+      id: "Jawabanmu sudah menyentuh sebagian poin, tapi struktur dan buktinya masih lemah. Susun ulang dengan 'siapa saya → kenapa posisi ini → satu cerita konkret' dan tambahkan hasil yang terukur.",
+    }),
+    strengths: pick(responseLanguage, {
+      zh: ["已开始回应面试问题，而不是跑题或测试设备。"],
+      en: ["You addressed the interview question rather than going off-topic."],
+      id: ["Kamu menjawab pertanyaan wawancaranya, tidak melenceng atau sekadar mengetes alat."],
+    }),
+    improvements: pick(responseLanguage, {
+      zh: [
+        "开头用一句话概括你的定位与相关经验。",
+        "补充一个可量化的结果或客户案例。",
+        "把动机与目标品牌/岗位更紧密地联系起来。",
+      ],
+      en: [
+        "Open with a one-sentence positioning statement.",
+        "Add one measurable result or customer story.",
+        "Tie motivation more directly to this brand and role.",
+      ],
+      id: [
+        "Buka dengan satu kalimat posisi dirimu dan pengalaman yang relevan.",
+        "Tambahkan satu hasil terukur atau cerita pelanggan.",
+        "Hubungkan motivasi lebih erat dengan brand/posisi ini.",
+      ],
+    }),
+    missingSignals: pick(responseLanguage, {
+      zh: ["更具体的客户转化或销售成果", "与 JD 高度匹配的能力点"],
+      en: ["More specific customer or sales outcomes", "Clearer JD alignment"],
+      id: ["Hasil konversi atau penjualan yang lebih spesifik", "Kesesuaian dengan JD yang lebih jelas"],
+    }),
+    resumeLeverage: pick(responseLanguage, {
+      zh: ["从简历中挑选 1-2 条与美妆零售/客户沟通最相关的经历展开。"],
+      en: ["Pull 1-2 resume bullets most relevant to beauty retail and customer communication."],
+      id: ["Pilih 1-2 pengalaman dari CV yang paling relevan dan kembangkan lebih detail."],
+    }),
+    structureSuggestion: pick(responseLanguage, {
+      zh: "结构：我是谁 → 为什么这个岗位 → 一个 STAR 案例 → 我能带来的价值。",
+      en: "Structure: who you are → why this role → one STAR story → value you bring.",
+      id: "Struktur: siapa saya → kenapa posisi ini → satu cerita STAR → nilai yang saya bawa.",
+    }),
     followUpQuestion: "",
     sampleAnswer: "",
     needsUserVerification: [] as string[],
@@ -545,32 +620,47 @@ export function buildNonSubstantiveFeedback(
   answerText: string,
   responseLanguage: string,
 ) {
-  const isZh = responseLanguage === "zh";
   return {
     score: 1,
-    verdict: isZh ? "未回答问题" : "Did not answer the question",
-    summary: isZh
-      ? "你这句话只是在确认能否听到，并没有回答面试问题。请直接介绍自己，并说明为什么想从事这份工作。"
-      : "This was only a connectivity check, not an answer to the interview question. Introduce yourself and explain why you want this role.",
+    verdict: pick(responseLanguage, {
+      zh: "未回答问题",
+      en: "Did not answer the question",
+      id: "Tidak menjawab pertanyaan",
+    }),
+    summary: pick(responseLanguage, {
+      zh: "你这句话只是在确认能否听到，并没有回答面试问题。请直接介绍自己，并说明为什么想从事这份工作。",
+      en: "This was only a connectivity check, not an answer to the interview question. Introduce yourself and explain why you want this role.",
+      id: "Ucapanmu hanya sekadar cek koneksi, bukan jawaban atas pertanyaan wawancara. Perkenalkan dirimu langsung dan jelaskan kenapa kamu tertarik dengan posisi ini.",
+    }),
     strengths: [] as string[],
-    improvements: isZh
-      ? [
-          "先简要介绍你的背景（1-2 句）。",
-          "说明你为什么对美妆 BA 岗位感兴趣。",
-          "结合简历举一个与客户沟通相关的具体例子。",
-        ]
-      : [
-          "Open with a brief background (1-2 sentences).",
-          "Explain why you are interested in this BA role.",
-          "Add one concrete customer-facing example from your resume.",
-        ],
-    missingSignals: isZh
-      ? ["自我介绍", "求职动机", "与岗位相关的经历或优势"]
-      : ["Self-introduction", "Motivation for the role", "Relevant experience"],
+    improvements: pick(responseLanguage, {
+      zh: [
+        "先简要介绍你的背景（1-2 句）。",
+        "说明你为什么对美妆 BA 岗位感兴趣。",
+        "结合简历举一个与客户沟通相关的具体例子。",
+      ],
+      en: [
+        "Open with a brief background (1-2 sentences).",
+        "Explain why you are interested in this BA role.",
+        "Add one concrete customer-facing example from your resume.",
+      ],
+      id: [
+        "Mulai dengan latar belakang singkat (1-2 kalimat).",
+        "Jelaskan kenapa kamu tertarik dengan posisi ini.",
+        "Tambahkan satu contoh konkret dari CV yang berhubungan dengan pelanggan.",
+      ],
+    }),
+    missingSignals: pick(responseLanguage, {
+      zh: ["自我介绍", "求职动机", "与岗位相关的经历或优势"],
+      en: ["Self-introduction", "Motivation for the role", "Relevant experience"],
+      id: ["Perkenalan diri", "Motivasi untuk posisi ini", "Pengalaman yang relevan"],
+    }),
     resumeLeverage: [] as string[],
-    structureSuggestion: isZh
-      ? "结构建议：我是谁 → 为什么想做这份工作 → 一个相关经历 → 我能带来的价值。"
-      : "Structure: who you are → why this role → one relevant story → value you bring.",
+    structureSuggestion: pick(responseLanguage, {
+      zh: "结构建议：我是谁 → 为什么想做这份工作 → 一个相关经历 → 我能带来的价值。",
+      en: "Structure: who you are → why this role → one relevant story → value you bring.",
+      id: "Struktur: siapa saya → kenapa posisi ini → satu pengalaman relevan → nilai yang saya bawa.",
+    }),
     followUpQuestion: "",
     sampleAnswer: "",
     needsUserVerification: [] as string[],

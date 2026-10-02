@@ -6,6 +6,9 @@ const STRONG_END_PATTERNS = [
   /I'?m\s+done(?!\s+with\s+(?:this|that|the)\s+question)\s*[!?.]?\s*$/i,
   /that'?s\s+(?:all|it|everything)\b/i,
   /(?:结束面试|结束吧|我(?:答|做)完了|就这样吧|面试结束|(?:我们|咱们)?结束(?:答题|这?题|面试)?吧|(?:没有了?|没了)(?:，|,)?结束(?:吧)?|到这(?:里|儿)(?:就)?(?:行了|结束)?吧?)/,
+  // Indonesian closers: "saya sudah selesai", "itu saja", "sampai jumpa",
+  // "terima kasih untuk waktunya/sesinya".
+  /\bsudah selesai\b|\bitu saja\b|\bsampai jumpa\b|\bterima kasih\b.*\b(?:waktunya|sesi)\b|\bselesai(?: \w+)? wawancara\b/i,
 ];
 
 // Contextual: can appear as natural descriptions when the user is talking ABOUT
@@ -13,6 +16,9 @@ const STRONG_END_PATTERNS = [
 // Only matched for short utterances where intent is unambiguous.
 const CONTEXTUAL_END_PATTERNS = [
   /(?:end|finish|stop|terminate)\s+(?:the\s+)?interview/i,
+  // Indonesian: "cukup ... wawancara" ("enough of the interview") also appears
+  // in longer descriptions — keep it behind the short-utterance gate.
+  /\bcukup\b.*\bwawancara/i,
 ];
 
 const USER_END_PATTERNS = [...STRONG_END_PATTERNS, ...CONTEXTUAL_END_PATTERNS];
@@ -29,6 +35,11 @@ const USER_SKIP_PATTERNS = [
   /please\s+(?:move\s+on|skip)/i,
   /(?:跳过|下一(?:个问题|题)|不做了|放弃了?|结束吧|请继续(?:下一|到下))/,
   /(?:我不会|不想做了|不想答了|过吧|换下一)/,
+  // Indonesian: "lewati", "lanjut ke pertanyaan berikutnya", "pertanyaan
+  // selanjutnya". Bare "selanjutnya" is deliberately excluded — it is common
+  // inside answers ("langkah selanjutnya..."); the anchored fast-path in
+  // voice-relay.ts already handles the bare-word command.
+  /\blewati\b|\blewat(?: i)? ini\b|\blanjut(?: ke)?(?: pertanyaan)? berikutnya\b|\b(?:pertanyaan|soal) (?:berikutnya|selanjutnya)\b/i,
 ];
 
 const REPLY_INVITES_MORE_PATTERNS_EN = [
@@ -47,6 +58,15 @@ const REPLY_INVITES_MORE_PATTERNS_ZH = [
   /如果你(?:还有|愿意|方便).{0,8}(?:分享|补充|继续)/,
   /你可以.{0,4}(?:继续|分享|补充|展开)/,
   /准备好了?.{0,4}(?:继续|分享|说)/,
+];
+
+// Indonesian: mirrors the en invitations. These words never occur in English,
+// so merging them into the non-zh branch is safe.
+const REPLY_INVITES_MORE_PATTERNS_ID = [
+  /(?:silakan|boleh|mohon).{0,12}(?:berbagi|lanjut|melanjutkan|menjelaskan|menceritakan|menambahkan)/i,
+  /(?:saya|aku).{0,6}(?:ingin|senang|penasaran).{0,6}(?:mendengar|tahu|mengetahui)/i,
+  /jika (?:anda|kamu) (?:punya|memiliki|ingin|mau)/i,
+  /saat (?:anda|kamu) (?:siap|nyaman)/i,
 ];
 
 export function isUserEndRequest(text: string): boolean {
@@ -93,7 +113,9 @@ export function responseInvitesUserReply(text: string, isZh: boolean): boolean {
   const normalized = text.trim();
   if (!normalized) return false;
 
-  const patterns = isZh ? REPLY_INVITES_MORE_PATTERNS_ZH : REPLY_INVITES_MORE_PATTERNS_EN;
+  const patterns = isZh
+    ? REPLY_INVITES_MORE_PATTERNS_ZH
+    : [...REPLY_INVITES_MORE_PATTERNS_EN, ...REPLY_INVITES_MORE_PATTERNS_ID];
   return patterns.some((pattern) => pattern.test(normalized));
 }
 
