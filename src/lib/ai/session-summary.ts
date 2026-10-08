@@ -32,7 +32,7 @@ async function run(sessionId: string): Promise<void> {
     const { data: interviewSession } = await supabaseAdmin
       .from("sessions")
       .select(
-        `summary, interview:interviews!inner(title, objective, language, assessmentCriteria, questions(text, order, type)), messages(*)`,
+        `summary, insights, interview:interviews!inner(title, objective, language, kind, assessmentCriteria, questions(text, order, type)), messages(*)`,
       )
       .eq("id", sessionId)
       .order("order", { referencedTable: "interviews.questions", ascending: true })
@@ -50,6 +50,7 @@ async function run(sessionId: string): Promise<void> {
       title: string;
       objective: string | null;
       language: string;
+      kind?: string;
       assessmentCriteria: { name: string; description: string }[] | null;
       questions: { text: string; order: number; type?: string }[];
     };
@@ -108,6 +109,7 @@ async function run(sessionId: string): Promise<void> {
       interview.language,
       drawingsInput,
       codeInput,
+      interview.kind,
     );
 
     let response;
@@ -139,6 +141,7 @@ async function run(sessionId: string): Promise<void> {
           interview.language,
           textOnlyDrawings,
           codeInput,
+          interview.kind,
         );
         response = await generateChatWithFallback({
           messages: fallbackMessages,
@@ -156,11 +159,19 @@ async function run(sessionId: string): Promise<void> {
     const insightsData: Record<string, unknown> = {
       keyInsights: parsed.keyInsights ?? [],
     };
+
+    // Deterministic scores (quiz grading) are the source of truth — the AI
+    // narrative layers on top without replacing them.
+    const existingEvaluations = (
+      interviewSession.insights as { questionEvaluations?: unknown[] } | null
+    )?.questionEvaluations;
+    if (Array.isArray(existingEvaluations) && existingEvaluations.length > 0) {
+      insightsData.questionEvaluations = existingEvaluations;
+    } else if (parsed.questionEvaluations) {
+      insightsData.questionEvaluations = parsed.questionEvaluations;
+    }
     if (parsed.criteriaEvaluations) {
       insightsData.criteriaEvaluations = parsed.criteriaEvaluations;
-    }
-    if (parsed.questionEvaluations) {
-      insightsData.questionEvaluations = parsed.questionEvaluations;
     }
     if (parsed.researchFindings) {
       insightsData.researchFindings = parsed.researchFindings;

@@ -13,6 +13,7 @@ const questionInput = z.object({
     "CODING",
     "WHITEBOARD",
     "RESEARCH",
+    "SHORT_TEXT",
   ]),
   options: z.any().optional(),
   starterCode: z

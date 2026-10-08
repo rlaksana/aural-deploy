@@ -1,4 +1,5 @@
 import { generateSessionSummary } from "@/lib/ai/session-summary";
+import { gradeQuiz } from "@/lib/quiz-grading";
 import { createLogger } from "@/lib/logger";
 import { TRPCError } from "@trpc/server";
 import { after } from "next/server";
@@ -58,7 +59,9 @@ export const sessionRouter = router({
 
       const questions = (interview.questions ?? []) as { id: string }[];
 
-      const derivedMode = interview.voiceEnabled ? "VOICE" : "CHAT";
+      // Voice is interview-only; deterministic kinds always run in chat.
+      const isInterviewKind = ((interview as { kind?: string }).kind ?? "INTERVIEW") === "INTERVIEW";
+      const derivedMode = isInterviewKind && interview.voiceEnabled ? "VOICE" : "CHAT";
 
       const { data: sessionJson, error } = await ctx.supabase.rpc(
         "create_interview_session",
@@ -157,7 +160,9 @@ export const sessionRouter = router({
         input.questionId && questions.some((question) => question.id === input.questionId)
           ? input.questionId
           : questions[0]?.id ?? null;
-      const derivedMode = interview.voiceEnabled ? "VOICE" : "CHAT";
+      // Voice is interview-only; deterministic kinds always run in chat.
+      const isInterviewKind = ((interview as { kind?: string }).kind ?? "INTERVIEW") === "INTERVIEW";
+      const derivedMode = isInterviewKind && interview.voiceEnabled ? "VOICE" : "CHAT";
 
       const { data: sessionJson, error } = await ctx.supabase.rpc(
         "create_interview_session",
@@ -219,7 +224,9 @@ export const sessionRouter = router({
       questions.sort((a, b) => a.order - b.order);
 
       // Create session via RPC (also links it to the candidate)
-      const derivedMode = interview.voiceEnabled ? "VOICE" : "CHAT";
+      // Voice is interview-only; deterministic kinds always run in chat.
+      const isInterviewKind = ((interview as { kind?: string }).kind ?? "INTERVIEW") === "INTERVIEW";
+      const derivedMode = isInterviewKind && interview.voiceEnabled ? "VOICE" : "CHAT";
 
       const { data: sessionJson, error } = await ctx.supabase.rpc(
         "create_invite_session",
@@ -500,8 +507,11 @@ export const sessionRouter = router({
     .mutation(async ({ ctx, input }) => {
       const { data: session } = await ctx.supabase
         .from("sessions")
-        .select("id, startedAt")
+        .select(
+          "id, startedAt, interview:interviews!inner(kind, aiSummaryEnabled, questions(id, text, type, options))",
+        )
         .eq("id", input.id)
+        .order("order", { referencedTable: "interviews.questions", ascending: true })
         .single();
 
       if (!session) {
@@ -534,7 +544,52 @@ export const sessionRouter = router({
 
       // Fire-and-forget AI summary so the report gets scores without the
       // owner having to open each session. Idempotent (skips if one exists).
-      after(() => generateSessionSummary(input.id));
+      // Non-interview kinds only bill an LLM call when the owner opted in.
+      // Fail-safe: unknown kind/flag defaults to summarizing (legacy behavior).
+      const interview = session.interview as
+        | {
+            kind?: string;
+            aiSummaryEnabled?: boolean;
+            questions?: { id: string; text: string; type: string; options: { correctIndices?: number[] } | null }[];
+          }
+        | undefined;
+      const kind = interview?.kind ?? "INTERVIEW";
+      const aiSummaryEnabled = interview?.aiSummaryEnabled !== false;
+
+      // Quizzes/assessments get deterministic scores in `insights` before any
+      // AI narrative. With aiSummaryEnabled the AI summary keeps these scores
+      // (see session-summary) and adds the written report on top.
+      if (kind === "QUIZ" || kind === "ASSESSMENT") {
+        const { data: msgs } = await ctx.supabase
+          .from("messages")
+          .select("questionId, content")
+          .eq("sessionId", input.id)
+          .eq("role", "USER");
+
+        const graded = gradeQuiz(
+          interview?.questions ?? [],
+          (msgs ?? []) as { questionId: string | null; content: string }[],
+        );
+
+        if (graded.questionEvaluations.length > 0) {
+          await ctx.supabase
+            .from("sessions")
+            .update({
+              insights: {
+                questionEvaluations: graded.questionEvaluations,
+                keyInsights: [],
+              },
+              // Without AI the score line IS the summary; with AI the summary
+              // is generated (generateSessionSummary skips when one exists).
+              ...(aiSummaryEnabled ? {} : { summary: `Score: ${graded.totalCorrect}/${graded.total}` }),
+            })
+            .eq("id", input.id);
+        }
+      }
+
+      if (kind === "INTERVIEW" || aiSummaryEnabled) {
+        after(() => generateSessionSummary(input.id));
+      }
 
       return { success: true };
     }),

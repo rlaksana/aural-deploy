@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { CodeBlock } from "@/components/code-editor/code-block";
 import { CodeEditorCanvas } from "@/components/code-editor/code-editor-canvas";
+import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import {
   Check,
@@ -41,6 +42,7 @@ import {
   PenLine,
   Plus,
   Trash2,
+  Type,
   X,
 } from "lucide-react";
 
@@ -50,12 +52,22 @@ import {
 
 export const QUESTION_TYPES = [
   { value: "OPEN_ENDED", label: "Open Ended" },
+  { value: "SHORT_TEXT", label: "Short Text (Form Field)" },
   { value: "SINGLE_CHOICE", label: "Single Choice" },
   { value: "MULTIPLE_CHOICE", label: "Multiple Choice" },
   { value: "CODING", label: "Coding" },
   { value: "WHITEBOARD", label: "Whiteboard" },
   { value: "RESEARCH", label: "Research" },
 ] as const;
+
+/** Types that only make sense in the AI-interview flow. */
+const INTERVIEW_ONLY_TYPES = new Set(["CODING", "WHITEBOARD", "RESEARCH"]);
+
+export function availableQuestionTypes(kind?: string | null) {
+  return kind && kind !== "INTERVIEW"
+    ? QUESTION_TYPES.filter((t) => !INTERVIEW_ONLY_TYPES.has(t.value))
+    : QUESTION_TYPES;
+}
 
 export const QUESTION_TYPE_STYLES: Record<
   string,
@@ -71,6 +83,13 @@ export const QUESTION_TYPE_STYLES: Record<
     label: "Open Ended",
     badgeClass:
       "border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-300",
+    optionClass: "",
+  },
+  SHORT_TEXT: {
+    icon: Type,
+    label: "Short Text (Form Field)",
+    badgeClass:
+      "border-cyan-200 bg-cyan-50 text-cyan-700 dark:border-cyan-800 dark:bg-cyan-950 dark:text-cyan-300",
     optionClass: "",
   },
   SINGLE_CHOICE: {
@@ -124,6 +143,8 @@ export interface QuestionCardData {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   options?: { options: string[]; allowMultiple?: boolean } | any;
   starterCode?: { language: string; code: string } | null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  validationRules?: any;
 }
 
 interface QuestionCardProps {
@@ -140,6 +161,8 @@ interface QuestionCardProps {
   saving?: boolean;
   /** Show loading spinner on the Delete confirmation. */
   deleting?: boolean;
+  /** Interview kind — filters the visible question types for non-interviews. */
+  kind?: string | null;
   dragProps?: {
     draggable: boolean;
     onDragStart: (e: React.DragEvent) => void;
@@ -168,10 +191,16 @@ export function QuestionCard({
   deleting,
   dragProps,
   className,
+  kind,
 }: QuestionCardProps) {
   const [local, setLocal] = useState<QuestionCardData>(() =>
     structuredClone(data),
   );
+  const typeOptions = availableQuestionTypes(kind);
+  // Answer-key checkboxes only make sense for graded kinds.
+  const showCorrectAnswers =
+    (kind === "QUIZ" || kind === "ASSESSMENT") &&
+    (local.type === "SINGLE_CHOICE" || local.type === "MULTIPLE_CHOICE");
 
   // Re-clone from parent when entering edit mode
   useEffect(() => {
@@ -248,7 +277,7 @@ export function QuestionCard({
                       if (v === "MULTIPLE_CHOICE" && local.options) {
                         updates.options = { ...local.options, allowMultiple: true };
                       }
-                      if (v === "OPEN_ENDED" || v === "CODING" || v === "WHITEBOARD" || v === "RESEARCH") {
+                      if (v === "OPEN_ENDED" || v === "CODING" || v === "WHITEBOARD" || v === "RESEARCH" || v === "SHORT_TEXT") {
                         updates.options = undefined;
                       }
                       update(updates);
@@ -258,7 +287,7 @@ export function QuestionCard({
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {QUESTION_TYPES.map((t) => (
+                      {typeOptions.map((t) => (
                         <SelectItem key={t.value} value={t.value}>
                           {t.label}
                         </SelectItem>
@@ -282,11 +311,37 @@ export function QuestionCard({
               {(local.type === "SINGLE_CHOICE" ||
                 local.type === "MULTIPLE_CHOICE") && (
                 <div className="space-y-2">
-                  <Label className="text-xs">Options</Label>
+                  <Label className="text-xs">
+                    Options
+                    {showCorrectAnswers && (
+                      <span className="ml-2 font-normal text-muted-foreground">
+                        — check the correct answer(s)
+                      </span>
+                    )}
+                  </Label>
                   <div className="space-y-1.5">
                     {(local.options?.options ?? []).map(
                       (opt: string, oi: number) => (
                         <div key={oi} className="flex items-center gap-2">
+                          {showCorrectAnswers && (
+                            <Checkbox
+                              checked={(local.options?.correctIndices ?? []).includes(oi)}
+                              onCheckedChange={(checked) => {
+                                const current = new Set<number>(local.options?.correctIndices ?? []);
+                                if (checked) current.add(oi);
+                                else current.delete(oi);
+                                update({
+                                  options: {
+                                    ...local.options,
+                                    options: local.options?.options ?? [],
+                                    allowMultiple: local.options?.allowMultiple ?? false,
+                                    correctIndices: [...current].sort((a, b) => a - b),
+                                  },
+                                });
+                              }}
+                              aria-label={`Mark option ${String.fromCharCode(65 + oi)} as correct`}
+                            />
+                          )}
                           <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-muted text-[10px] font-medium text-muted-foreground">
                             {String.fromCharCode(65 + oi)}
                           </span>
@@ -351,6 +406,27 @@ export function QuestionCard({
                     <Plus className="mr-1 h-3 w-3" />
                     Add Option
                   </Button>
+                  {kind && kind !== "INTERVIEW" && (
+                    <div className="flex flex-wrap gap-1.5 pt-0.5">
+                      {[
+                        { label: "Quick fill 1–5 (Likert)", options: ["1", "2", "3", "4", "5"] },
+                        { label: "Quick fill NPS 0–10", options: Array.from({ length: 11 }, (_, i) => String(i)) },
+                      ].map((preset) => (
+                        <Button
+                          key={preset.label}
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 px-2 text-[11px] text-muted-foreground"
+                          onClick={() =>
+                            update({ options: { options: preset.options, allowMultiple: false } })
+                          }
+                        >
+                          {preset.label}
+                        </Button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -392,6 +468,65 @@ export function QuestionCard({
                       }}
                       autoSaveInterval={500}
                     />
+                  </div>
+                </div>
+              )}
+
+              {/* Form-field validation rules for SHORT_TEXT */}
+              {local.type === "SHORT_TEXT" && (
+                <div className="space-y-2">
+                  <Label className="text-xs">Field Validation</Label>
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                    <div className="space-y-1">
+                      <Label className="text-[10px] uppercase text-muted-foreground">Input</Label>
+                      <Select
+                        value={local.validationRules?.inputType ?? "text"}
+                        onValueChange={(v) =>
+                          update({
+                            validationRules: {
+                              ...local.validationRules,
+                              inputType: v === "text" ? undefined : v,
+                            },
+                          })
+                        }
+                      >
+                        <SelectTrigger className="h-8">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="text">Text</SelectItem>
+                          <SelectItem value="email">Email</SelectItem>
+                          <SelectItem value="number">Number</SelectItem>
+                          <SelectItem value="date">Date</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {(["minLength", "maxLength", "min", "max"] as const).map((ruleKey) => (
+                      <div key={ruleKey} className="space-y-1">
+                        <Label className="text-[10px] uppercase text-muted-foreground">
+                          {ruleKey === "minLength"
+                            ? "Min length"
+                            : ruleKey === "maxLength"
+                              ? "Max length"
+                              : ruleKey === "min"
+                                ? "Min value"
+                                : "Max value"}
+                        </Label>
+                        <Input
+                          type="number"
+                          className="h-8"
+                          value={local.validationRules?.[ruleKey] ?? ""}
+                          onChange={(e) =>
+                            update({
+                              validationRules: {
+                                ...local.validationRules,
+                                [ruleKey]: e.target.value === "" ? undefined : Number(e.target.value),
+                              },
+                            })
+                          }
+                        />
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}

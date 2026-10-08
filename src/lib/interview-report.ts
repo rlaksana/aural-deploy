@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { parseChoiceSelection } from "./deterministic-flow";
 import { getSessionOverallScore } from "./session-score";
 
 /**
@@ -36,6 +37,12 @@ type InsightsShape = {
   summary?: unknown;
 };
 
+type SessionMessage = {
+  role: string;
+  content: string;
+  questionId: string | null;
+};
+
 type SessionLike = {
   id: string;
   status?: string | null;
@@ -44,6 +51,7 @@ type SessionLike = {
   participantName?: string | null;
   participantEmail?: string | null;
   completedAt?: string | null;
+  messages?: SessionMessage[] | null;
 } | null;
 
 function isFiniteNumber(value: unknown): value is number {
@@ -171,7 +179,7 @@ export async function fetchReportEntries(
 ): Promise<ReportEntry[]> {
   const { data: candidateData } = await supabase
     .from("candidates")
-    .select("name, email, session:sessions(*)")
+    .select("name, email, session:sessions(*, messages(role, content, questionId))")
     .eq("interviewId", interviewId)
     .order("createdAt", { ascending: false });
 
@@ -188,7 +196,7 @@ export async function fetchReportEntries(
 
   const walkInQuery = supabase
     .from("sessions")
-    .select("*")
+    .select("*, messages(role, content, questionId)")
     .eq("interviewId", interviewId);
 
   const walkInSessions = linkedSessionIds.length
@@ -211,4 +219,142 @@ export async function fetchReportEntries(
   ];
 
   return entries;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Survey / form / quiz aggregate                                     */
+/* ------------------------------------------------------------------ */
+
+export type AggregateQuestion = {
+  id: string;
+  text: string;
+  type: string;
+  options?: { options?: string[]; correctIndices?: number[] } | null;
+};
+
+export type SurveyQuestionAggregate = {
+  id: string;
+  text: string;
+  type: string;
+  /** Option label → response count (choice/rating questions). */
+  tally?: { option: string; count: number }[];
+  /** Mean of numeric option labels (Likert/NPS style), 2-decimal rounded. */
+  average?: number;
+  /** Open answers with respondent name (surveys/forms). */
+  textAnswers?: { name: string | null; content: string }[];
+  /** Quiz only: share of respondents answering this keyed question correctly. */
+  correctRate?: { correct: number; total: number };
+};
+
+export type SurveyAggregate = {
+  respondentCount: number;
+  questions: SurveyQuestionAggregate[];
+};
+
+/** USER messages grouped per question, across all sessions. */
+function collectAnswers(entries: ReportEntry[]) {
+  const byQuestion = new Map<string, { name: string | null; content: string }[]>();
+  let respondentCount = 0;
+
+  for (const entry of entries) {
+    const session = entry.session;
+    if (!session) continue;
+    respondentCount++;
+
+    const name =
+      entry.name ||
+      session.participantName ||
+      entry.email ||
+      session.participantEmail ||
+      null;
+
+    for (const message of session.messages ?? []) {
+      if (message.role !== "USER" || !message.content.trim() || !message.questionId) continue;
+      const bucket = byQuestion.get(message.questionId) ?? [];
+      bucket.push({ name, content: message.content });
+      byQuestion.set(message.questionId, bucket);
+    }
+  }
+  return { byQuestion, respondentCount };
+}
+
+/**
+ * Cross-respondent aggregate for non-interview kinds. Choice answers are
+ * tallied from the protocol messages; open answers are listed for forms.
+ * Quiz correct-rates come from the deterministic `insights` written at
+ * session completion.
+ */
+export function buildSurveyAggregate(
+  entries: ReportEntry[],
+  questions: AggregateQuestion[],
+): SurveyAggregate {
+  const { byQuestion, respondentCount } = collectAnswers(entries);
+
+  const questionAggregates: SurveyQuestionAggregate[] = questions.map((question) => {
+    const aggregate: SurveyQuestionAggregate = {
+      id: question.id,
+      text: question.text,
+      type: question.type,
+    };
+    const answers = byQuestion.get(question.id) ?? [];
+
+    const isChoice =
+      question.type === "SINGLE_CHOICE" || question.type === "MULTIPLE_CHOICE";
+    const optionLabels = question.options?.options;
+
+    if (isChoice && Array.isArray(optionLabels)) {
+      const counts = new Map<string, number>();
+      let numericSum = 0;
+      let numericCount = 0;
+      let allNumeric = optionLabels.length > 0;
+
+      for (const answer of answers) {
+        for (const index of parseChoiceSelection(answer.content)) {
+          const label = optionLabels[index];
+          if (label === undefined) continue;
+          counts.set(label, (counts.get(label) ?? 0) + 1);
+          const value = Number(label);
+          if (Number.isFinite(value)) {
+            numericSum += value;
+            numericCount++;
+          } else {
+            allNumeric = false;
+          }
+        }
+      }
+
+      aggregate.tally = optionLabels.map((option) => ({
+        option,
+        count: counts.get(option) ?? 0,
+      }));
+      if (allNumeric && numericCount > 0) {
+        aggregate.average = Math.round((numericSum / numericCount) * 100) / 100;
+      }
+    } else if (question.type === "SHORT_TEXT" || question.type === "OPEN_ENDED") {
+      aggregate.textAnswers = answers.map((a) => ({ name: a.name, content: a.content }));
+    }
+
+    // Quiz correct-rate from the deterministic evaluations (matched by text).
+    const hasKey =
+      Array.isArray(question.options?.correctIndices) &&
+      question.options!.correctIndices!.length > 0;
+    if (hasKey) {
+      let correct = 0;
+      let total = 0;
+      for (const entry of entries) {
+        const evaluations = (
+          (entry.session?.insights as { questionEvaluations?: { question?: string; correct?: boolean }[] } | null)
+            ?.questionEvaluations ?? []
+        ).filter((e) => e.question === question.text);
+        if (evaluations.length === 0) continue;
+        total++;
+        if (evaluations[0].correct) correct++;
+      }
+      if (total > 0) aggregate.correctRate = { correct, total };
+    }
+
+    return aggregate;
+  });
+
+  return { respondentCount, questions: questionAggregates };
 }

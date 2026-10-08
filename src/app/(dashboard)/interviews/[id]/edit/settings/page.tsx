@@ -31,6 +31,14 @@ import {
 import { useCallback, useState } from "react";
 import { useEditInterview } from "../edit-context";
 
+const INTERVIEW_KIND_OPTIONS = [
+  { value: "INTERVIEW", label: "Interview", description: "AI-driven conversation with follow-up questions" },
+  { value: "SURVEY", label: "Survey", description: "Questionnaire with deterministic flow" },
+  { value: "QUIZ", label: "Quiz", description: "Graded questions with correct answers" },
+  { value: "FORM", label: "Form", description: "Structured data collection" },
+  { value: "ASSESSMENT", label: "Assessment", description: "Written assessment, graded at the end" },
+];
+
 function normalizeInterviewLanguage(language?: string | null): string {
   const normalized = language?.trim().toLowerCase();
   switch (normalized) {
@@ -70,6 +78,10 @@ export default function SettingsTab() {
   const [title, setTitle] = useState<string>(interview.title);
   const [description, setDescription] = useState<string>(interview.description ?? "");
   const [objective, setObjective] = useState<string>(interview.objective ?? "");
+  const [kind, setKind] = useState<string>(interview.kind ?? "INTERVIEW");
+  const [aiSummaryEnabled, setAiSummaryEnabled] = useState<boolean>(
+    interview.aiSummaryEnabled ?? true,
+  );
   const [chatEnabled, setChatEnabled] = useState<boolean>(interview.chatEnabled ?? true);
   const [voiceEnabled, setVoiceEnabled] = useState<boolean>(interview.voiceEnabled ?? false);
   const [videoEnabled, setVideoEnabled] = useState<boolean>(interview.videoEnabled ?? false);
@@ -98,6 +110,22 @@ export default function SettingsTab() {
 
   const isLinkLoading = updateMutation.isLoading || publishMutation.isLoading;
 
+  // Voice/video/anti-cheat are interview-only affordances; deterministic
+  // kinds (survey/quiz/form/assessment) run as plain chat.
+  const isInterviewKind = kind === "INTERVIEW";
+
+  const handleKindChange = useCallback(
+    (next: string) => {
+      setKind(next);
+      if (next !== "INTERVIEW") {
+        setVoiceEnabled(false);
+        setVideoEnabled(false);
+        setAntiCheatingEnabled(false);
+      }
+    },
+    [],
+  );
+
   const handleCreateShareableLink = useCallback(() => {
     publishMutation.mutate(
       { id: interviewId },
@@ -118,6 +146,12 @@ export default function SettingsTab() {
   }, [interviewId, publishMutation, updateMutation, utils, toast]);
 
   const handleRevokeShareableLink = useCallback(() => {
+    // This link may be circulating to thousands of candidates, so a stray click
+    // must never kill access silently.
+    const ok = window.confirm(
+      "Revoke this shareable link? Anyone with the link will no longer be able to start the interview until you create the link again.",
+    );
+    if (!ok) return;
     updateMutation.mutate(
       { id: interviewId, requireInvite: true, isActive: false },
       {
@@ -222,6 +256,26 @@ export default function SettingsTab() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
+            <Label>Type</Label>
+            <Select value={kind} onValueChange={handleKindChange}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {INTERVIEW_KIND_OPTIONS.map((k) => (
+                  <SelectItem key={k.value} value={k.value}>
+                    {k.label} — {k.description}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-[11px] text-muted-foreground">
+              {isInterviewKind
+                ? "Interviews use the AI interviewer with follow-up questions."
+                : "Non-interview types collect answers directly without AI during the session; AI is only used for the results report."}
+            </p>
+          </div>
+          <div className="space-y-2">
             <Label>Title</Label>
             <Input value={title} onChange={(e) => setTitle(e.target.value)} />
           </div>
@@ -281,6 +335,7 @@ export default function SettingsTab() {
                 </div>
                 <Switch
                   checked={voiceEnabled}
+                  disabled={!isInterviewKind}
                   onCheckedChange={(v) => {
                     if (!v && !chatEnabled) return;
                     setVoiceEnabled(v);
@@ -317,6 +372,20 @@ export default function SettingsTab() {
             <Label>AI Name</Label>
             <Input value={aiName} onChange={(e) => setAiName(e.target.value)} />
           </div>
+          {!isInterviewKind && (
+            <div className="flex items-center justify-between rounded-lg border p-3">
+              <div>
+                <Label>AI Results Report</Label>
+                <p className="text-xs text-muted-foreground">
+                  Generate an AI summary for each completed response (bills one AI call per response)
+                </p>
+              </div>
+              <Switch
+                checked={aiSummaryEnabled}
+                onCheckedChange={setAiSummaryEnabled}
+              />
+            </div>
+          )}
           <div className="space-y-2">
             <Label>Tone</Label>
             <Select value={aiTone} onValueChange={setAiTone}>
@@ -427,6 +496,8 @@ export default function SettingsTab() {
                 ? Number(timeLimitMinutes)
                 : null,
               antiCheatingEnabled,
+              kind,
+              aiSummaryEnabled,
             })
           }
           disabled={updateMutation.isLoading}

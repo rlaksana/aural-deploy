@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
+import { getKindNoun, isDeterministicKind } from "@/lib/deterministic-flow";
 import { bt, getLanguageKey } from "@/lib/i18n";
 import { trpc } from "@/lib/trpc/client";
 import { Link2Off, Loader2, Lock, MessageSquare, Mic, Plus, RotateCcw } from "lucide-react";
@@ -83,6 +84,31 @@ export default function PublicInterviewPage() {
   const interview = trpc.interview.getBySlug.useQuery({ slug }, { retry: false });
 
   const lang = getLanguageKey(interview.data?.language);
+  const kindNoun = getKindNoun(lang, interview.data?.kind);
+  const isDet = isDeterministicKind(interview.data?.kind);
+
+  // Anonymous dedup for deterministic kinds: client-side only (no trustworthy
+  // server identifier exists for anonymous respondents). ponytail: upgrade to
+  // a responseToken cookie scheme if duplicate submissions actually hurt.
+  const [alreadyResponded, setAlreadyResponded] = useState(false);
+
+  useEffect(() => {
+    try {
+      setAlreadyResponded(localStorage.getItem(`aural_responded_${slug}`) === "1");
+    } catch {
+      // localStorage may be unavailable
+    }
+  }, [slug]);
+
+  useEffect(() => {
+    if (!isDet || existingSession.data?.status !== "COMPLETED") return;
+    try {
+      localStorage.setItem(`aural_responded_${slug}`, "1");
+    } catch {
+      // noop
+    }
+    setAlreadyResponded(true);
+  }, [existingSession.data, isDet, slug]);
 
   const createSession = trpc.session.create.useMutation({
     onSuccess: (data) => {
@@ -140,9 +166,9 @@ export default function PublicInterviewPage() {
             </div>
             <h2 className="text-xl font-semibold">
               {bt(lang, {
-                en: "Interview Not Available",
-                zh: "Interview Not Available",
-                id: "Wawancara Tidak Tersedia",
+                en: "Not Available",
+                zh: "Not Available",
+                id: "Tidak Tersedia",
               })}
             </h2>
             <p className="text-muted-foreground mt-2">
@@ -223,9 +249,9 @@ export default function PublicInterviewPage() {
                   <Button className="flex-1" onClick={handleResume}>
                     <RotateCcw className="mr-2 h-4 w-4" />
                     {bt(lang, {
-                      en: "Continue Interview",
-                      zh: "Continue Interview",
-                      id: "Lanjutkan Wawancara",
+                      en: `Continue ${kindNoun}`,
+                      zh: `Continue ${kindNoun}`,
+                      id: `Lanjutkan ${kindNoun}`,
                     })}
                   </Button>
                   <Button variant="outline" className="flex-1" onClick={handleStartNew}>
@@ -241,8 +267,43 @@ export default function PublicInterviewPage() {
             </div>
           )}
 
+          {/* ── Already-responded notice (deterministic kinds) ── */}
+          {isDet && alreadyResponded && !canResume && (
+            <div className="rounded-lg border border-primary/30 bg-primary/5 p-4 text-center">
+              <p className="text-sm font-medium">
+                {bt(lang, {
+                  en: "You have already completed this form.",
+                  zh: "You have already completed this form.",
+                  id: "Kamu sudah mengisi formulir ini.",
+                })}
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {bt(lang, {
+                  en: "Thank you for your response.",
+                  zh: "Thank you for your response.",
+                  id: "Terima kasih atas jawabanmu.",
+                })}
+              </p>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="mt-2 text-xs text-muted-foreground"
+                onClick={() => {
+                  try { localStorage.removeItem(`aural_responded_${slug}`); } catch { /* noop */ }
+                  setAlreadyResponded(false);
+                }}
+              >
+                {bt(lang, {
+                  en: "Submit another response",
+                  zh: "Submit another response",
+                  id: "Kirim jawaban lain",
+                })}
+              </Button>
+            </div>
+          )}
+
           {/* ── Start form ────────────────────────────────── */}
-          {(!interview.data.requireInvite || isPreview) && (
+          {(!interview.data.requireInvite || isPreview) && !alreadyResponded && (
             <form
               onSubmit={(e) => {
                 e.preventDefault();
@@ -325,9 +386,10 @@ export default function PublicInterviewPage() {
                     <MessageSquare className="h-4 w-4 text-primary" />
                     <span>
                       {bt(lang, {
-                        en: "This interview uses text chat",
-                        zh: "This interview uses text chat",
-                        id: "Wawancara ini menggunakan obrolan teks",
+                        en: `This ${kindNoun} uses text chat`,
+                        zh: `This ${kindNoun} uses text chat`,
+                        // "Wawancara ini…" / "Survei ini…" — capitalize the noun.
+                        id: `${kindNoun.charAt(0).toUpperCase() + kindNoun.slice(1)} ini menggunakan obrolan teks`,
                       })}
                     </span>
                   </>
@@ -346,7 +408,11 @@ export default function PublicInterviewPage() {
                 {createSession.isLoading && (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 )}
-                Begin Interview
+                {bt(lang, {
+                  en: `Begin ${kindNoun}`,
+                  zh: `Begin ${kindNoun}`,
+                  id: `Mulai ${kindNoun}`,
+                })}
               </Button>
             </form>
           )}

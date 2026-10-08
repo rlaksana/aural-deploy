@@ -1,6 +1,7 @@
 "use client";
 
 import { ReportView } from "@/components/interview/report-view";
+import { SurveyAggregateView } from "@/components/interview/survey-aggregate-view";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -17,6 +18,7 @@ import {
   Loader2,
   RefreshCw,
   Share2,
+  Sparkles,
   Trash2,
 } from "lucide-react";
 import { useCallback, useRef, useState } from "react";
@@ -112,6 +114,15 @@ export function ReportsTab({ interviewId }: { interviewId: string }) {
     },
     onError: (err) =>
       toast({ title: "Failed to create link", description: err.message, variant: "destructive" }),
+  });
+
+  const generateAnalysis = trpc.report.generateAnalysis.useMutation({
+    onSuccess: () => {
+      utils.report.get.invalidate({ interviewId });
+      toast({ title: "AI analysis generated" });
+    },
+    onError: (err) =>
+      toast({ title: "Failed to generate analysis", description: err.message, variant: "destructive" }),
   });
   const deleteLink = trpc.report.deleteLink.useMutation({
     onSuccess: () => utils.report.get.invalidate({ interviewId }),
@@ -285,10 +296,35 @@ export function ReportsTab({ interviewId }: { interviewId: string }) {
           <Skeleton className="h-[400px]" />
         </div>
       ) : report.data ? (
-        <ReportView
-          data={report.data.report}
-          sessionBasePath={`/interviews/${interviewId}/edit/sessions`}
-        />
+        <div className="space-y-6">
+          {/* Cross-respondent aggregate — only exists for survey/quiz/form kinds.
+              The button's visibility is gated on `aggregate` itself, so no extra
+              kind select is needed. */}
+          {report.data.aggregate && (
+            <div className="flex justify-end">
+              <Button
+                variant="outline"
+                onClick={() => generateAnalysis.mutate({ interviewId })}
+                disabled={generateAnalysis.isPending}
+              >
+                {generateAnalysis.isPending ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Sparkles className="mr-2 h-4 w-4" />
+                )}
+                {report.data.aiAnalysis ? "Regenerate AI analysis" : "Generate AI analysis"}
+              </Button>
+            </div>
+          )}
+          <SurveyAggregateView
+            aggregate={report.data.aggregate ?? { respondentCount: 0, questions: [] }}
+            aiAnalysis={report.data.aiAnalysis}
+          />
+          <ReportView
+            data={report.data.report}
+            sessionBasePath={`/interviews/${interviewId}/edit/sessions`}
+          />
+        </div>
       ) : null}
     </div>
   );

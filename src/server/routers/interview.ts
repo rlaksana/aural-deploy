@@ -14,6 +14,14 @@ import {
   router,
 } from "../trpc";
 
+export const INTERVIEW_KINDS = [
+  "INTERVIEW",
+  "SURVEY",
+  "QUIZ",
+  "FORM",
+  "ASSESSMENT",
+] as const;
+
 function emptyDashboard() {
   return {
     totalInterviews: 0,
@@ -328,6 +336,7 @@ export const interviewRouter = router({
         llmProvider: z.string().optional(),
         llmModel: z.string().optional(),
         antiCheatingEnabled: z.boolean().default(false),
+        kind: z.enum(INTERVIEW_KINDS).optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -459,6 +468,7 @@ export const interviewRouter = router({
         language: z.string().default("id"),
         timeLimitMinutes: z.number().int().min(1).optional(),
         antiCheatingEnabled: z.boolean().default(false),
+        kind: z.enum(INTERVIEW_KINDS).optional(),
         questions: z
           .array(
             z.object({
@@ -470,6 +480,7 @@ export const interviewRouter = router({
                 "CODING",
                 "WHITEBOARD",
                 "RESEARCH",
+                "SHORT_TEXT",
               ]),
               description: z.string().nullable().optional(),
               options: z
@@ -765,6 +776,7 @@ export const interviewRouter = router({
         requireInvite: z.boolean().optional(),
         invitedEmails: z.array(z.string().email()).optional(),
         antiCheatingEnabled: z.boolean().optional(),
+        kind: z.enum(INTERVIEW_KINDS).optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -986,6 +998,7 @@ export const interviewRouter = router({
           requireInvite: source.requireInvite,
           invitedEmails: source.invitedEmails,
           antiCheatingEnabled: source.antiCheatingEnabled,
+          kind: (source as { kind?: string }).kind,
         })
         .select()
         .single();

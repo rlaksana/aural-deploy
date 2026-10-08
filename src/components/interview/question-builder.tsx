@@ -68,10 +68,12 @@ export function QuestionBuilder({
   interviewId,
   questions,
   assessmentCriteria,
+  kind,
 }: {
   interviewId: string;
   questions: Question[];
   assessmentCriteria?: AssessmentCriterion[] | null;
+  kind?: string | null;
 }) {
   const { toast } = useToast();
   const utils = trpc.useUtils();
@@ -241,6 +243,7 @@ export function QuestionBuilder({
                   key={q.id}
                   data={q}
                   index={index}
+                  kind={kind}
                   editing={editingId === q.id}
                   saving={editingId === q.id && updateMutation.isLoading}
                   deleting={editingId === q.id && deleteMutation.isLoading}
@@ -249,11 +252,12 @@ export function QuestionBuilder({
                     updateMutation.mutate({
                       id: q.id,
                       text: updated.text,
-                      type: updated.type as "OPEN_ENDED" | "SINGLE_CHOICE" | "MULTIPLE_CHOICE" | "CODING" | "WHITEBOARD" | "RESEARCH",
+                      type: updated.type as "OPEN_ENDED" | "SINGLE_CHOICE" | "MULTIPLE_CHOICE" | "CODING" | "WHITEBOARD" | "RESEARCH" | "SHORT_TEXT",
                       description: updated.description as string | undefined,
                       isRequired: updated.isRequired,
                       options: updated.options,
                       starterCode: updated.starterCode as { language: string; code: string } | null | undefined,
+                      validationRules: updated.validationRules,
                     });
                   }}
                   onCancel={() => setEditingId(null)}
@@ -284,17 +288,19 @@ export function QuestionBuilder({
               index={questions.length}
               editing
               hideDelete
+              kind={kind}
               saving={createMutation.isLoading}
               onStartEdit={() => {}}
               onSave={(data) => {
                 createMutation.mutate({
                   interviewId,
                   text: data.text,
-                  type: data.type as "OPEN_ENDED" | "SINGLE_CHOICE" | "MULTIPLE_CHOICE" | "CODING" | "WHITEBOARD" | "RESEARCH",
+                  type: data.type as "OPEN_ENDED" | "SINGLE_CHOICE" | "MULTIPLE_CHOICE" | "CODING" | "WHITEBOARD" | "RESEARCH" | "SHORT_TEXT",
                   description: data.description as string | undefined,
                   isRequired: data.isRequired,
                   options: data.options,
                   starterCode: data.starterCode as { language: string; code: string } | null | undefined,
+                  validationRules: data.validationRules,
                 });
               }}
               onCancel={() => setAddingNew(false)}

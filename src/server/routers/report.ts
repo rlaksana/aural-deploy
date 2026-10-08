@@ -1,13 +1,32 @@
 import { nanoid } from "@/lib/id";
+import { generateSurveyAnalysis } from "@/lib/ai/aggregate-analysis";
 import {
   buildReportRows,
+  buildSurveyAggregate,
   fetchReportEntries,
   type InterviewReport,
+  type SurveyAggregate,
 } from "@/lib/interview-report";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { protectedProcedure, publicProcedure, router } from "../trpc";
 import { verifyInterviewAccess } from "./candidate";
+
+type InterviewKindRow = {
+  title: string;
+  kind?: string;
+  questions?: { id: string; text: string; type: string; options: { correctIndices?: number[] } | null }[];
+};
+
+/** Aggregate section for non-interview kinds (undefined for interviews). */
+function buildAggregateIfNonInterview(
+  interviewRow: InterviewKindRow | null,
+  entries: Parameters<typeof buildSurveyAggregate>[0],
+): SurveyAggregate | undefined {
+  const kind = interviewRow?.kind ?? "INTERVIEW";
+  if (kind === "INTERVIEW") return undefined;
+  return buildSurveyAggregate(entries, interviewRow?.questions ?? []);
+}
 
 export const reportRouter = router({
   /** Aggregate report + current share-link token (null when none). */
@@ -23,8 +42,9 @@ export const reportRouter = router({
       const [{ data: interviewRow }, { data: link }] = await Promise.all([
         ctx.supabase
           .from("interviews")
-          .select("title")
+          .select("title, kind, aiAnalysis, questions(id, text, type, options)")
           .eq("id", input.interviewId)
+          .order("order", { referencedTable: "questions", ascending: true })
           .single(),
         ctx.supabase
           .from("interview_report_links")
@@ -37,16 +57,61 @@ export const reportRouter = router({
         ctx.supabase,
         input.interviewId,
       );
-      const report = buildReportRows(
-        interviewRow?.title ?? "Interview",
-        entries,
-      );
+      const row = interviewRow as unknown as
+        | (InterviewKindRow & { aiAnalysis?: { text: string; generatedAt: string } | null })
+        | null;
+      const report = buildReportRows(row?.title ?? "Interview", entries);
 
       return {
         report,
+        aggregate: buildAggregateIfNonInterview(row, entries),
+        aiAnalysis: row?.aiAnalysis ?? null,
         linkToken: (link as { token: string } | null)?.token ?? null,
         role: interview.role,
       };
+    }),
+
+  /** (Re)generate the AI cross-respondent analysis and cache it. */
+  generateAnalysis: protectedProcedure
+    .input(z.object({ interviewId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      await verifyInterviewAccess(ctx.supabase, input.interviewId, ctx.user.id);
+
+      const { data: interviewRow } = await ctx.supabase
+        .from("interviews")
+        .select("title, kind, language, questions(id, text, type, options)")
+        .eq("id", input.interviewId)
+        .order("order", { referencedTable: "questions", ascending: true })
+        .single();
+
+      const row = interviewRow as unknown as
+        | (InterviewKindRow & { language?: string })
+        | null;
+      const kind = row?.kind ?? "INTERVIEW";
+      if (kind === "INTERVIEW") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "AI analysis is only available for survey/quiz/form kinds",
+        });
+      }
+
+      const entries = await fetchReportEntries(ctx.supabase, input.interviewId);
+      const aggregate = buildSurveyAggregate(entries, row?.questions ?? []);
+
+      const text = await generateSurveyAnalysis(
+        row?.title ?? "Untitled",
+        kind,
+        aggregate,
+        row?.language,
+      );
+
+      const aiAnalysis = { text, generatedAt: new Date().toISOString() };
+      await ctx.supabase
+        .from("interviews")
+        .update({ aiAnalysis })
+        .eq("id", input.interviewId);
+
+      return { aiAnalysis };
     }),
 
   /** Create (or replace) the single share link for this interview. */
@@ -103,21 +168,28 @@ export const reportRouter = router({
         throw new TRPCError({ code: "NOT_FOUND", message: "Report link not found" });
       }
 
+      const interviewId = (link as { interviewId: string }).interviewId;
+
       const { data: interviewRow } = await ctx.supabase
         .from("interviews")
-        .select("title")
-        .eq("id", (link as { interviewId: string }).interviewId)
+        .select("title, kind, questions(id, text, type, options)")
+        .eq("id", interviewId)
+        .order("order", { referencedTable: "questions", ascending: true })
         .single();
 
-      const entries = await fetchReportEntries(
-        ctx.supabase,
-        (link as { interviewId: string }).interviewId,
-      );
+      const row = interviewRow as unknown as InterviewKindRow | null;
+      const entries = await fetchReportEntries(ctx.supabase, interviewId);
       const report: InterviewReport = buildReportRows(
-        interviewRow?.title ?? "Interview",
+        row?.title ?? "Interview",
         entries,
       );
 
-      return { report };
+      // Non-interview kinds share the aggregate ONLY — the row table would
+      // leak respondents' open-text answers through a public token.
+      const isInterviewKind = (row?.kind ?? "INTERVIEW") === "INTERVIEW";
+      return {
+        report: isInterviewKind ? report : { ...report, rows: [] },
+        aggregate: buildAggregateIfNonInterview(row, entries),
+      };
     }),
 });

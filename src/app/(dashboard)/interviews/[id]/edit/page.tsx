@@ -11,6 +11,7 @@ export default function ContentTab() {
   return (
     <QuestionBuilder
       interviewId={interviewId}
+      kind={(interview as any).kind}
       questions={(interview as any).questions.map((q: any) => ({
         ...q,
         starterCode: q.starterCode as { language: string; code: string } | null,

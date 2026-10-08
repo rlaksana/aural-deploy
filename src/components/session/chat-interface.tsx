@@ -1,6 +1,7 @@
 "use client";
 
 import { CodeBlock } from "@/components/code-editor/code-block";
+import { getKindNoun, isDeterministicKind } from "@/lib/deterministic-flow";
 import { bt, getLanguageKey } from "@/lib/i18n";
 import {
     CodeEditorCanvas,
@@ -58,6 +59,7 @@ interface Interview {
   aiName: string;
   mode: string;
   language?: string;
+  kind?: string | null;
   questions: {
     id: string;
     text: string;
@@ -100,6 +102,10 @@ export function ChatInterface({
   const isDark = resolvedTheme === "dark";
   const isMobile = useIsMobile();
   const lang = getLanguageKey(interview.language);
+  // Non-interview kinds run the deterministic flow: no LLM acks, no manual
+  // question navigation, no rationale probes.
+  const isDet = isDeterministicKind(interview.kind);
+  const kindNoun = getKindNoun(lang, interview.kind);
 
   const [messages, setMessages] = useState<Message[]>(initialMessages ?? []);
   const [input, setInput] = useState("");
@@ -443,8 +449,14 @@ export function ChatInterface({
   }, [currentQuestion, isCodingQuestion, isWhiteboardQuestion]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Choice questions are already rendered by the UI; wait for a selection.
+  // Deterministic kinds always greet — the server returns a welcome line.
   useEffect(() => {
-    if (preview || initialMessages?.length || isSingleChoiceQuestion || isMultipleChoiceQuestion) return;
+    if (preview || initialMessages?.length) return;
+    if (
+      !isDet &&
+      (isSingleChoiceQuestion || isMultipleChoiceQuestion)
+    )
+      return;
     if (greetingStartedRef.current || aiGreetingRequested.has(sessionId)) return;
     greetingStartedRef.current = true;
     aiGreetingRequested.add(sessionId);
@@ -1258,8 +1270,9 @@ export function ChatInterface({
   const composerQuestionNav = {
     onPrevious: handlePreviousQuestion,
     onNext: handleNextQuestion,
-    canPrevious: currentQuestion > 0,
-    canNext: currentQuestion < interview.questions.length - 1,
+    canPrevious: !isDet && currentQuestion > 0,
+    canNext:
+      !isDet && currentQuestion < interview.questions.length - 1,
     disabled: sending || aiTyping || preview || finishing,
   };
 
@@ -1302,9 +1315,11 @@ export function ChatInterface({
             <h1 className="truncate text-sm font-semibold md:text-base">
               {interview.title}
             </h1>
-            <p className="hidden text-xs text-muted-foreground md:block">
-              Chat Interview with {interview.aiName}
-            </p>
+            {!isDet && (
+              <p className="hidden text-xs text-muted-foreground md:block">
+                Chat Interview with {interview.aiName}
+              </p>
+            )}
           </div>
           <div className="flex items-center gap-2">
             <IntervieweeHelpPopover mode="chat" language={interview.language} />
@@ -1398,7 +1413,11 @@ export function ChatInterface({
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>
-            {bt(lang, { en: "Finish interview?", zh: "Finish interview?", id: "Akhiri wawancara?" })}
+            {bt(lang, {
+              en: `Finish ${kindNoun}?`,
+              zh: `Finish ${kindNoun}?`,
+              id: `Akhiri ${kindNoun}?`,
+            })}
           </AlertDialogTitle>
           <AlertDialogDescription>
             {bt(lang, {
@@ -1425,7 +1444,11 @@ export function ChatInterface({
                 {bt(lang, { en: "Saving...", zh: "Saving...", id: "Menyimpan..." })}
               </>
             ) : (
-              bt(lang, { en: "Finish interview", zh: "Finish interview", id: "Akhiri wawancara" })
+              bt(lang, {
+                en: `Finish ${kindNoun}`,
+                zh: `Finish ${kindNoun}`,
+                id: `Akhiri ${kindNoun}`,
+              })
             )}
           </AlertDialogAction>
         </AlertDialogFooter>

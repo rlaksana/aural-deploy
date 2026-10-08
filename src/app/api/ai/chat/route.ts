@@ -2,6 +2,7 @@ import { buildInterviewerPrompt } from "@/lib/ai/prompts/interviewer";
 import { getProvider } from "@/lib/ai/registry";
 import type { LLMMessage } from "@/lib/ai/types";
 import { resolveChoiceQuestionFlow } from "@/lib/choice-question-flow";
+import { resolveDeterministicFlow } from "@/lib/deterministic-flow";
 import { createLogger } from "@/lib/logger";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { NextResponse } from "next/server";
@@ -44,16 +45,30 @@ export async function POST(req: Request) {
       }));
 
     const questionIndex = currentQuestionIndex ?? 0;
-    const choiceFlow = resolveChoiceQuestionFlow({
-      questions: interview.questions ?? [],
+
+    // Non-interview kinds (SURVEY/QUIZ/FORM/ASSESSMENT) never call the LLM.
+    // Must run BEFORE the choice flow so surveys don't get the rationale probe.
+    const detFlow = resolveDeterministicFlow({
+      kind: (interview as { kind?: string }).kind,
+      questions: (interview.questions ?? []) as { type: string; text: string }[],
       currentQuestionIndex: questionIndex,
       conversationHistory,
       language: interview.language,
     });
 
-    const response = choiceFlow
+    const choiceFlow = detFlow
       ? null
-      : await provider.generateResponse({
+      : resolveChoiceQuestionFlow({
+          questions: interview.questions ?? [],
+          currentQuestionIndex: questionIndex,
+          conversationHistory,
+          language: interview.language,
+        });
+
+    const response =
+      detFlow || choiceFlow
+        ? null
+        : await provider.generateResponse({
           messages: buildInterviewerPrompt({
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             interview: interview as any,
@@ -65,10 +80,13 @@ export async function POST(req: Request) {
           model: "MiniMax-M3",
         });
 
-    const responseContent = choiceFlow?.content ?? response?.content ?? "";
-    const rawIsComplete = choiceFlow?.isComplete ?? responseContent.includes("[INTERVIEW_COMPLETE]");
+    const responseContent = detFlow?.content ?? choiceFlow?.content ?? response?.content ?? "";
+    const rawIsComplete =
+      detFlow?.isComplete ?? choiceFlow?.isComplete ?? responseContent.includes("[INTERVIEW_COMPLETE]");
     let questionAdvanced =
-      choiceFlow?.questionAdvanced ?? responseContent.includes("[NEXT_QUESTION]");
+      detFlow?.questionAdvanced ??
+      choiceFlow?.questionAdvanced ??
+      responseContent.includes("[NEXT_QUESTION]");
     const isDeterministicChoiceFlow = choiceFlow !== null;
 
     // Ignore [NEXT_QUESTION] in the greeting message — the AI sometimes
@@ -81,24 +99,30 @@ export async function POST(req: Request) {
       questionAdvanced = false;
     }
 
-    // Guard against premature completion: only honor [INTERVIEW_COMPLETE]
-    // when the conversation has actually covered the whole script. The AI
-    // sometimes emits the marker after a SINGLE_CHOICE selection, reading
-    // the option text as a complete answer with reasoning.
-    const totalQuestions = (interview.questions ?? []).length;
-    const isOnLastQuestion =
-      (currentQuestionIndex ?? 0) >= Math.max(totalQuestions - 1, 0);
-    const hasEnoughBackAndForth = conversationHistory.length >= totalQuestions * 2 - 1;
-    const isComplete =
-      rawIsComplete && isOnLastQuestion && hasEnoughBackAndForth;
+    // The deterministic flow completes exactly on the last question, so its
+    // isComplete bypasses the premature-completion guard below.
+    let isComplete: boolean;
+    if (detFlow) {
+      isComplete = rawIsComplete;
+    } else {
+      // Guard against premature completion: only honor [INTERVIEW_COMPLETE]
+      // when the conversation has actually covered the whole script. The AI
+      // sometimes emits the marker after a SINGLE_CHOICE selection, reading
+      // the option text as a complete answer with reasoning.
+      const totalQuestions = (interview.questions ?? []).length;
+      const isOnLastQuestion =
+        (currentQuestionIndex ?? 0) >= Math.max(totalQuestions - 1, 0);
+      const hasEnoughBackAndForth = conversationHistory.length >= totalQuestions * 2 - 1;
+      isComplete = rawIsComplete && isOnLastQuestion && hasEnoughBackAndForth;
 
-    if (rawIsComplete && !isComplete) {
-      log.info("Suppressed premature [INTERVIEW_COMPLETE] marker", {
-        sessionId,
-        currentQuestionIndex,
-        totalQuestions,
-        conversationLength: conversationHistory.length,
-      });
+      if (rawIsComplete && !isComplete) {
+        log.info("Suppressed premature [INTERVIEW_COMPLETE] marker", {
+          sessionId,
+          currentQuestionIndex,
+          totalQuestions,
+          conversationLength: conversationHistory.length,
+        });
+      }
     }
 
     if (isDeterministicChoiceFlow) {
@@ -120,6 +144,7 @@ export async function POST(req: Request) {
     // transitions verbally but forgets [NEXT_QUESTION].
     if (
       !manualNavigation &&
+      !detFlow &&
       !isDeterministicChoiceFlow &&
       !questionAdvanced &&
       !isComplete &&

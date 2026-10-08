@@ -3,8 +3,9 @@ import { bt, getLanguageKey, type BiText, type LangKey } from "@/lib/i18n";
 
 // Protocol token inserted as a synthetic user message when the candidate taps
 // an option. English and Indonesian variants are both accepted so the display
-// string can follow the interview language.
-const CHOICE_SELECTION_PATTERN =
+// string can follow the interview language. Exported for the deterministic
+// flow, which validates choice answers against the same protocol.
+export const CHOICE_SELECTION_PATTERN =
   /^(?:Selected options?|Memilih opsi)(?: [A-Z]|(?:: [A-Z](?:, [A-Z])*))$/;
 
 type ChoiceQuestion = {

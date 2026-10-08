@@ -20,8 +20,16 @@ export function buildSummaryPrompt(
   questions?: { text: string; order: number; type?: string }[] | null,
   language?: string | null,
   whiteboardDrawings?: WhiteboardDrawingInput[] | null,
-  codeSnippets?: CodeSnippetInput[] | null
+  codeSnippets?: CodeSnippetInput[] | null,
+  kind?: string | null
 ): LLMMessage[] {
+  // Non-interview kinds get a response-digest framing, not a candidate
+  // evaluation — the collected data is the deliverable, not interviewing
+  // performance. JSON shape stays identical for downstream consumers.
+  const analystLine =
+    kind && kind !== "INTERVIEW"
+      ? `You are an expert response analyst. Summarize the following ${kind.toLowerCase()} submission. Focus on what the respondent conveyed — this is a ${kind.toLowerCase()}, not a job interview, so do not grade interviewing performance.`
+      : "You are an expert interview analyst. Evaluate and summarize the following interview transcript. Focus on the participant's responses — their depth, relevance, and quality.";
   const transcript = messages
     .map((m) => `${m.role === "user" ? "Participant" : "Interviewer"}: ${m.content}`)
     .join("\n\n");
@@ -125,7 +133,7 @@ export function buildSummaryPrompt(
     ? "\n- The participant wrote code snippets during the interview. Evaluate the code quality, correctness, readability, and problem-solving approach. Consider whether the code demonstrates strong algorithmic thinking, proper use of data structures, good coding practices, and effective handling of edge cases. Incorporate your code evaluation into the report."
     : "";
 
-  const systemPrompt = `You are an expert interview analyst. Evaluate and summarize the following interview transcript. Focus on the participant's responses — their depth, relevance, and quality.
+  const systemPrompt = `${analystLine}
 
 Interview: "${interviewTitle}"${objectiveSection}${criteriaSection}${questionsSection}${whiteboardSection}${codeSection}
 
