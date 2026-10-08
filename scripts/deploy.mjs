@@ -11,6 +11,7 @@
 // Gates for both paths: branch main, clean working tree, local HEAD == origin/main.
 // Deploying exactly origin/main means the commit already passed CI (lint, tsc, tests, build).
 import { execSync, spawnSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 
 const TARGETS = ["vercel", "docker"];
 const target = process.argv[2];
@@ -50,13 +51,70 @@ if (head !== remote) {
 console.log(`gates passed - deploying origin/main @ ${head.slice(0, 7)}`);
 
 // ---- paths ----
+const VERCEL_PROJECT = JSON.parse(
+  readFileSync(new URL("../.vercel/project.json", import.meta.url), "utf8"),
+).projectName;
+
+function listProductionDeployments() {
+  const r = spawnSync("npx", ["vercel", "ls", VERCEL_PROJECT, "--json"], {
+    encoding: "utf8",
+    shell: process.platform === "win32",
+  });
+  if (r.status !== 0 || !r.stdout) return [];
+  try {
+    return JSON.parse(r.stdout).deployments ?? [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * The CLI can exit non-zero ("Not authorized") for a deployment that actually
+ * ships — seen 2026-10-08: the deployment built, went Ready, and got aliased
+ * while the CLI reported failure. The deployment state is the source of truth,
+ * not the CLI exit code. Returns the Ready deployment, null on ERROR, or
+ * undefined if still building when the budget runs out.
+ */
+async function verifyProductionDeploy(startedAt) {
+  const deadline = Date.now() + 6 * 60_000;
+  while (Date.now() < deadline) {
+    const d = listProductionDeployments()
+      .filter((x) => x.target === "production" && x.createdAt >= startedAt - 60_000)
+      .sort((a, b) => b.createdAt - a.createdAt)[0];
+    if (d) {
+      if (d.state === "READY") return d;
+      if (d.state === "ERROR") return null;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 15_000));
+  }
+  return undefined;
+}
+
 if (target === "vercel") {
   // Production env vars live in the linked Vercel project (.vercel/project.json).
+  const startedAt = Date.now();
   const r = spawnSync("npx", ["vercel", "--prod"], {
     stdio: "inherit",
     shell: process.platform === "win32",
   });
-  if (r.status !== 0) die("vercel deploy failed");
+  if (r.status !== 0) {
+    console.error(
+      "vercel CLI exited non-zero - verifying actual deployment state before reporting failure",
+    );
+    const d = await verifyProductionDeploy(startedAt);
+    if (d) {
+      console.log(
+        `deployed to Vercel production (CLI false negative): https://${d.url}`,
+      );
+      process.exit(0);
+    }
+    if (d === undefined) {
+      die(
+        "deployment still building after 6m - check the Vercel dashboard before retrying",
+      );
+    }
+    die("vercel deploy failed (deployment state is ERROR)");
+  }
   console.log("deployed to Vercel production");
 } else {
   const host = process.env.AURAL_DEPLOY_HOST;
