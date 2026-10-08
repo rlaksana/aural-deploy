@@ -1321,7 +1321,7 @@ export function ChatInterface({
           </span>
         </div>
         {currentQ?.text && (
-          <p className="mt-1.5 whitespace-pre-wrap text-sm text-foreground/80">
+          <p className="mt-1.5 whitespace-pre-wrap text-base text-foreground/80">
             {currentQ.text}
           </p>
         )}
@@ -1494,7 +1494,7 @@ export function ChatInterface({
                   : "bg-muted"
               }`}
             >
-              <p className={`whitespace-pre-wrap ${compact ? "text-xs" : "text-sm"}`}>{msg.content}</p>
+              <p className={`whitespace-pre-wrap ${compact ? "text-xs" : "text-base"}`}>{msg.content}</p>
             </div>
           </div>
         ))}
