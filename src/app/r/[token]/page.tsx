@@ -62,9 +62,24 @@ export default async function PublicReportPage({
     | (InterviewKindRow & { aiAnalysis?: { text: string; generatedAt: string } | null })
     | null;
   const isInterviewKind = (row?.kind ?? "INTERVIEW") === "INTERVIEW";
-  const aggregate = isInterviewKind
-    ? undefined
-    : buildSurveyAggregate(entries, row?.questions ?? []);
+  let aggregate = undefined;
+  if (!isInterviewKind) {
+    // Public-safe aggregate: tallies, averages, and correct rates only —
+    // open-text answers and respondent names never leave the owner's view.
+    const full = buildSurveyAggregate(entries, row?.questions ?? []);
+    aggregate = {
+      respondentCount: full.respondentCount,
+      // Public-safe shape: tallies/averages/correct rates only, no textAnswers.
+      questions: full.questions.map((q) => ({
+        id: q.id,
+        text: q.text,
+        type: q.type,
+        tally: q.tally,
+        average: q.average,
+        correctRate: q.correctRate,
+      })),
+    };
+  }
 
   return (
     <div className="mx-auto min-h-screen w-full max-w-7xl space-y-6 px-4 py-8">
@@ -82,7 +97,7 @@ export default async function PublicReportPage({
       </div>
       <AutoRefresh seconds={30} />
       {aggregate ? (
-        <SurveyAggregateView aggregate={aggregate} aiAnalysis={row?.aiAnalysis ?? null} />
+        <SurveyAggregateView aggregate={aggregate} />
       ) : (
         <ReportView
           data={report}

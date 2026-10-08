@@ -337,6 +337,7 @@ export const interviewRouter = router({
         llmModel: z.string().optional(),
         antiCheatingEnabled: z.boolean().default(false),
         kind: z.enum(INTERVIEW_KINDS).optional(),
+        aiSummaryEnabled: z.boolean().optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -777,6 +778,7 @@ export const interviewRouter = router({
         invitedEmails: z.array(z.string().email()).optional(),
         antiCheatingEnabled: z.boolean().optional(),
         kind: z.enum(INTERVIEW_KINDS).optional(),
+        aiSummaryEnabled: z.boolean().optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {

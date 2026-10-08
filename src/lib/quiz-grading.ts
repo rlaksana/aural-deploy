@@ -39,8 +39,11 @@ export function gradeSelection(
   if (!Array.isArray(correctIndices) || correctIndices.length === 0) return null;
 
   if (question.type === "MULTIPLE_CHOICE") {
+    // Denominator is the union of selected + correct, so wrong picks reduce
+    // the score — selecting everything cannot earn 10.
     const hits = selectedIndices.filter((i) => correctIndices.includes(i)).length;
-    return Math.round((hits / correctIndices.length) * 10);
+    const union = new Set([...selectedIndices, ...correctIndices]).size;
+    return union === 0 ? 0 : Math.round((hits / union) * 10);
   }
   // SINGLE_CHOICE: all-or-nothing.
   return selectedIndices.length === 1 && correctIndices.includes(selectedIndices[0]) ? 10 : 0;

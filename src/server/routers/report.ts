@@ -184,12 +184,26 @@ export const reportRouter = router({
         entries,
       );
 
-      // Non-interview kinds share the aggregate ONLY — the row table would
-      // leak respondents' open-text answers through a public token.
+      // Non-interview kinds share a public-safe aggregate ONLY: no row table
+      // and no textAnswers (open-text answers + respondent names would leak
+      // through a public token).
       const isInterviewKind = (row?.kind ?? "INTERVIEW") === "INTERVIEW";
+      const fullAggregate = buildAggregateIfNonInterview(row, entries);
       return {
         report: isInterviewKind ? report : { ...report, rows: [] },
-        aggregate: buildAggregateIfNonInterview(row, entries),
+        aggregate: fullAggregate
+          ? {
+              respondentCount: fullAggregate.respondentCount,
+              questions: fullAggregate.questions.map((q) => ({
+                id: q.id,
+                text: q.text,
+                type: q.type,
+                tally: q.tally,
+                average: q.average,
+                correctRate: q.correctRate,
+              })),
+            }
+          : undefined,
       };
     }),
 });

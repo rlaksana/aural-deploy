@@ -32,10 +32,13 @@ test("single choice is all-or-nothing", () => {
 });
 
 test("multiple choice gets proportional credit", () => {
+  // Denominator is the union of selected + correct, so wrong picks reduce
+  // the score — selecting everything cannot earn 10.
   // 2 of 3 correct options → round(2/3*10) = 7.
   assert.equal(gradeSelection([0, 1], QUESTIONS[1]), 7);
   assert.equal(gradeSelection([0, 1, 3], QUESTIONS[1]), 10);
   assert.equal(gradeSelection([2], QUESTIONS[1]), 0);
+  assert.equal(gradeSelection([0, 1, 2, 3], QUESTIONS[1]), 8);
 });
 
 test("questions without an answer key are ungraded", () => {
