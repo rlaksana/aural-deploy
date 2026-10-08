@@ -49,6 +49,10 @@ function normalizeInterviewLanguage(language?: string | null): string {
     case "french":
     case "français":
       return "fr";
+    case "id":
+    case "indonesian":
+    case "bahasa indonesia":
+      return "id";
     case "en":
     case "english":
     default:
