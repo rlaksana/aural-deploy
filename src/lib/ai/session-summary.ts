@@ -165,10 +165,28 @@ async function run(sessionId: string): Promise<void> {
     const existingEvaluations = (
       interviewSession.insights as { questionEvaluations?: unknown[] } | null
     )?.questionEvaluations;
+    let questionEvaluations: unknown[] | undefined = undefined;
     if (Array.isArray(existingEvaluations) && existingEvaluations.length > 0) {
-      insightsData.questionEvaluations = existingEvaluations;
-    } else if (parsed.questionEvaluations) {
-      insightsData.questionEvaluations = parsed.questionEvaluations;
+      questionEvaluations = existingEvaluations;
+    } else if (Array.isArray(parsed.questionEvaluations)) {
+      // The LLM sometimes also evaluates follow-up questions it asked during
+      // the session. Keep only evaluations that map to a real interview
+      // question so the report never gains phantom Q-columns.
+      const normalize = (s: unknown) => String(s ?? "").toLowerCase().replace(/\s+/g, " ").trim();
+      const knownTexts = interview.questions.map((q) => normalize(q.text));
+      const matched = parsed.questionEvaluations.filter((e) => {
+        const text = normalize((e as { question?: unknown })?.question);
+        return text && knownTexts.some((k) => k === text || k.includes(text) || text.includes(k));
+      });
+      // All paraphrased (no textual match) — fall back to a hard clamp so the
+      // count still matches the real question list.
+      questionEvaluations =
+        matched.length > 0
+          ? matched
+          : parsed.questionEvaluations.slice(0, interview.questions.length);
+    }
+    if (questionEvaluations) {
+      insightsData.questionEvaluations = questionEvaluations;
     }
     if (parsed.criteriaEvaluations) {
       insightsData.criteriaEvaluations = parsed.criteriaEvaluations;
@@ -191,9 +209,7 @@ async function run(sessionId: string): Promise<void> {
       .eq("id", sessionId);
 
     const themeCount = Array.isArray(parsed.themes) ? parsed.themes.length : 0;
-    const qEvalCount = Array.isArray(parsed.questionEvaluations)
-      ? parsed.questionEvaluations.length
-      : 0;
+    const qEvalCount = questionEvaluations?.length ?? 0;
     log.info(
       `Summary generated for session ${sessionId}: ` +
         `${themeCount} themes, ${qEvalCount} question evaluations`,
