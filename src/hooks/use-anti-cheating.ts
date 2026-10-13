@@ -60,6 +60,9 @@ export function useAntiCheating({
     const handleBlur = () => {
       blurTimer = setTimeout(() => {
         blurTimer = null;
+        // focus returned before the timer fired (e.g. clicking the browser's
+        // mic/camera permission prompt) — a transient blur, not a departure
+        if (document.hasFocus()) return;
         recordDeparture();
       }, 200);
     };
