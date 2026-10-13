@@ -80,10 +80,10 @@ export default function SlugSessionPage() {
   );
 
   useEffect(() => {
-    if (!sessionId || session.isError) {
+    if (interview.isError || !sessionId || session.isError) {
       router.replace(`/i/${slug}`);
     }
-  }, [sessionId, session.isError, slug, router]);
+  }, [interview.isError, sessionId, session.isError, slug, router]);
 
 
   if (interview.isLoading || session.isLoading || !interview.data || !session.data) {
