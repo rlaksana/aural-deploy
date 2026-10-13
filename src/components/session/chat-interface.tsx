@@ -1304,7 +1304,10 @@ export function ChatInterface({
     ) : null;
 
   const renderSessionHeader = (fullWidth = false) => (
-    <div className="shrink-0 border-b bg-card py-2 md:py-3">
+    // Capped + scrollable: a question with a code block and many options can
+    // exceed the viewport, which would collapse the chat area to zero height
+    // and hide the composer entirely (reported as "chat hilang").
+    <div className="max-h-[45vh] shrink-0 overflow-y-auto border-b bg-card py-2 code-scrollbar md:py-3">
       <div
         className={cn(
           fullWidth ? "px-3 md:px-6" : "mx-auto w-full max-w-3xl px-4",
