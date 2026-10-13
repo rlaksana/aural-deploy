@@ -117,6 +117,39 @@ test("rationale text is accepted regardless of length or content", () => {
   assert.equal(result.isComplete, false);
 });
 
+test("a repeated selection while the rationale probe is pending advances instead of looping", () => {
+  const result = resolveChoiceQuestionFlow({
+    questions: QUESTIONS,
+    currentQuestionIndex: 1,
+    conversationHistory: makeHistory([
+      { role: "user", content: "Selected option B" },
+      { role: "assistant", content: "Got it. Why did you pick that option?" },
+      { role: "user", content: "Selected option C" },
+    ]),
+  });
+  assert.ok(result, "expected deterministic flow result");
+  assert.equal(result.questionAdvanced, true);
+  assert.equal(result.isComplete, false);
+  assert.doesNotMatch(result.content, /why/i);
+});
+
+test("repeated multi-option selection advances the same way (Indonesian protocol)", () => {
+  const result = resolveChoiceQuestionFlow({
+    questions: QUESTIONS,
+    currentQuestionIndex: 2,
+    conversationHistory: makeHistory([
+      { role: "user", content: "Memilih opsi: A, C, D, B" },
+      { role: "assistant", content: "Baik. Kenapa kamu memilih opsi itu?" },
+      { role: "user", content: "Memilih opsi: D, B, A, C" },
+    ]),
+    language: "id",
+  });
+  assert.ok(result, "expected deterministic flow result");
+  assert.equal(result.questionAdvanced, true);
+  assert.equal(result.isComplete, false);
+  assert.match(result.content, /lanjut/i);
+});
+
 test("Indonesian sessions get Indonesian replies and recognize Indonesian selections", () => {
   const rationale = resolveChoiceQuestionFlow({
     questions: QUESTIONS,

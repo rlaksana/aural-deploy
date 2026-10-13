@@ -63,19 +63,22 @@ export function resolveChoiceQuestionFlow({
 
   if (!latestUserMessage) return null;
 
-  if (CHOICE_SELECTION_PATTERN.test(latestUserMessage)) {
-    return {
-      content: bt(lang, CHOICE_REPLIES.rationale),
-      questionAdvanced: false,
-      isComplete: false,
-    };
-  }
-
   const previousUserMessage = userMessages.at(-2)?.content;
-  if (
-    !previousUserMessage ||
-    !CHOICE_SELECTION_PATTERN.test(previousUserMessage)
-  ) {
+  const previousIsSelection =
+    !!previousUserMessage && CHOICE_SELECTION_PATTERN.test(previousUserMessage);
+
+  if (CHOICE_SELECTION_PATTERN.test(latestUserMessage)) {
+    // A second consecutive selection means the candidate is not going to
+    // answer the rationale probe (e.g. the chat was invisible in a layout
+    // bug): advance instead of looping the same question forever.
+    if (!previousIsSelection) {
+      return {
+        content: bt(lang, CHOICE_REPLIES.rationale),
+        questionAdvanced: false,
+        isComplete: false,
+      };
+    }
+  } else if (!previousIsSelection) {
     return null;
   }
 

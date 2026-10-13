@@ -122,6 +122,16 @@ export default function SlugSessionPage() {
 
   const useVoice = interview.data.voiceEnabled;
 
+  // Operator escape hatch for a candidate disadvantaged by an app bug:
+  // set the session's participantMetadata to {"unlimitedTime": true} and the
+  // in-session countdown (and its auto-end) is disabled for that session only.
+  const unlimitedTime = !!(
+    session.data.participantMetadata as { unlimitedTime?: boolean } | null
+  )?.unlimitedTime;
+  const sessionDurationMinutes = unlimitedTime
+    ? undefined
+    : interview.data.timeLimitMinutes ?? undefined;
+
   const showPreviewTour = isPreview && !previewTourDone && useVoice;
   const antiCheatingEnabled = !isPreview && !!interview.data.antiCheatingEnabled;
 
@@ -211,7 +221,7 @@ export default function SlugSessionPage() {
           aiName={interview.data.aiName}
           questionCount={interview.data.questions.length}
           interviewContext={interviewContext}
-          durationMinutes={interview.data.timeLimitMinutes ?? undefined}
+          durationMinutes={sessionDurationMinutes}
           initialMessages={resume.isResuming ? resume.voiceMessages : undefined}
           initialDrawings={resume.drawings.length ? resume.drawings : undefined}
           chatEnabled={!!interview.data.chatEnabled}
@@ -234,7 +244,7 @@ export default function SlugSessionPage() {
             starterCode: q.starterCode as { language: string; code: string } | null,
           })),
         }}
-        durationMinutes={interview.data.timeLimitMinutes ?? undefined}
+        durationMinutes={sessionDurationMinutes}
         initialMessages={resume.chatMessages}
         initialQuestionIndex={resume.hasQuestion ? resume.questionIndex : undefined}
         onComplete={handleComplete}
