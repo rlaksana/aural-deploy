@@ -93,22 +93,27 @@ export default async function PublicSessionReportPage({
   const { data: session } = await supabaseAdmin
     .from("sessions")
     .select(
-      "id, status, participantName, participantEmail, summary, insights, totalDurationSeconds, interview:interviews!inner(title)",
+      "id, status, participantName, participantEmail, summary, insights, totalDurationSeconds, interview:interviews!inner(title, questions(text))",
     )
     .eq("id", sessionId)
     .eq("interviewId", interviewId)
     .maybeSingle();
   if (!session) notFound();
 
-  const interview = session.interview as unknown as { title: string } | null;
+  const interview = session.interview as unknown as
+    | { title: string; questions?: { text: string }[] }
+    | null;
   const insights = (session.insights ?? null) as SessionInsights | null;
   const criteria = toCriteria(insights?.criteriaEvaluations);
   const questions = toQuestions(insights?.questionEvaluations);
   const keyInsights = toKeyInsights(insights?.keyInsights);
-  const overall = getSessionOverallScore({
-    questionEvaluations: questions,
-    criteriaEvaluations: criteria,
-  });
+  const overall = getSessionOverallScore(
+    {
+      questionEvaluations: questions,
+      criteriaEvaluations: criteria,
+    },
+    interview?.questions?.length,
+  );
   const name =
     session.participantName || session.participantEmail || "Anonymous";
 

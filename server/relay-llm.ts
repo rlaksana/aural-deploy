@@ -1,6 +1,6 @@
 /**
  * Voice-relay text LLM (summaries + interviewer replies).
- * Default: MiniMax-M3 @ temperature 0.
+ * Default: MiniMax-M3.1-Flash-Preview @ temperature 0.
  */
 
 import { GoogleGenAI } from "@google/genai";
@@ -8,8 +8,8 @@ import { createLogger } from "../src/lib/logger";
 
 const log = createLogger("relay-llm");
 
-export const RELAY_LLM_PRIMARY_MODEL = "MiniMax-M3";
-export const RELAY_LLM_FALLBACK_MODEL = "MiniMax-M3";
+export const RELAY_LLM_PRIMARY_MODEL = "MiniMax-M3.1-Flash-Preview";
+export const RELAY_LLM_FALLBACK_MODEL = "MiniMax-M3.1-Flash-Preview";
 
 interface RelayLlmEndpoint {
   model: string;
@@ -207,6 +207,10 @@ async function callOpenAICompatible(
       messages: [{ role: "user", content: prompt }],
       temperature: endpoint.temperature,
       max_tokens: maxTokens,
+      // M3.1-Flash-Preview thinking depth: keep voice replies fast ("max" default is slow).
+      ...(endpoint.model.toLowerCase().startsWith("minimax")
+        ? { output_config: { effort: "low" } }
+        : {}),
     }),
   });
 

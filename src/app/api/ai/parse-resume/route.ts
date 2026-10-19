@@ -38,7 +38,7 @@ function getClient(): { client: OpenAI; model: string } {
       apiKey: process.env.MINIMAX_API_KEY,
       baseURL: process.env.MINIMAX_BASE_URL ?? "https://api.minimax.io/v1",
     }),
-    model: "MiniMax-M3",
+    model: "MiniMax-M3.1-Flash-Preview",
   };
 }
 

@@ -5,6 +5,7 @@ import { buildSummaryPrompt } from "@/lib/ai/prompts/summary";
 import { REPORT_MODEL } from "@/lib/ai/registry";
 import { generateChatWithFallback } from "@/lib/ai/generator-run";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { completeQuestionEvaluations } from "@/lib/session-score";
 
 const log = createLogger("ai/session-summary");
 
@@ -169,21 +170,11 @@ async function run(sessionId: string): Promise<void> {
     if (Array.isArray(existingEvaluations) && existingEvaluations.length > 0) {
       questionEvaluations = existingEvaluations;
     } else if (Array.isArray(parsed.questionEvaluations)) {
-      // The LLM sometimes also evaluates follow-up questions it asked during
-      // the session. Keep only evaluations that map to a real interview
-      // question so the report never gains phantom Q-columns.
-      const normalize = (s: unknown) => String(s ?? "").toLowerCase().replace(/\s+/g, " ").trim();
-      const knownTexts = interview.questions.map((q) => normalize(q.text));
-      const matched = parsed.questionEvaluations.filter((e) => {
-        const text = normalize((e as { question?: unknown })?.question);
-        return text && knownTexts.some((k) => k === text || k.includes(text) || text.includes(k));
-      });
-      // All paraphrased (no textual match) — fall back to a hard clamp so the
-      // count still matches the real question list.
-      questionEvaluations =
-        matched.length > 0
-          ? matched
-          : parsed.questionEvaluations.slice(0, interview.questions.length);
+      questionEvaluations = completeQuestionEvaluations(
+        parsed.questionEvaluations,
+        interview.questions,
+        interview.language,
+      );
     }
     if (questionEvaluations) {
       insightsData.questionEvaluations = questionEvaluations;

@@ -107,6 +107,8 @@ export type ReportEntry = {
 export function buildReportRows(
   interviewTitle: string,
   entries: ReportEntry[],
+  /** Total interview questions — unanswered questions count as 0 in the score. */
+  totalQuestions?: number,
 ): InterviewReport {
   const criteriaNames: string[] = [];
   const questionLabels: Record<string, string> = {};
@@ -156,6 +158,7 @@ export function buildReportRows(
       source: entry.source,
       overallScore: getSessionOverallScore(
         insights as Parameters<typeof getSessionOverallScore>[0],
+        totalQuestions,
       ),
       criteria,
       summary: extractSummary(session, insights),

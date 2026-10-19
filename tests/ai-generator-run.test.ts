@@ -37,7 +37,7 @@ function withEnv(
   }
 }
 
-test("getGeneratorModelChain returns only MiniMax-M3 regardless of other provider keys", () => {
+test("getGeneratorModelChain returns only MiniMax-M3.1-Flash-Preview regardless of other provider keys", () => {
   withEnv(
     {
       OPENAI_API_KEY: "test-openai",
@@ -46,8 +46,8 @@ test("getGeneratorModelChain returns only MiniMax-M3 regardless of other provide
       MINIMAX_API_KEY: "test-minimax",
     },
     () => {
-      assert.deepEqual(getGeneratorModelChain(), ["MiniMax-M3"]);
-      assert.equal(resolveGeneratorModel(), "MiniMax-M3");
+      assert.deepEqual(getGeneratorModelChain(), ["MiniMax-M3.1-Flash-Preview"]);
+      assert.equal(resolveGeneratorModel(), "MiniMax-M3.1-Flash-Preview");
     },
   );
 });
@@ -63,10 +63,10 @@ test("getGeneratorModelChain appends OpenRouter fallback when OPENROUTER_API_KEY
     },
     () => {
       assert.deepEqual(getGeneratorModelChain(), [
-        "MiniMax-M3",
+        "MiniMax-M3.1-Flash-Preview",
         "meta/muse-spark-1.3-contributor",
       ]);
-      assert.equal(resolveGeneratorModel(), "MiniMax-M3");
+      assert.equal(resolveGeneratorModel(), "MiniMax-M3.1-Flash-Preview");
     },
   );
 });

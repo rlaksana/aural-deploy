@@ -10,8 +10,8 @@ function stripThinking(text: string): string {
 export class MinimaxProvider implements LLMProvider {
   id = "minimax";
   name = "MiniMax";
-  models = ["MiniMax-M3"];
-  defaultModel = "MiniMax-M3";
+  models = ["MiniMax-M3.1-Flash-Preview"];
+  defaultModel = "MiniMax-M3.1-Flash-Preview";
 
   private client: OpenAI;
 
@@ -57,6 +57,8 @@ export class MinimaxProvider implements LLMProvider {
       messages: this.toOpenAIMessages(params.messages),
       temperature: params.temperature ?? 0.7,
       max_tokens: params.maxTokens ?? 2048,
+      // M3.1-Flash-Preview thinking depth (defaults to "max", which is slow).
+      ...({ output_config: { effort: "high" } }),
     });
 
     const choice = response.choices[0];
@@ -81,6 +83,8 @@ export class MinimaxProvider implements LLMProvider {
       messages: this.toOpenAIMessages(params.messages),
       temperature: params.temperature ?? 0.7,
       max_tokens: params.maxTokens ?? 2048,
+      // M3.1-Flash-Preview thinking depth (defaults to "max", which is slow).
+      ...({ output_config: { effort: "high" } }),
       stream: true,
     });
 

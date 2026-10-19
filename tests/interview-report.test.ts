@@ -38,6 +38,38 @@ test("ranks by overall score desc, unscored last", () => {
   assert.equal(report.rows[3].status, "NOT_STARTED");
 });
 
+test("with totalQuestions, one strong answer no longer outranks complete coverage", () => {
+  const report = buildReportRows(
+    "T",
+    [
+      entry({
+        session: {
+          id: "one-answer",
+          status: "COMPLETED",
+          insights: { questionEvaluations: [{ question: "a", score: 8 }] },
+        },
+      }),
+      entry({
+        session: {
+          id: "all-answers",
+          status: "COMPLETED",
+          insights: {
+            questionEvaluations: [
+              { question: "a", score: 6 },
+              { question: "b", score: 6 },
+            ],
+          },
+        },
+      }),
+    ],
+    10,
+  );
+
+  // 12/10 = 1.2 beats 8/10 = 0.8: unanswered questions cost points.
+  assert.equal(report.rows[0].sessionId, "all-answers");
+  assert.equal(report.rows[1].sessionId, "one-answer");
+});
+
 test("unions criteria across candidates and maps question labels", () => {
   const report = buildReportRows("T", [
     entry({

@@ -31,7 +31,7 @@ afterEach(() => {
   relayLlm.resetRelayLlmCacheForTests();
 });
 
-test("default primary is MiniMax-M3 with no fallback", () => {
+test("default primary is MiniMax-M3.1-Flash-Preview with no fallback", () => {
   withEnv(
     {
       RELAY_LLM_MODEL: undefined,
@@ -43,13 +43,13 @@ test("default primary is MiniMax-M3 with no fallback", () => {
       MINIMAX_BASE_URL: "https://api.minimax.io/v1",
     },
     () => {
-      assert.equal(relayLlm.getRelayLlmModel(), "MiniMax-M3");
+      assert.equal(relayLlm.getRelayLlmModel(), "MiniMax-M3.1-Flash-Preview");
       assert.equal(relayLlm.getRelayLlmFallbackModel(), null);
     },
   );
 });
 
-test("RELAY_LLM_MODEL override works and falls back to MiniMax-M3", () => {
+test("RELAY_LLM_MODEL override works and falls back to MiniMax-M3.1-Flash-Preview", () => {
   withEnv(
     {
       RELAY_LLM_MODEL: "abab6.5s-chat",
@@ -60,7 +60,7 @@ test("RELAY_LLM_MODEL override works and falls back to MiniMax-M3", () => {
     },
     () => {
       assert.equal(relayLlm.getRelayLlmModel(), "abab6.5s-chat");
-      assert.equal(relayLlm.getRelayLlmFallbackModel(), "MiniMax-M3");
+      assert.equal(relayLlm.getRelayLlmFallbackModel(), "MiniMax-M3.1-Flash-Preview");
     },
   );
 });

@@ -48,3 +48,17 @@ test("getSessionOverallScore returns null when no valid scores exist", () => {
   assert.equal(getSessionOverallScore(insights), null);
   assert.equal(usesQuestionEvaluationScore(insights), false);
 });
+
+test("counts unanswered questions as zero when totalQuestions is given", () => {
+  const insights = {
+    questionEvaluations: [{ score: 8 }],
+    criteriaEvaluations: [{ score: 10 }],
+  };
+
+  // One answered question (8/10) against 10 total questions.
+  assert.equal(getSessionOverallScore(insights, 10), 0.8);
+  // Without a total, legacy average-of-answered behavior is preserved.
+  assert.equal(getSessionOverallScore(insights), 8);
+  // Invalid/missing scores contribute 0 to the sum.
+  assert.equal(getSessionOverallScore({ questionEvaluations: [{ score: "x" }] }, 5), 0);
+});

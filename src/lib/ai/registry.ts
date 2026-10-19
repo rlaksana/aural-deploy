@@ -43,14 +43,14 @@ export function listProviders(): LLMProvider[] {
 
 /**
  * Model used for post-interview report generation.
- * All text LLM tasks run on MiniMax-M3.
+ * All text LLM tasks run on MiniMax-M3.1-Flash-Preview.
  */
-export const REPORT_MODEL = "MiniMax-M3";
+export const REPORT_MODEL = "MiniMax-M3.1-Flash-Preview";
 
 /**
  * Model used for interview question generation and refinement.
  */
-export const GENERATOR_MODEL = "MiniMax-M3";
+export const GENERATOR_MODEL = "MiniMax-M3.1-Flash-Preview";
 
 export const PRIMARY_GENERATOR_MODEL = GENERATOR_MODEL;
 

@@ -3,13 +3,13 @@
  *
  * Browser ←→ this relay ←→ MiniMax ASR (one-shot speech_to_text per utterance)
  *                         ←→ MiniMax TTS (sync t2a_v2)
- *                         ←→ MiniMax-M3 LLM (response generation)
+ *                         ←→ MiniMax-M3.1-Flash-Preview LLM (response generation)
  *
  * Architecture:
  *   - Endpointing is local: mic audio is VAD-buffered (RMS gate + silence
  *     window) and transcribed with one POST per utterance (minimax-voice.ts).
  *   - TTS synthesizes the full line, then streams the PCM to the browser.
- *   - Chat intelligence via MiniMax-M3 (unchanged).
+ *   - Chat intelligence via MiniMax-M3.1-Flash-Preview (unchanged).
  *
  * Key features:
  * - Per-question interview flow with LLM-powered context summarization
@@ -224,9 +224,9 @@ interface AgentContext {
 
 const VISION_LLM_API_KEY = process.env.MINIMAX_API_KEY || "";
 const VISION_LLM_BASE_URL = process.env.MINIMAX_BASE_URL || "https://api.minimax.io/v1";
-const VISION_LLM_MODEL = process.env.VISION_LLM_MODEL || "MiniMax-M3";
+const VISION_LLM_MODEL = process.env.VISION_LLM_MODEL || "MiniMax-M3.1-Flash-Preview";
 /** Used when the primary model returns empty text after parsing (vision-specific, shorter path to answer). */
-const VISION_LLM_RETRY_MODEL = process.env.VISION_LLM_RETRY_MODEL || "MiniMax-M3";
+const VISION_LLM_RETRY_MODEL = process.env.VISION_LLM_RETRY_MODEL || "MiniMax-M3.1-Flash-Preview";
 const VISION_LLM_MAX_TOKENS = 1024;
 const WHITEBOARD_SNAPSHOT_REQUEST_TIMEOUT_MS = 2500;
 const WHITEBOARD_VISION_INLINE_TIMEOUT_MS = 1200;

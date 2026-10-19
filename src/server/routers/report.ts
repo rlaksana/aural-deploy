@@ -60,7 +60,11 @@ export const reportRouter = router({
       const row = interviewRow as unknown as
         | (InterviewKindRow & { aiAnalysis?: { text: string; generatedAt: string } | null })
         | null;
-      const report = buildReportRows(row?.title ?? "Interview", entries);
+      const report = buildReportRows(
+        row?.title ?? "Interview",
+        entries,
+        row?.questions?.length,
+      );
 
       return {
         report,
@@ -182,6 +186,7 @@ export const reportRouter = router({
       const report: InterviewReport = buildReportRows(
         row?.title ?? "Interview",
         entries,
+        row?.questions?.length,
       );
 
       // Non-interview kinds share a public-safe aggregate ONLY: no row table
