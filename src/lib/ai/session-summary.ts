@@ -5,7 +5,10 @@ import { buildSummaryPrompt } from "@/lib/ai/prompts/summary";
 import { REPORT_MODEL } from "@/lib/ai/registry";
 import { generateChatWithFallback } from "@/lib/ai/generator-run";
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import { mergeDeterministicWithLlm } from "@/lib/session-score";
+import {
+  completeQuestionEvaluations,
+  mergeDeterministicWithLlm,
+} from "@/lib/session-score";
 
 const log = createLogger("ai/session-summary");
 
