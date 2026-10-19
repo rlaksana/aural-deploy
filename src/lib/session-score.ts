@@ -25,11 +25,8 @@ const UNANSWERED_EVALUATION = {
  * Q-columns. When nothing text-matches (all paraphrased), fall back to the
  * old positional clamp so real scores are not lost.
  */
-export function completeQuestionEvaluations(
-  evals: unknown[],
-  questions: { text: string }[],
-  language: string | undefined,
-): Record<string, unknown>[] {
+/** Text matcher over stored evaluations — shared by canonicalization and merging. */
+function buildEvalMatcher(evals: unknown[]) {
   const normalize = (s: unknown) =>
     String(s ?? "")
       .toLowerCase()
@@ -40,7 +37,7 @@ export function completeQuestionEvaluations(
     const text = normalize((e as { question?: unknown })?.question);
     if (text) byText.set(text, e);
   }
-  const findMatch = (questionText: string): unknown | undefined => {
+  return (questionText: string): unknown | undefined => {
     const key = normalize(questionText);
     if (byText.has(key)) return byText.get(key);
     for (const [text, e] of byText) {
@@ -48,6 +45,14 @@ export function completeQuestionEvaluations(
     }
     return undefined;
   };
+}
+
+export function completeQuestionEvaluations(
+  evals: unknown[],
+  questions: { text: string }[],
+  language: string | undefined,
+): Record<string, unknown>[] {
+  const findMatch = buildEvalMatcher(evals);
   const hasDirectMatch = questions.some((q) => findMatch(q.text) !== undefined);
   const unansweredLabel = bt(
     getLanguageKey(language),
@@ -61,6 +66,47 @@ export function completeQuestionEvaluations(
       return { ...(e as Record<string, unknown>), question: q.text };
     }
     return { question: q.text, score: 0, evaluation: unansweredLabel };
+  });
+}
+
+/**
+ * Whether an entry is the "Not answered" zero-fill produced by
+ * completeQuestionEvaluations (as opposed to a real evaluation scoring 0).
+ */
+export function isUnansweredFill(entry: unknown, language?: string): boolean {
+  const e = entry as { score?: unknown; evaluation?: unknown } | null;
+  return (
+    !!e &&
+    Number(e.score) === 0 &&
+    typeof e.evaluation === "string" &&
+    e.evaluation === bt(getLanguageKey(language), UNANSWERED_EVALUATION as BiText)
+  );
+}
+
+/**
+ * Quiz/assessment grades are deterministic only for keyed choice questions;
+ * unkeyed questions (open-ended, short text) are absent from that list even
+ * when the candidate answered them. Deterministic entries win; the LLM's
+ * evaluation fills those gaps so an answered open-ended question is graded
+ * instead of falsely marked "Not answered".
+ */
+export function mergeDeterministicWithLlm(
+  deterministic: unknown[],
+  llmEvals: unknown[],
+  questions: { text: string }[],
+  language: string | undefined,
+): Record<string, unknown>[] {
+  const canonical = completeQuestionEvaluations(deterministic, questions, language);
+  if (!Array.isArray(llmEvals) || llmEvals.length === 0) return canonical;
+  const findLlm = buildEvalMatcher(llmEvals);
+  return canonical.map((entry) => {
+    if (!isUnansweredFill(entry, language)) return entry;
+    const llm = findLlm(String((entry as { question?: unknown }).question ?? ""));
+    if (!llm) return entry;
+    return {
+      ...(llm as Record<string, unknown>),
+      question: (entry as { question: string }).question,
+    };
   });
 }
 

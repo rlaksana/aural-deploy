@@ -5,7 +5,7 @@ import { buildSummaryPrompt } from "@/lib/ai/prompts/summary";
 import { REPORT_MODEL } from "@/lib/ai/registry";
 import { generateChatWithFallback } from "@/lib/ai/generator-run";
 import { supabaseAdmin } from "@/lib/supabase/admin";
-import { completeQuestionEvaluations } from "@/lib/session-score";
+import { mergeDeterministicWithLlm } from "@/lib/session-score";
 
 const log = createLogger("ai/session-summary");
 
@@ -192,11 +192,12 @@ export async function generateSessionSummaryCore(
     )?.questionEvaluations;
     let questionEvaluations: unknown[] | undefined = undefined;
     if (Array.isArray(existingEvaluations) && existingEvaluations.length > 0) {
-      // Canonicalize stored evaluations too: a partial or over-grown legacy
-      // list (follow-ups stored as questions) is rebuilt against the
-      // interview's canonical questions instead of kept verbatim.
-      questionEvaluations = completeQuestionEvaluations(
+      // Deterministic quiz scores win for keyed questions; unkeyed ones
+      // (open-ended) fall back to the LLM's evaluation instead of a false
+      // "Not answered". Legacy over-grown lists are canonicalized either way.
+      questionEvaluations = mergeDeterministicWithLlm(
         existingEvaluations,
+        Array.isArray(parsed.questionEvaluations) ? parsed.questionEvaluations : [],
         interview.questions,
         interview.language,
       );

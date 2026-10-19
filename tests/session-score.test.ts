@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   evaluationsAreCanonical,
   getSessionOverallScore,
+  mergeDeterministicWithLlm,
   usesQuestionEvaluationScore,
 } from "../src/lib/session-score";
 
@@ -127,4 +128,34 @@ test("counts unanswered questions as zero when totalQuestions is given", () => {
   assert.equal(getSessionOverallScore(insights), 8);
   // Invalid/missing scores contribute 0 to the sum.
   assert.equal(getSessionOverallScore({ questionEvaluations: [{ score: "x" }] }, 5), 0);
+});
+
+test("mergeDeterministicWithLlm grades unkeyed questions from the LLM, keyed stay deterministic", () => {
+  const questions = [{ text: "Pick a framework" }, { text: "Explain indexes." }];
+  // Quiz grading only covers the keyed choice question.
+  const deterministic = [{ question: "Pick a framework", score: 10, correct: true }];
+  const llm = [
+    { question: "Pick a framework", score: 4, evaluation: "weak pick" },
+    { question: "Explain indexes.", score: 7, evaluation: "solid answer" },
+  ];
+
+  const merged = mergeDeterministicWithLlm(deterministic, llm, questions, "en");
+  // Keyed: deterministic grade wins even when the LLM disagrees.
+  assert.deepEqual(merged[0], { question: "Pick a framework", score: 10, correct: true });
+  // Unkeyed open-ended: LLM evaluation replaces the false "Not answered" fill.
+  assert.equal(merged[1].score, 7);
+  assert.equal(merged[1].evaluation, "solid answer");
+});
+
+test("mergeDeterministicWithLlm keeps the Not-answered fill when the LLM has nothing", () => {
+  const questions = [{ text: "Explain indexes." }];
+  const merged = mergeDeterministicWithLlm(
+    [],
+    [{ question: "something else entirely", score: 9 }],
+    questions,
+    "en",
+  );
+  assert.deepEqual(merged, [
+    { question: "Explain indexes.", score: 0, evaluation: "Not answered" },
+  ]);
 });
