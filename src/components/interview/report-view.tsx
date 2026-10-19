@@ -65,7 +65,12 @@ export function ReportView({
   onRegenerate?: (row: ReportRow) => void;
   regeneratingSessionId?: string | null;
 }) {
-  const { rows, criteriaNames, questionLabels } = data;
+  const { rows, questionLabels } = data;
+  // Per-question columns only ("Q1".."Qn") — criteria-name columns made the
+  // table wide and mostly empty; question scores are what recruiters scan.
+  const questionKeys = Object.keys(questionLabels).sort(
+    (a, b) => Number(a.slice(1)) - Number(b.slice(1)),
+  );
   const scored = rows.filter((r) => r.overallScore !== null);
   const completed = rows.filter((r) => r.status === "COMPLETED");
   const avgScore =
@@ -74,16 +79,16 @@ export function ReportView({
       : null;
   const top = scored[0] ?? null;
 
-  const criteriaAvg = Object.fromEntries(
-    criteriaNames.map((name) => {
+  const questionAvg = Object.fromEntries(
+    questionKeys.map((q) => {
       const values = rows
-        .map((r) => r.criteria[name])
+        .map((r) => r.criteria[q])
         .filter((v): v is number => typeof v === "number");
       const avg =
         values.length > 0
           ? values.reduce((s, v) => s + v, 0) / values.length
           : null;
-      return [name, avg];
+      return [q, avg];
     }),
   );
 
@@ -143,9 +148,17 @@ export function ReportView({
               <TableRow className="hover:bg-transparent">
                 <TableHead className="w-10">#</TableHead>
                 <TableHead>Name</TableHead>
+                {questionKeys.map((q) => (
+                  <TableHead
+                    key={q}
+                    className="px-2 text-center"
+                    title={questionLabels[q]}
+                  >
+                    {q}
+                  </TableHead>
+                ))}
                 <TableHead>Score</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead className="w-[38%]">Summary</TableHead>
                 <TableHead className="whitespace-nowrap">Finished</TableHead>
                 {onRegenerate && <TableHead className="w-10" />}
               </TableRow>
@@ -156,6 +169,7 @@ export function ReportView({
                   key={`${row.sessionId}-${i}`}
                   row={row}
                   rank={row.overallScore !== null ? i + 1 : null}
+                  questionKeys={questionKeys}
                   sessionBasePath={sessionBasePath}
                   onRegenerate={onRegenerate}
                   regenerating={!!row.sessionId && regeneratingSessionId === row.sessionId}
@@ -166,21 +180,21 @@ export function ReportView({
         )}
       </div>
 
-      {/* Per-criterion interview averages — kept out of the table so it never
-          scrolls sideways; per-candidate criteria live in the session report. */}
-      {criteriaNames.length > 0 && scored.length > 0 && (
+      {/* Average score per question — shows which questions candidates found
+          hardest; hover a chip for the full question text. */}
+      {questionKeys.length > 0 && scored.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 text-sm">
-          <span className="text-muted-foreground">Avg per criterion:</span>
-          {criteriaNames.map((name) => {
-            const avg = criteriaAvg[name];
+          <span className="text-muted-foreground">Avg per question:</span>
+          {questionKeys.map((q) => {
+            const avg = questionAvg[q];
             return (
               <Badge
-                key={name}
+                key={q}
                 variant="outline"
                 className="whitespace-nowrap"
-                title={questionLabels[name] ?? name}
+                title={questionLabels[q]}
               >
-                {name}{" "}
+                {q}{" "}
                 <span className={cn("ml-1 font-medium", avg !== null && scoreColor(avg))}>
                   {avg !== null ? avg.toFixed(1) : "-"}
                 </span>
@@ -196,12 +210,14 @@ export function ReportView({
 function BodyRow({
   row,
   rank,
+  questionKeys,
   sessionBasePath,
   onRegenerate,
   regenerating,
 }: {
   row: ReportRow;
   rank: number | null;
+  questionKeys: string[];
   sessionBasePath?: string;
   onRegenerate?: (row: ReportRow) => void;
   regenerating?: boolean;
@@ -237,6 +253,18 @@ function BodyRow({
     >
       <TableCell className="text-muted-foreground">{rank ?? "-"}</TableCell>
       <TableCell className="max-w-[220px] truncate">{nameCell}</TableCell>
+      {questionKeys.map((q) => {
+        const v = row.criteria[q];
+        return (
+          <TableCell key={q} className="px-2 text-center">
+            {typeof v === "number" ? (
+              <span className={scoreColor(v)}>{v.toFixed(1)}</span>
+            ) : (
+              <span className="text-muted-foreground">-</span>
+            )}
+          </TableCell>
+        );
+      })}
       <TableCell>
         {row.overallScore !== null ? (
           <span className={cn("font-semibold", scoreColor(row.overallScore))}>
@@ -250,18 +278,6 @@ function BodyRow({
         <Badge variant={statusBadgeVariant(row.status)}>
           {row.status.replace("_", " ")}
         </Badge>
-      </TableCell>
-      <TableCell>
-        {row.summary ? (
-          <p
-            className="line-clamp-2 text-xs text-muted-foreground"
-            title={row.summary}
-          >
-            {row.summary}
-          </p>
-        ) : (
-          <span className="text-muted-foreground">-</span>
-        )}
       </TableCell>
       <TableCell className="whitespace-nowrap text-muted-foreground">
         {formatDate(row.completedAt)}
