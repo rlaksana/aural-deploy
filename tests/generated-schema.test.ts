@@ -148,3 +148,83 @@ test("buildImprovePrompt preserves language instruction when language is non-en"
   assert.equal(typeof messages[0].content, "string");
   assert.match(messages[0].content as string, /Indonesian \(Bahasa Indonesia\)/);
 });
+
+const BASE = {
+  title: "T",
+  description: "D",
+  objective: "O",
+  assessmentCriteria: [{ name: "S", description: "Skill" }],
+  estimatedDurationMinutes: 30,
+  recommendedSettings: { aiName: "Ada" },
+};
+
+const parseQuestion = (question: Record<string, unknown>) =>
+  generatedInterviewSchema.safeParse({ ...BASE, questions: [question] });
+
+test("non-choice types must not carry options or starterCode; choice types must carry options", () => {
+  // OPEN_ENDED with options → reject.
+  assert.equal(
+    parseQuestion({ order: 1, text: "Tell", type: "OPEN_ENDED", options: { options: ["A", "B"] } })
+      .success,
+    false,
+  );
+  // SHORT_TEXT with starterCode → reject.
+  assert.equal(
+    parseQuestion({
+      order: 1,
+      text: "Name",
+      type: "SHORT_TEXT",
+      starterCode: { language: "py", code: "x = 1" },
+    }).success,
+    false,
+  );
+  // Choice with too few / too many options → reject.
+  assert.equal(
+    parseQuestion({ order: 1, text: "Pick", type: "SINGLE_CHOICE", options: { options: ["A"] } })
+      .success,
+    false,
+  );
+  assert.equal(
+    parseQuestion({
+      order: 1,
+      text: "Pick",
+      type: "SINGLE_CHOICE",
+      options: { options: ["1", "2", "3", "4", "5", "6", "7"] },
+    }).success,
+    false,
+  );
+  // Boundary option counts (2 and 6) are accepted.
+  assert.equal(
+    parseQuestion({ order: 1, text: "Pick", type: "SINGLE_CHOICE", options: { options: ["A", "B"] } })
+      .success,
+    true,
+  );
+  assert.equal(
+    parseQuestion({
+      order: 1,
+      text: "Pick",
+      type: "MULTIPLE_CHOICE",
+      options: { options: ["1", "2", "3", "4", "5", "6"], allowMultiple: true },
+    }).success,
+    true,
+  );
+});
+
+test("structural bounds: question count, question order, language default", () => {
+  const question = { order: 1, text: "q", type: "OPEN_ENDED" };
+  // 0 and 26 questions are out of bounds.
+  assert.equal(generatedInterviewSchema.safeParse({ ...BASE, questions: [] }).success, false);
+  assert.equal(
+    generatedInterviewSchema.safeParse({
+      ...BASE,
+      questions: Array.from({ length: 26 }, (_, i) => ({ ...question, text: `q${i}` })),
+    }).success,
+    false,
+  );
+  // order must be a positive integer.
+  assert.equal(parseQuestion({ ...question, order: 0 }).success, false);
+  // generateRequestSchema defaults language to "id".
+  const gen = generateRequestSchema.safeParse({ description: "hire a dev" });
+  assert.equal(gen.success, true);
+  if (gen.success) assert.equal(gen.data.language, "id");
+});

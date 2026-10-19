@@ -39,3 +39,56 @@ test("MinimaxProvider appends user message when messages only contain system pro
   assert.equal(openAiMsgs[1].role, "user");
   assert.equal(openAiMsgs[1].content, "Please proceed with the task as instructed.");
 });
+
+test("per-question fence: evaluations demanded only for canonical listed questions", () => {
+  const withQuestions = buildSummaryPrompt(
+    "T",
+    [{ role: "user", content: "answer" }],
+    null,
+    null,
+    [
+      { text: "What is REST?", order: 1, type: "OPEN_ENDED" },
+      { text: "Explain indexes.", order: 2, type: "RESEARCH" },
+    ],
+    "en",
+    null,
+    null,
+  );
+  const system = String(withQuestions[0].content);
+  // The follow-up fence must be present verbatim.
+  assert.match(system, /EXACTLY ONE entry per interview question/);
+  assert.match(system, /Never create entries for follow-up/);
+  // Types tag each listed question; RESEARCH gets its findings instruction.
+  assert.match(system, /\[OPEN_ENDED\] What is REST\?/);
+  assert.match(system, /research finding/);
+
+  // Without questions there must be no evaluation instruction at all.
+  const without = buildSummaryPrompt(
+    "T",
+    [{ role: "user", content: "answer" }],
+    null,
+    null,
+    null,
+    "en",
+    null,
+    null,
+  );
+  assert.doesNotMatch(String(without[0].content), /questionEvaluations/);
+});
+
+test("non-interview kinds get the analyst framing, not interviewer grading", () => {
+  const messages = buildSummaryPrompt(
+    "Survey",
+    [{ role: "user", content: "answer" }],
+    null,
+    null,
+    null,
+    "en",
+    null,
+    null,
+    "SURVEY",
+  );
+  const system = String(messages[0].content);
+  assert.match(system, /response analyst/);
+  assert.match(system, /not a job interview/);
+});

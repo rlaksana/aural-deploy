@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildReportRows, type ReportEntry } from "../src/lib/interview-report";
+import {
+  buildReportRows,
+  canonicalizeInsights,
+  type ReportEntry,
+} from "../src/lib/interview-report";
 
 function entry(
   overrides: Partial<ReportEntry> & { session?: ReportEntry["session"] } = {},
@@ -157,4 +161,62 @@ test("ignores malformed insights and falls back to participant names", () => {
   assert.deepEqual(report.criteriaNames, []);
   assert.equal(report.rows[0].name, "p@example.com");
   assert.equal(report.rows[0].overallScore, null);
+});
+
+test("walk-in entries without a session row are skipped; invited roster rows are kept", () => {
+  const report = buildReportRows("T", [
+    entry({ name: "Ghost", source: "Walk-in", session: null }),
+    entry({ name: "Roster", source: "Invited", session: null }),
+  ]);
+  // Only the invited roster entry stays visible.
+  assert.equal(report.rows.length, 1);
+  assert.equal(report.rows[0].name, "Roster");
+  assert.equal(report.rows[0].status, "NOT_STARTED");
+});
+
+test("ties on score break by most recent completion date", () => {
+  const mk = (id: string, completedAt: string | null) =>
+    entry({
+      session: {
+        id,
+        status: "COMPLETED",
+        completedAt,
+        insights: { questionEvaluations: [{ question: "a", score: 7 }] },
+      },
+    });
+  const report = buildReportRows("T", [
+    mk("older", "2026-01-01T00:00:00Z"),
+    mk("newer", "2026-06-01T00:00:00Z"),
+    mk("never", null),
+  ]);
+  assert.deepEqual(
+    report.rows.map((r) => r.sessionId),
+    ["newer", "older", "never"],
+  );
+});
+
+test("summary falls back from the column to insights when the column is empty", () => {
+  const report = buildReportRows("T", [
+    entry({
+      session: {
+        id: "s",
+        status: "COMPLETED",
+        summary: null,
+        insights: {
+          summary: "Strong candidate",
+          questionEvaluations: [{ question: "a", score: 7 }],
+        },
+      },
+    }),
+  ]);
+  assert.equal(report.rows[0].summary, "Strong candidate");
+});
+
+test("canonicalizeInsights passes through when there is nothing to rebuild", () => {
+  const corrupted = "not-an-object";
+  // No canonical questions → passthrough untouched.
+  assert.equal(canonicalizeInsights(corrupted, []), corrupted);
+  // Empty evaluations → nothing to rebuild.
+  const empty = { questionEvaluations: [] };
+  assert.equal(canonicalizeInsights(empty, [{ text: "q" }]), empty);
 });

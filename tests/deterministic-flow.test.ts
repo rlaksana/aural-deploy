@@ -198,3 +198,82 @@ test("invalid SHORT_TEXT answers re-ask without advancing; valid ones advance", 
   assert.equal(valid.questionAdvanced, true);
   assert.equal(valid.isComplete, false);
 });
+
+test("QUIZ grades on the spot: all-or-nothing single, strict-set multiple", () => {
+  const quizQuestions = [
+    {
+      type: "SINGLE_CHOICE",
+      text: "Capital?",
+      options: { options: ["Jakarta", "Bandung"], correctIndices: [0] },
+    },
+    {
+      type: "MULTIPLE_CHOICE",
+      text: "Primes?",
+      options: { options: ["2", "3", "4", "5"], correctIndices: [0, 1, 3] },
+    },
+  ];
+
+  const correct = resolveDeterministicFlow({
+    kind: "QUIZ",
+    questions: quizQuestions,
+    currentQuestionIndex: 0,
+    conversationHistory: history([{ role: "user", content: "Selected option A" }]),
+  });
+  assert.ok(correct);
+  assert.match(correct.content, /Correct!/);
+  assert.equal(correct.questionAdvanced, true);
+
+  const wrong = resolveDeterministicFlow({
+    kind: "QUIZ",
+    questions: quizQuestions,
+    currentQuestionIndex: 0,
+    conversationHistory: history([{ role: "user", content: "Selected option B" }]),
+  });
+  assert.ok(wrong);
+  assert.match(wrong.content, /Not quite/);
+
+  // On-the-spot feedback is strict-set: a partial selection reads wrong even
+  // though the stored union score would give partial credit.
+  const partial = resolveDeterministicFlow({
+    kind: "QUIZ",
+    questions: quizQuestions,
+    currentQuestionIndex: 1,
+    conversationHistory: history([{ role: "user", content: "Selected options: A" }]),
+  });
+  assert.ok(partial);
+  assert.match(partial.content, /Not quite/);
+
+  const exact = resolveDeterministicFlow({
+    kind: "QUIZ",
+    questions: quizQuestions,
+    currentQuestionIndex: 1,
+    conversationHistory: history([{ role: "user", content: "Selected options: A, B, D" }]),
+  });
+  assert.ok(exact);
+  assert.match(exact.content, /Correct!/);
+});
+
+test("unkeyed quiz questions and non-quiz kinds get no right/wrong feedback", () => {
+  // No answer key → advance silently.
+  const unkeyed = resolveDeterministicFlow({
+    kind: "QUIZ",
+    questions: [{ type: "SINGLE_CHOICE", text: "Pick", options: { options: ["A", "B"] } }],
+    currentQuestionIndex: 0,
+    conversationHistory: history([{ role: "user", content: "Selected option A" }]),
+  });
+  assert.ok(unkeyed);
+  assert.doesNotMatch(unkeyed.content, /Correct|Not quite/);
+  assert.equal(unkeyed.isComplete, true);
+
+  // SURVEY with the same key stays neutral — only quizzes reveal the key.
+  const survey = resolveDeterministicFlow({
+    kind: "SURVEY",
+    questions: [
+      { type: "SINGLE_CHOICE", text: "Pick", options: { options: ["A", "B"], correctIndices: [0] } },
+    ],
+    currentQuestionIndex: 0,
+    conversationHistory: history([{ role: "user", content: "Selected option A" }]),
+  });
+  assert.ok(survey);
+  assert.doesNotMatch(survey.content, /Correct|Not quite/);
+});

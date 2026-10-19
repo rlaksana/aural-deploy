@@ -86,3 +86,22 @@ test("Indonesian selection protocol is graded identically", () => {
   ]);
   assert.equal(result.totalCorrect, 1);
 });
+
+test("only the first message per questionId counts — later chatter cannot override the selection", () => {
+  // The INTERVIEW-style rationale reply is tagged with the same questionId;
+  // grading must read the selection protocol message, never later chatter.
+  const result = gradeQuiz([QUESTIONS[0]], [
+    { questionId: "q1", content: "Selected option A" },
+    { questionId: "q1", content: "Because Jakarta is the capital and I like it." },
+  ]);
+  assert.equal(result.totalCorrect, 1);
+  assert.equal(result.questionEvaluations[0].score, 10);
+});
+
+test("selection letters outside the option list grade wrong, not crash", () => {
+  const result = gradeQuiz([QUESTIONS[0]], [
+    { questionId: "q1", content: "Selected option Z" },
+  ]);
+  assert.equal(result.questionEvaluations[0].score, 0);
+  assert.equal(result.questionEvaluations[0].correct, false);
+});
