@@ -1,6 +1,7 @@
 "use client";
 
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Table,
@@ -12,7 +13,7 @@ import {
 } from "@/components/ui/table";
 import type { InterviewReport, ReportRow } from "@/lib/interview-report";
 import { cn } from "@/lib/utils";
-import { Trophy, UserCheck, Users } from "lucide-react";
+import { Loader2, RefreshCw, Trophy, UserCheck, Users } from "lucide-react";
 
 export function scoreColor(score: number): string {
   return score >= 7
@@ -54,10 +55,15 @@ function formatDate(date: string | null): string {
 export function ReportView({
   data,
   sessionBasePath,
+  onRegenerate,
+  regeneratingSessionId,
 }: {
   data: InterviewReport;
   /** When set, clicking a row opens this path with ?session={id} */
   sessionBasePath?: string;
+  /** Dashboard-only: enables the per-candidate regenerate action. */
+  onRegenerate?: (row: ReportRow) => void;
+  regeneratingSessionId?: string | null;
 }) {
   const { rows, criteriaNames, questionLabels } = data;
   const scored = rows.filter((r) => r.overallScore !== null);
@@ -151,6 +157,7 @@ export function ReportView({
                   ))}
                   <TableHead className="min-w-[220px]">Summary</TableHead>
                   <TableHead className="whitespace-nowrap">Finished</TableHead>
+                  {onRegenerate && <TableHead className="w-10" />}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -161,6 +168,8 @@ export function ReportView({
                     rank={row.overallScore !== null ? i + 1 : null}
                     criteriaNames={criteriaNames}
                     sessionBasePath={sessionBasePath}
+                    onRegenerate={onRegenerate}
+                    regenerating={!!row.sessionId && regeneratingSessionId === row.sessionId}
                   />
                 ))}
                 {criteriaNames.length > 0 && scored.length > 0 && (
@@ -182,7 +191,7 @@ export function ReportView({
                         </TableCell>
                       );
                     })}
-                    <TableCell colSpan={2} />
+                    <TableCell colSpan={onRegenerate ? 3 : 2} />
                   </TableRow>
                 )}
               </TableBody>
@@ -199,11 +208,15 @@ function BodyRow({
   rank,
   criteriaNames,
   sessionBasePath,
+  onRegenerate,
+  regenerating,
 }: {
   row: ReportRow;
   rank: number | null;
   criteriaNames: string[];
   sessionBasePath?: string;
+  onRegenerate?: (row: ReportRow) => void;
+  regenerating?: boolean;
 }) {
   const hasSession = !!row.sessionId;
 
@@ -277,6 +290,33 @@ function BodyRow({
       <TableCell className="whitespace-nowrap text-muted-foreground">
         {formatDate(row.completedAt)}
       </TableCell>
+      {onRegenerate && (
+        <TableCell className="w-10">
+          {row.sessionId && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              title={
+                regenerating
+                  ? "Regenerating…"
+                  : `Regenerate AI summary for ${row.name}`
+              }
+              disabled={regenerating}
+              onClick={(e) => {
+                e.stopPropagation();
+                onRegenerate(row);
+              }}
+            >
+              {regenerating ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <RefreshCw className="h-3.5 w-3.5 text-muted-foreground" />
+              )}
+            </Button>
+          )}
+        </TableCell>
+      )}
     </TableRow>
   );
 }

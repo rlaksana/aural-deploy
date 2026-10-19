@@ -38,6 +38,41 @@ export function ReportsTab({ interviewId }: { interviewId: string }) {
     total: number;
     current: string | null;
   } | null>(null);
+  const [regeneratingId, setRegeneratingId] = useState<string | null>(null);
+
+  const handleRegenerateOne = useCallback(
+    async (row: { sessionId: string; name: string }) => {
+      if (runningRef.current || regeneratingId) return;
+      if (
+        !window.confirm(
+          `Regenerate the AI summary for ${row.name}? The existing summary and scores will be overwritten.`,
+        )
+      )
+        return;
+      runningRef.current = true;
+      setRegeneratingId(row.sessionId);
+      try {
+        const { failed } = await runBatchSummaries(
+          [{ sessionId: row.sessionId, name: row.name }],
+          { concurrency: 1, force: true },
+        );
+        if (failed > 0) {
+          toast({
+            title: "Regeneration failed",
+            description: `${row.name}'s summary could not be regenerated. You can safely try again.`,
+            variant: "destructive",
+          });
+        } else {
+          toast({ title: `Summary regenerated for ${row.name}` });
+        }
+      } finally {
+        runningRef.current = false;
+        setRegeneratingId(null);
+        utils.report.get.invalidate({ interviewId });
+      }
+    },
+    [regeneratingId, interviewId, utils, toast],
+  );
 
   const report = trpc.report.get.useQuery(
     { interviewId },
@@ -323,6 +358,8 @@ export function ReportsTab({ interviewId }: { interviewId: string }) {
           <ReportView
             data={report.data.report}
             sessionBasePath={`/interviews/${interviewId}/edit/sessions`}
+            onRegenerate={handleRegenerateOne}
+            regeneratingSessionId={regeneratingId}
           />
         </div>
       ) : null}
