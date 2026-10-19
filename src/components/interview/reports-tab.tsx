@@ -283,8 +283,10 @@ export function ReportsTab({ interviewId }: { interviewId: string }) {
         </Card>
       )}
 
-      {/* Regenerate: rebuild AI summaries for every completed session,
-          overwriting existing ones — e.g. to switch report language. */}
+      {/* Regenerate: check-and-repair pass over every completed session —
+          healthy reports are kept, broken/missing ones are rebuilt. A full
+          overwrite (e.g. after switching the interview language) is the
+          per-candidate ↻ action, which forces. */}
       {!report.isLoading && completed.length > 0 && (
         <Card>
           <CardContent className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
@@ -294,9 +296,10 @@ export function ReportsTab({ interviewId }: { interviewId: string }) {
                 Regenerate all {completed.length} summar{completed.length > 1 ? "ies" : "y"}
               </p>
               <p className="text-xs text-muted-foreground">
-                Rebuilds summaries and scores using the current interview
-                language, overwriting existing ones. Keep this tab open until
-                it finishes.
+                Checks every report and rebuilds only the missing or
+                inconsistent ones — already-correct reports are kept. To force
+                a rebuild (e.g. after switching language), use a candidate's
+                ↻ button. Keep this tab open until it finishes.
               </p>
             </div>
             <Button
