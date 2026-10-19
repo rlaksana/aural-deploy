@@ -66,7 +66,7 @@ export default async function PublicReportPage({
   const report = buildReportRows(
     interviewRow?.title ?? "Interview",
     entries,
-    (interviewRow as { questions?: unknown[] } | null)?.questions?.length,
+    row?.questions,
   );
 
   let aggregate = undefined;

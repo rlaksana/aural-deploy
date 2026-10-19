@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { parseChoiceSelection } from "./deterministic-flow";
-import { getSessionOverallScore } from "./session-score";
+import { completeQuestionEvaluations, getSessionOverallScore } from "./session-score";
 
 /**
  * Aggregate per-candidate rows for the interview-level report.
@@ -87,6 +87,26 @@ function extractCriteria(
   return out;
 }
 
+/**
+ * Read-path guard: canonicalize stored question evaluations against the
+ * interview's canonical question list. Follow-up entries the LLM miscounted
+ * as questions are dropped by text match, unanswered questions become 0, and
+ * the list is capped to the canonical count — a mis-generated report can
+ * never grow phantom Q-columns or inflate the score.
+ */
+function canonicalizeInsights(
+  insights: unknown,
+  questions?: { text: string }[],
+): unknown {
+  if (!questions || questions.length === 0) return insights;
+  const evals = (insights as InsightsShape | null)?.questionEvaluations;
+  if (!Array.isArray(evals) || evals.length === 0) return insights;
+  return {
+    ...(insights as Record<string, unknown>),
+    questionEvaluations: completeQuestionEvaluations(evals, questions, undefined),
+  };
+}
+
 function extractSummary(session: NonNullable<SessionLike>, insights: unknown): string | null {
   if (typeof session.summary === "string" && session.summary) return session.summary;
   if (insights && typeof insights === "object" && !Array.isArray(insights)) {
@@ -107,8 +127,9 @@ export type ReportEntry = {
 export function buildReportRows(
   interviewTitle: string,
   entries: ReportEntry[],
-  /** Total interview questions — unanswered questions count as 0 in the score. */
-  totalQuestions?: number,
+  /** Canonical interview questions — follow-up evaluation entries stored in
+   *  session insights are dropped and unanswered questions score 0. */
+  questions?: { text: string }[],
 ): InterviewReport {
   const criteriaNames: string[] = [];
   const questionLabels: Record<string, string> = {};
@@ -141,7 +162,7 @@ export function buildReportRows(
       continue;
     }
 
-    const insights = session.insights;
+    const insights = canonicalizeInsights(session.insights, questions);
     const criteria = extractCriteria(insights, questionLabels);
     Object.keys(criteria).forEach(addCriteria);
 
@@ -158,7 +179,7 @@ export function buildReportRows(
       source: entry.source,
       overallScore: getSessionOverallScore(
         insights as Parameters<typeof getSessionOverallScore>[0],
-        totalQuestions,
+        questions?.length,
       ),
       criteria,
       summary: extractSummary(session, insights),

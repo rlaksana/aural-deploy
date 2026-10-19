@@ -62,7 +62,7 @@ export const reportRouter = router({
       const report = buildReportRows(
         row?.title ?? "Interview",
         entries,
-        row?.questions?.length,
+        row?.questions,
       );
 
       return {
@@ -188,7 +188,7 @@ export const reportRouter = router({
       const report: InterviewReport = buildReportRows(
         row?.title ?? "Interview",
         entries,
-        row?.questions?.length,
+        row?.questions,
       );
 
       // Non-interview kinds share a public-safe aggregate ONLY: no row table

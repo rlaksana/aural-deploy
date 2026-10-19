@@ -168,7 +168,14 @@ async function run(sessionId: string): Promise<void> {
     )?.questionEvaluations;
     let questionEvaluations: unknown[] | undefined = undefined;
     if (Array.isArray(existingEvaluations) && existingEvaluations.length > 0) {
-      questionEvaluations = existingEvaluations;
+      // Canonicalize stored evaluations too: a partial or over-grown legacy
+      // list (follow-ups stored as questions) is rebuilt against the
+      // interview's canonical questions instead of kept verbatim.
+      questionEvaluations = completeQuestionEvaluations(
+        existingEvaluations,
+        interview.questions,
+        interview.language,
+      );
     } else if (Array.isArray(parsed.questionEvaluations)) {
       questionEvaluations = completeQuestionEvaluations(
         parsed.questionEvaluations,

@@ -97,7 +97,10 @@ export function getSessionOverallScore(
   // average-of-answered behavior, including its criteria fallback when no
   // evaluation carries a valid score.
   if (Array.isArray(evals) && evals.length > 0 && totalQuestions && totalQuestions > 0) {
-    return sumScore(evals) / totalQuestions;
+    // Cap at the interview's question count: a stored array longer than the
+    // canonical list (follow-up probes miscounted as questions) must not
+    // inflate the score.
+    return sumScore(evals.slice(0, totalQuestions)) / totalQuestions;
   }
   const questionScore = averageScore(evals);
   if (questionScore !== null) return questionScore;

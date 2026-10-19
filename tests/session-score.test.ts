@@ -49,6 +49,29 @@ test("getSessionOverallScore returns null when no valid scores exist", () => {
   assert.equal(usesQuestionEvaluationScore(insights), false);
 });
 
+test("caps stored evaluations at the interview's question count", () => {
+  // Legacy over-grown data: follow-ups stored as extra question entries.
+  const insights = {
+    questionEvaluations: [
+      { score: 8 },
+      { score: 6 },
+      { score: 9 },
+      { score: 7 },
+      { score: 5 },
+      { score: 5 },
+      { score: 4 },
+      { score: 4 },
+      { score: 3 },
+      { score: 3 }, // canonical 10 questions end here
+      { score: 9 },
+      { score: 9 }, // follow-up entries must not inflate
+    ],
+  };
+
+  // (8+6+9+7+5+5+4+4+3+3)/10 = 5.4 — the trailing 9s are ignored.
+  assert.equal(getSessionOverallScore(insights, 10), 5.4);
+});
+
 test("counts unanswered questions as zero when totalQuestions is given", () => {
   const insights = {
     questionEvaluations: [{ score: 8 }],

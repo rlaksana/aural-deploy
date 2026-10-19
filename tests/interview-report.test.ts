@@ -38,7 +38,10 @@ test("ranks by overall score desc, unscored last", () => {
   assert.equal(report.rows[3].status, "NOT_STARTED");
 });
 
-test("with totalQuestions, one strong answer no longer outranks complete coverage", () => {
+test("with canonical questions, one strong answer no longer outranks complete coverage", () => {
+  const tenQuestions = Array.from({ length: 10 }, (_, i) => ({
+    text: `Question ${i + 1}`,
+  }));
   const report = buildReportRows(
     "T",
     [
@@ -62,7 +65,7 @@ test("with totalQuestions, one strong answer no longer outranks complete coverag
         },
       }),
     ],
-    10,
+    tenQuestions,
   );
 
   // 12/10 = 1.2 beats 8/10 = 0.8: unanswered questions cost points.
@@ -104,6 +107,36 @@ test("unions criteria across candidates and maps question labels", () => {
   assert.equal(report.rows[1].criteria["Q1"], 7);
   // Candidate a has no score for b's Q2 slot missing — must not invent a score
   assert.equal(report.rows[0].criteria["Q2"], undefined);
+});
+
+test("drops follow-up evaluation entries stored as extra questions", () => {
+  const questions = [{ text: "What is REST?" }, { text: "Explain indexes." }];
+  const report = buildReportRows(
+    "T",
+    [
+      entry({
+        session: {
+          id: "s",
+          status: "COMPLETED",
+          insights: {
+            questionEvaluations: [
+              { question: "Q1: What is REST?", score: 8 },
+              { question: "Q1 follow-up: why stateless?", score: 9 },
+              { question: "Q2: Explain indexes.", score: 5 },
+            ],
+          },
+        },
+      }),
+    ],
+    questions,
+  );
+
+  // The follow-up entry must not become a phantom Q3 column.
+  assert.deepEqual(report.criteriaNames, ["Q1", "Q2"]);
+  assert.equal(report.rows[0].criteria["Q1"], 8);
+  assert.equal(report.rows[0].criteria["Q2"], 5);
+  // (8+5)/2 = 6.5 — the follow-up 9 must not inflate the score.
+  assert.equal(report.rows[0].overallScore, 6.5);
 });
 
 test("ignores malformed insights and falls back to participant names", () => {
