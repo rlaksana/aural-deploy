@@ -111,6 +111,23 @@ test("genuine end requests at the tail of longer utterances are still detected",
   );
 });
 
+test("indonesian answers mentioning finished work do not end the interview", () => {
+  // Regression: bare "sudah selesai"/"itu saja" occur inside real answers and
+  // used to cut interviews off mid-answer, unrecoverably.
+  const answers = [
+    "Saya membangun fitur pembayaran, setelah tiga sprint fitur tersebut sudah selesai dan dirilis",
+    "Arsitekturnya microservices, untuk monitoring saja itu saja yang paling menantang",
+    "Proyek terakhir saya sudah selesai dikerjakan bulan lalu bersama tim backend",
+  ];
+  for (const text of answers) {
+    assert.equal(isUserEndRequest(text), false, `should not end on: "${text}"`);
+  }
+  // Explicit interview-scoped closers still end the session.
+  assert.equal(isUserEndRequest("sudah selesai wawancara"), true);
+  assert.equal(isUserEndRequest("sampai jumpa"), true);
+  assert.equal(isUserEndRequest("terima kasih untuk waktunya"), true);
+});
+
 test("explicit next-question requests still count as skip intent", () => {
   assert.equal(isUserSkipRequest("Let's move on to the next question."), true);
   assert.equal(isUserEndRequest("Let's move on to the next question."), false);

@@ -3,7 +3,14 @@ import { NextResponse } from "next/server";
 
 export async function POST(request: Request) {
   try {
-    const { newPassword } = await request.json();
+    const { nonce, newPassword } = await request.json();
+
+    if (!nonce) {
+      return NextResponse.json(
+        { error: "Verification code is required" },
+        { status: 400 },
+      );
+    }
 
     if (!newPassword) {
       return NextResponse.json(
@@ -28,7 +35,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
     }
 
+    // updateUser with a nonce consumes the reauthentication code and fails
+    // when it is invalid, so a hijacked session cannot rotate the password
+    // without the emailed code (same guard as delete-account).
     const { error } = await supabase.auth.updateUser({
+      nonce,
       password: newPassword,
     });
 

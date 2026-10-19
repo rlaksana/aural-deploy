@@ -5,6 +5,7 @@ import { buildSummaryPrompt } from "@/lib/ai/prompts/summary";
 import { getProvider, REPORT_MODEL } from "@/lib/ai/registry";
 import { getAuthUser } from "@/lib/auth";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { completeQuestionEvaluations } from "@/lib/session-score";
 import { NextResponse } from "next/server";
 
 const log = createLogger("api/ai/summarize");
@@ -156,7 +157,11 @@ export async function POST(req: Request) {
       insightsData.criteriaEvaluations = parsed.criteriaEvaluations;
     }
     if (parsed.questionEvaluations) {
-      insightsData.questionEvaluations = parsed.questionEvaluations;
+      insightsData.questionEvaluations = completeQuestionEvaluations(
+        parsed.questionEvaluations as unknown[],
+        interview.questions,
+        interview.language,
+      );
     }
     if (parsed.researchFindings) {
       insightsData.researchFindings = parsed.researchFindings;

@@ -19,7 +19,7 @@
  *
  * Usage:  npx tsx server/voice-relay.ts
  */
-import { randomUUID } from "crypto";
+import { createHmac, randomUUID, timingSafeEqual } from "crypto";
 import { config } from "dotenv";
 import { WebSocket, WebSocketServer } from "ws";
 import { maxFollowUpsForDepth } from "../src/lib/follow-up-depth";
@@ -67,6 +67,28 @@ process.on("unhandledRejection", (reason) => {
 // ── Configuration ───────────────────────────────────────────────────
 
 const RELAY_PORT = Number(process.env.VOICE_RELAY_PORT) || 8766;
+// Shared with the web app (/api/voice/relay-ticket mints the tickets). Unset
+// keeps the legacy open posture — set it in any deployment reachable from the
+// internet or the relay is a free billable ASR/TTS/LLM oracle.
+const RELAY_TICKET_SECRET = process.env.VOICE_RELAY_SECRET?.trim() || "";
+
+/** Verify "<id>.<expMs>.<hmacsha256>" tickets minted by /api/voice/relay-ticket. */
+function verifyRelayTicket(ticket: unknown): boolean {
+  if (!RELAY_TICKET_SECRET) return true;
+  if (typeof ticket !== "string") return false;
+  const sigStart = ticket.lastIndexOf(".");
+  const idEnd = ticket.lastIndexOf(".", sigStart - 1);
+  if (idEnd <= 0) return false;
+  const id = ticket.slice(0, idEnd);
+  const expMs = Number(ticket.slice(idEnd + 1, sigStart));
+  const sig = ticket.slice(sigStart + 1);
+  if (!Number.isSafeInteger(expMs) || expMs < Date.now() || !/^[0-9a-f]{64}$/.test(sig)) {
+    return false;
+  }
+  const expected = createHmac("sha256", RELAY_TICKET_SECRET).update(`${id}.${expMs}`).digest();
+  const given = Buffer.from(sig, "hex");
+  return given.length === expected.length && timingSafeEqual(given, expected);
+}
 
 // ASR config — MiniMax one-shot speech_to_text (local VAD endpointing)
 const MINIMAX_VOICE = resolveMiniMaxVoiceConfig();
@@ -715,6 +737,14 @@ async function summarizeQuestion(
 // ── Relay server ────────────────────────────────────────────────────
 
 const wss = new WebSocketServer({ port: RELAY_PORT });
+// An unhandled 'error' on the server or a socket crashes the whole process —
+// taking every live interview down with it.
+wss.on("error", (err) => log.error("Relay server error:", err));
+log.info(
+  RELAY_TICKET_SECRET
+    ? "Relay auth: HMAC tickets required"
+    : "Relay auth: DISABLED (set VOICE_RELAY_SECRET) — open relay",
+);
 log.info(`ASR: MiniMax one-shot (${MINIMAX_VOICE.baseUrl}), auth=Bearer(${MINIMAX_VOICE.apiKey.slice(0, 8)}...)`);
 log.info(`ASR VAD: end_window=${ASR_END_WINDOW_MS}ms, min_speech=${ASR_MIN_SPEECH_MS}ms, rms_threshold=${ASR_AUDIO_ACTIVITY_RMS_THRESHOLD}`);
 log.info(`ASR final coalescing: normal=${ASR_FINAL_COALESCE_MS}ms, long=${ASR_LONG_FINAL_COALESCE_MS}ms, quiet=${ASR_PENDING_FINAL_QUIET_MS}ms, active_speech_hold=${ASR_ACTIVE_SPEECH_HOLD_MS}ms, max_active_hold=${ASR_MAX_ACTIVE_SPEECH_HOLD_MS}ms`);
@@ -729,6 +759,7 @@ log.info(`Listening on ws://localhost:${RELAY_PORT}`);
 
 wss.on("connection", (browserWs) => {
   log.info("Browser connected, waiting for init...");
+  browserWs.on("error", (err) => log.error("Socket error before init:", err));
 
   const timeout = setTimeout(() => {
     log.error("No init message received within 10s");
@@ -739,10 +770,22 @@ wss.on("connection", (browserWs) => {
     try {
       const msg = JSON.parse(data.toString());
       if (msg.type === "mic_test") {
+        if (!verifyRelayTicket(msg.relayTicket)) {
+          clearTimeout(timeout);
+          log.warn("mic_test rejected: invalid relay ticket");
+          browserWs.close();
+          return;
+        }
         clearTimeout(timeout);
         browserWs.removeListener("message", handler);
         handleMicTestConnection(browserWs, typeof msg.language === "string" ? msg.language : undefined);
       } else if (msg.type === "init" && msg.context) {
+        if (!verifyRelayTicket((msg.context as { relayTicket?: unknown }).relayTicket)) {
+          clearTimeout(timeout);
+          log.warn("init rejected: invalid relay ticket");
+          browserWs.close();
+          return;
+        }
         clearTimeout(timeout);
         browserWs.removeListener("message", handler);
         handleBrowserConnection(browserWs, msg.context as InterviewContext);
@@ -758,6 +801,7 @@ wss.on("connection", (browserWs) => {
 
 async function handleMicTestConnection(browserWs: WebSocket, language?: string) {
   log.info("Mic test mode");
+  browserWs.on("error", (err) => log.error("Mic test socket error:", err));
 
   let vadActive = false;
   const vadChunks: Buffer[] = [];

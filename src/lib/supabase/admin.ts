@@ -7,6 +7,11 @@ async function fetchWithRetry(
   url: RequestInfo | URL,
   init?: RequestInit,
 ): Promise<Response> {
+  // Retry only idempotent requests — a retried INSERT that actually reached
+  // the server duplicates the row.
+  if ((init?.method ?? "GET").toUpperCase() !== "GET") {
+    return fetch(url, init);
+  }
   let lastError: unknown;
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     try {

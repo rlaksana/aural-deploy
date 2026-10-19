@@ -195,9 +195,15 @@ async function run(sessionId: string): Promise<void> {
         summary: String(parsed.summary ?? ""),
         themes: (parsed.themes as string[]) ?? [],
         sentiment: parsed.sentiment ?? null,
-        insights: insightsData,
       })
       .eq("id", sessionId);
+
+    // Merge (not overwrite) so quiz grades written by another serverless
+    // instance during the LLM call are not silently dropped.
+    await supabaseAdmin.rpc("merge_session_insights", {
+      p_session_id: sessionId,
+      p_insights: insightsData,
+    });
 
     const themeCount = Array.isArray(parsed.themes) ? parsed.themes.length : 0;
     const qEvalCount = questionEvaluations?.length ?? 0;
@@ -207,5 +213,15 @@ async function run(sessionId: string): Promise<void> {
     );
   } catch (error) {
     log.error(`Summary generation failed for session ${sessionId}:`, error);
+    // Best-effort marker so a backfill can find permanently failed summaries;
+    // a second-order failure here must not mask the original error path.
+    try {
+      await supabaseAdmin.rpc("merge_session_insights", {
+        p_session_id: sessionId,
+        p_insights: { summaryFailedAt: new Date().toISOString() },
+      });
+    } catch {
+      // ignore — the marker is diagnostic only
+    }
   }
 }

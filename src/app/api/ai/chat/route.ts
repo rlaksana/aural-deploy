@@ -5,6 +5,7 @@ import { resolveChoiceQuestionFlow } from "@/lib/choice-question-flow";
 import { resolveDeterministicFlow } from "@/lib/deterministic-flow";
 import { createLogger } from "@/lib/logger";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { sessionTokenValid } from "@/lib/session-access";
 import { NextResponse } from "next/server";
 
 const log = createLogger("api/ai/chat");
@@ -13,8 +14,15 @@ const MOVE_ON_PATTERN =
   /\b(next\s*question|move\s*on|skip\s*(this|it)?|next\s*one|let'?s\s*(move|continue)\s*(on|forward)?)\b/i;
 
 export async function POST(req: Request) {
-  const { sessionId, interviewId, messages, currentQuestionIndex, manualNavigation } =
+  const { sessionId, interviewId, messages, currentQuestionIndex, manualNavigation, sessionToken } =
     await req.json();
+
+  if (
+    typeof sessionId === "string" &&
+    !(await sessionTokenValid(supabaseAdmin, sessionId, sessionToken))
+  ) {
+    return NextResponse.json({ error: "Invalid session token" }, { status: 403 });
+  }
 
   try {
     const { data: interview } = await supabaseAdmin
@@ -182,12 +190,16 @@ export async function POST(req: Request) {
       }
     }
 
-    await supabaseAdmin.from("messages").insert({
-      sessionId,
-      role: "ASSISTANT" as const,
-      content: cleanContent,
-      wordCount: cleanContent.split(/\s+/).length,
-    });
+    // An empty reply carries no transcript value and would trip the
+    // summary's non-empty-transcript guard.
+    if (cleanContent && typeof sessionId === "string") {
+      await supabaseAdmin.from("messages").insert({
+        sessionId,
+        role: "ASSISTANT" as const,
+        content: cleanContent,
+        wordCount: cleanContent.split(/\s+/).length,
+      });
+    }
 
     if (questionAdvanced) {
       const nextIndex = (currentQuestionIndex ?? 0) + 1;

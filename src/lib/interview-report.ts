@@ -179,10 +179,17 @@ export function buildReportRows(
 export async function fetchReportEntries(
   supabase: SupabaseClient,
   interviewId: string,
+  /** Survey aggregates read transcript messages; interview reports never do,
+   *  and skipping the embed saves megabytes on large interviews. */
+  opts?: { includeMessages?: boolean },
 ): Promise<ReportEntry[]> {
+  const includeMessages = opts?.includeMessages ?? true;
+  const sessionEmbed = includeMessages
+    ? "*, messages(role, content, questionId)"
+    : "*";
   const { data: candidateData } = await supabase
     .from("candidates")
-    .select("name, email, session:sessions(*, messages(role, content, questionId))")
+    .select(`name, email, session:sessions(${sessionEmbed})`)
     .eq("interviewId", interviewId)
     .order("createdAt", { ascending: false });
 
@@ -199,7 +206,7 @@ export async function fetchReportEntries(
 
   const walkInQuery = supabase
     .from("sessions")
-    .select("*, messages(role, content, questionId)")
+    .select(sessionEmbed)
     .eq("interviewId", interviewId);
 
   const walkInSessions = linkedSessionIds.length
@@ -213,7 +220,7 @@ export async function fetchReportEntries(
       source: "Invited" as const,
       session: c.session,
     })),
-    ...((walkInSessions ?? []) as SessionLike[]).map((s) => ({
+    ...((walkInSessions ?? []) as unknown as SessionLike[]).map((s) => ({
       name: s?.participantName ?? null,
       email: s?.participantEmail ?? null,
       source: "Walk-in" as const,

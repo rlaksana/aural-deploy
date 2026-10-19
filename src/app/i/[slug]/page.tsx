@@ -15,6 +15,7 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
 const STORAGE_PREFIX = "aural_session_";
+const TOKEN_PREFIX = "aural_token_";
 
 // Known session-create server errors, translated client-side; unknown messages pass through unchanged.
 const CREATE_SESSION_ERRORS: Record<string, { zh: string; en: string; id?: string }> = {
@@ -56,18 +57,20 @@ export default function PublicInterviewPage() {
 
   // ── Existing session detection ─────────────────────────────────
   const [storedSessionId, setStoredSessionId] = useState<string | null>(null);
+  const [storedToken, setStoredToken] = useState<string | null>(null);
 
   useEffect(() => {
     try {
       const stored = localStorage.getItem(STORAGE_PREFIX + slug);
       if (stored) setStoredSessionId(stored);
+      setStoredToken(localStorage.getItem(TOKEN_PREFIX + slug));
     } catch {
       // localStorage may be unavailable
     }
   }, [slug]);
 
   const existingSession = trpc.session.getById.useQuery(
-    { id: storedSessionId! },
+    { id: storedSessionId!, sessionToken: storedToken ?? undefined },
     { enabled: !!storedSessionId, retry: false },
   );
 
@@ -113,6 +116,9 @@ export default function PublicInterviewPage() {
   const createSession = trpc.session.create.useMutation({
     onSuccess: (data) => {
       try { localStorage.setItem(STORAGE_PREFIX + slug, data.sessionId); } catch { /* noop */ }
+      if (data.sessionToken) {
+        try { localStorage.setItem(TOKEN_PREFIX + slug, data.sessionToken); } catch { /* noop */ }
+      }
       goToSession(data.sessionId);
     },
     onError: (err) => {
@@ -144,8 +150,12 @@ export default function PublicInterviewPage() {
   }, [existingSession.data, storedSessionId, goToSession]);
 
   const handleStartNew = useCallback(() => {
-    try { localStorage.removeItem(STORAGE_PREFIX + slug); } catch { /* noop */ }
+    try {
+      localStorage.removeItem(STORAGE_PREFIX + slug);
+      localStorage.removeItem(TOKEN_PREFIX + slug);
+    } catch { /* noop */ }
     setStoredSessionId(null);
+    setStoredToken(null);
   }, [slug]);
 
   if (isPreview && sidParam) {

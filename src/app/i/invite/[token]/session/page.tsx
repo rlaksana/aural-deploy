@@ -37,6 +37,12 @@ export default function InviteSessionPage() {
   >();
   const [onboardingDone, setOnboardingDone] = useState(false);
 
+  // Stored by the invite landing page when the session was created (new sessions only; legacy have none).
+  const [sessionToken, setSessionToken] = useState<string | null>(null);
+  useEffect(() => {
+    try { setSessionToken(localStorage.getItem("aural_token_invite_" + token)); } catch { /* noop */ }
+  }, [token]);
+
   const handleComplete = (reason?: SessionEndReasonInput) => {
     setCompletionReason(normalizeSessionEndReason(reason));
     setCompleted(true);
@@ -123,10 +129,11 @@ export default function InviteSessionPage() {
 
     return (
       <>
-        <AntiCheatingGuard enabled={!!interview.antiCheatingEnabled} sessionId={session.id} language={interview.language} />
+        <AntiCheatingGuard enabled={!!interview.antiCheatingEnabled} sessionId={session.id} sessionToken={sessionToken} language={interview.language} />
         <VoiceInterface
           sessionId={session.id}
           interviewId={interview.id}
+          sessionToken={sessionToken}
           interviewTitle={interview.title}
           aiName={interview.aiName}
           questionCount={interview.questions.length}
@@ -144,9 +151,10 @@ export default function InviteSessionPage() {
 
   return (
     <>
-      <AntiCheatingGuard enabled={!!interview.antiCheatingEnabled} sessionId={session.id} />
+      <AntiCheatingGuard enabled={!!interview.antiCheatingEnabled} sessionId={session.id} sessionToken={sessionToken} />
       <ChatInterface
         sessionId={session.id}
+        sessionToken={sessionToken}
         interview={{
           ...interview,
           questions: interview.questions.map((q: any) => ({

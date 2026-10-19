@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createLogger } from "@/lib/logger";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { sessionTokenValid } from "@/lib/session-access";
 import { generateSessionSummary } from "@/lib/ai/session-summary";
 import {
   handleVoiceSave,
@@ -102,6 +103,12 @@ const voiceSaveOps: VoiceSaveOps = {
  */
 export async function POST(req: Request) {
   const payload = (await req.json()) as VoiceSavePayload;
+  if (
+    payload.sessionId &&
+    !(await sessionTokenValid(supabaseAdmin, payload.sessionId, payload.sessionToken))
+  ) {
+    return NextResponse.json({ error: "Invalid session token" }, { status: 403 });
+  }
   const result = await handleVoiceSave(payload, voiceSaveOps);
   return NextResponse.json(result.body, { status: result.status });
 }

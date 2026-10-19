@@ -73,9 +73,13 @@ export default function SlugSessionPage() {
     try { return localStorage.getItem(STORAGE_PREFIX + slug); } catch { return null; }
   }, [sidParam, slug]);
 
+  const sessionToken = useMemo(() => {
+    try { return localStorage.getItem("aural_token_" + slug); } catch { return null; }
+  }, [slug]);
+
   const interview = trpc.interview.getBySlug.useQuery({ slug }, { retry: false });
   const session = trpc.session.getById.useQuery(
-    { id: sessionId! },
+    { id: sessionId!, sessionToken: sessionToken ?? undefined },
     { enabled: !!sessionId, retry: false },
   );
 
@@ -213,10 +217,11 @@ export default function SlugSessionPage() {
 
     return (
       <>
-        <AntiCheatingGuard enabled={antiCheatingEnabled} sessionId={sessionId!} language={interview.data.language} />
+        <AntiCheatingGuard enabled={antiCheatingEnabled} sessionId={sessionId!} sessionToken={sessionToken} language={interview.data.language} />
         <VoiceInterface
           sessionId={sessionId!}
           interviewId={interview.data.id}
+          sessionToken={sessionToken}
           interviewTitle={interview.data.title}
           aiName={interview.data.aiName}
           questionCount={interview.data.questions.length}
@@ -234,9 +239,10 @@ export default function SlugSessionPage() {
 
   return (
     <>
-      <AntiCheatingGuard enabled={antiCheatingEnabled} sessionId={sessionId!} />
+      <AntiCheatingGuard enabled={antiCheatingEnabled} sessionId={sessionId!} sessionToken={sessionToken} />
       <ChatInterface
         sessionId={sessionId!}
+        sessionToken={sessionToken}
         interview={{
           ...interview.data,
           questions: interview.data.questions.map((q: any) => ({

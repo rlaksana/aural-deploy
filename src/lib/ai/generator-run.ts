@@ -35,16 +35,21 @@ export async function* streamGeneratorWithFallback(
     ? [params.model, ...getGeneratorModelChain().filter((m) => m !== params.model)]
     : getGeneratorModelChain();
   let lastError: unknown;
+  let yielded = false;
 
   for (let i = 0; i < models.length; i++) {
     const model = models[i]!;
     const provider = getProvider(model);
     try {
       for await (const chunk of provider.streamResponse({ ...params, model })) {
+        yielded = true;
         yield chunk;
       }
       return;
     } catch (err) {
+      // A partial stream already reached the client — falling back now would
+      // concatenate two responses into one unparseable output.
+      if (yielded) throw err;
       lastError = err;
       const hasFallback = i < models.length - 1;
       if (hasFallback) {

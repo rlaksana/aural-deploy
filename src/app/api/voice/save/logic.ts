@@ -1,5 +1,6 @@
 export type VoiceSavePayload = {
   sessionId?: string;
+  sessionToken?: string;
   messages?: Array<{
     role: string;
     content: string;

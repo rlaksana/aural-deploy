@@ -5,8 +5,54 @@ import { TRPCError } from "@trpc/server";
 import { after } from "next/server";
 import { z } from "zod";
 import { filterAccessibleProjectIds, hasProjectAccess, protectedProcedure, publicProcedure, router } from "../trpc";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 const log = createLogger("router/session");
+
+/**
+ * Anonymous interviewees authorize access with the per-session accessToken
+ * minted at creation (migrations/013). An authenticated dashboard user with
+ * project access is accepted without a token, and sessions created before the
+ * column existed keep the legacy id-as-capability posture instead of breaking
+ * in-flight interviews on deploy.
+ */
+async function requireSessionAccess(
+  supabase: SupabaseClient,
+  user: { id: string } | null | undefined,
+  sessionId: string,
+  token: string | undefined | null,
+): Promise<void> {
+  const { data: session } = await supabase
+    .from("sessions")
+    .select("accessToken, interview:interviews!inner(projectId)")
+    .eq("id", sessionId)
+    .single();
+
+  if (!session) {
+    throw new TRPCError({ code: "NOT_FOUND" });
+  }
+
+  const row = session as unknown as {
+    accessToken?: string | null;
+    interview?: { projectId: string } | null;
+  };
+
+  if (user && row.interview?.projectId) {
+    if (await hasProjectAccess(supabase, row.interview.projectId, user.id)) {
+      return;
+    }
+  }
+
+  if (row.accessToken && row.accessToken !== token) {
+    throw new TRPCError({ code: "FORBIDDEN", message: "Invalid session token" });
+  }
+}
+
+function rejectTokenMismatch(stored: string | null | undefined, token: string | undefined | null): void {
+  if (stored && stored !== token) {
+    throw new TRPCError({ code: "FORBIDDEN", message: "Invalid session token" });
+  }
+}
 
 export const sessionRouter = router({
   create: publicProcedure
@@ -82,9 +128,9 @@ export const sessionRouter = router({
         });
       }
 
-      const session = sessionJson as { id: string };
+      const session = sessionJson as { id: string; accessToken?: string | null };
 
-      return { sessionId: session.id, interview };
+      return { sessionId: session.id, sessionToken: session.accessToken ?? null, interview };
     }),
 
   createPreview: protectedProcedure
@@ -180,8 +226,8 @@ export const sessionRouter = router({
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: error.message });
       }
 
-      const session = sessionJson as { id: string };
-      return { sessionId: session.id, slug: interview.publicSlug };
+      const session = sessionJson as { id: string; accessToken?: string | null };
+      return { sessionId: session.id, slug: interview.publicSlug, sessionToken: session.accessToken ?? null };
     }),
 
   createFromInvite: publicProcedure
@@ -215,7 +261,12 @@ export const sessionRouter = router({
           .single();
 
         if (existingSession) {
-          return { sessionId: existingSession.id, interview, isExisting: true };
+          return {
+            sessionId: existingSession.id,
+            interview,
+            isExisting: true,
+            sessionToken: (existingSession as { accessToken?: string | null }).accessToken ?? null,
+          };
         }
       }
 
@@ -242,12 +293,12 @@ export const sessionRouter = router({
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: error.message });
       }
 
-      const session = sessionJson as { id: string };
-      return { sessionId: session.id, interview, isExisting: false };
+      const session = sessionJson as { id: string; accessToken?: string | null };
+      return { sessionId: session.id, interview, isExisting: false, sessionToken: session.accessToken ?? null };
     }),
 
   getById: publicProcedure
-    .input(z.object({ id: z.string() }))
+    .input(z.object({ id: z.string(), sessionToken: z.string().optional() }))
     .query(async ({ ctx, input }) => {
       const { data: session } = await ctx.supabase
         .from("sessions")
@@ -265,6 +316,10 @@ export const sessionRouter = router({
       if (!session) {
         throw new TRPCError({ code: "NOT_FOUND" });
       }
+      rejectTokenMismatch(
+        (session as { accessToken?: string | null }).accessToken,
+        input.sessionToken,
+      );
 
       return session;
     }),
@@ -279,9 +334,12 @@ export const sessionRouter = router({
           .default("TEXT"),
         questionId: z.string().optional(),
         internal: z.boolean().optional().default(false),
+        sessionToken: z.string().optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      await requireSessionAccess(ctx.supabase, ctx.user, input.sessionId, input.sessionToken);
+
       const { data: session } = await ctx.supabase
         .from("sessions")
         .select("id, status, startedAt, lastActivityAt, activitySegments, interviewId")
@@ -331,9 +389,12 @@ export const sessionRouter = router({
         label: z.string().optional(),
         snapshotData: z.string(),
         imageDataUrl: z.string().optional(),
+        sessionToken: z.string().optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      await requireSessionAccess(ctx.supabase, ctx.user, input.sessionId, input.sessionToken);
+
       const { data: session } = await ctx.supabase
         .from("sessions")
         .select("id")
@@ -392,9 +453,12 @@ export const sessionRouter = router({
       z.object({
         sessionId: z.string(),
         drawingId: z.string(),
+        sessionToken: z.string().optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      await requireSessionAccess(ctx.supabase, ctx.user, input.sessionId, input.sessionToken);
+
       await ctx.supabase
         .from("messages")
         .delete()
@@ -412,9 +476,12 @@ export const sessionRouter = router({
         snippetId: z.string(),
         label: z.string().optional(),
         snapshotData: z.string(),
+        sessionToken: z.string().optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      await requireSessionAccess(ctx.supabase, ctx.user, input.sessionId, input.sessionToken);
+
       const { data: session } = await ctx.supabase
         .from("sessions")
         .select("id")
@@ -471,9 +538,12 @@ export const sessionRouter = router({
       z.object({
         sessionId: z.string(),
         snippetId: z.string(),
+        sessionToken: z.string().optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      await requireSessionAccess(ctx.supabase, ctx.user, input.sessionId, input.sessionToken);
+
       await ctx.supabase
         .from("messages")
         .delete()
@@ -489,9 +559,12 @@ export const sessionRouter = router({
       z.object({
         sessionId: z.string(),
         questionId: z.string(),
+        sessionToken: z.string().optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      await requireSessionAccess(ctx.supabase, ctx.user, input.sessionId, input.sessionToken);
+
       await ctx.supabase
         .from("sessions")
         .update({
@@ -503,8 +576,10 @@ export const sessionRouter = router({
     }),
 
   complete: publicProcedure
-    .input(z.object({ id: z.string() }))
+    .input(z.object({ id: z.string(), sessionToken: z.string().optional() }))
     .mutation(async ({ ctx, input }) => {
+      await requireSessionAccess(ctx.supabase, ctx.user, input.id, input.sessionToken);
+
       const { data: session } = await ctx.supabase
         .from("sessions")
         .select(
@@ -603,9 +678,12 @@ export const sessionRouter = router({
           timestamp: z.number(),
           detail: z.string().optional(),
         }),
+        sessionToken: z.string().optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      await requireSessionAccess(ctx.supabase, ctx.user, input.sessionId, input.sessionToken);
+
       const { data: session } = await ctx.supabase
         .from("sessions")
         .select("antiCheatingLog")
@@ -776,9 +854,12 @@ export const sessionRouter = router({
             }),
           )
           .optional(),
+        sessionToken: z.string().optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      await requireSessionAccess(ctx.supabase, ctx.user, input.sessionId, input.sessionToken);
+
       const updateData: Record<string, unknown> = {};
       if (input.audioRecordingUrl) {
         updateData.audioRecordingUrl = input.audioRecordingUrl;

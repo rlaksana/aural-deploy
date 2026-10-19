@@ -1,16 +1,24 @@
+import { createHash } from "crypto";
 import { z } from "zod";
 import { router, protectedProcedure } from "../trpc";
 import { nanoid } from "@/lib/id";
 import { TRPCError } from "@trpc/server";
 
+/** Only the SHA-256 of a key is stored; the raw key is shown once at creation. */
+function hashKey(key: string): string {
+  return createHash("sha256").update(key).digest("hex");
+}
+
 export const apiKeyRouter = router({
   list: protectedProcedure.query(async ({ ctx }) => {
     const { data } = await ctx.supabase
       .from("api_keys")
-      .select("id, name, key, isActive, lastUsedAt, expiresAt, createdAt")
+      .select("id, name, keyPrefix, isActive, lastUsedAt, expiresAt, createdAt")
       .eq("userId", ctx.user.id)
       .order("createdAt", { ascending: false });
-    return data ?? [];
+    // Keep the historical `key` field name so the UI keeps working — it now
+    // carries the display prefix instead of the full secret.
+    return (data ?? []).map((k) => ({ ...k, key: k.keyPrefix ?? "" }));
   }),
 
   create: protectedProcedure
@@ -28,14 +36,15 @@ export const apiKeyRouter = router({
         .insert({
           userId: ctx.user.id,
           name: input.name,
-          key,
+          key: hashKey(key),
+          keyPrefix: key.slice(0, 12),
           expiresAt: input.expiresAt ?? null,
         })
-        .select("id, key")
+        .select("id")
         .single();
 
       if (error) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: error.message });
-      return apiKey;
+      return { id: apiKey.id, key };
     }),
 
   revoke: protectedProcedure

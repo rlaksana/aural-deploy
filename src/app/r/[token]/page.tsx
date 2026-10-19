@@ -52,17 +52,23 @@ export default async function PublicReportPage({
     .order("order", { referencedTable: "questions", ascending: true })
     .single();
 
-  const entries = await fetchReportEntries(supabaseAdmin, interviewId);
+  // Public share link: strip candidate contact details — a forwarded link
+  // must not leak the roster's emails. Owner views use the tRPC report router.
+  const row = interviewRow as unknown as
+    | (InterviewKindRow & { aiAnalysis?: { text: string; generatedAt: string } | null })
+    | null;
+  const isInterviewKind = (row?.kind ?? "INTERVIEW") === "INTERVIEW";
+  const entries = (
+    await fetchReportEntries(supabaseAdmin, interviewId, {
+      includeMessages: !isInterviewKind,
+    })
+  ).map((entry) => ({ ...entry, email: null, participantEmail: null }));
   const report = buildReportRows(
     interviewRow?.title ?? "Interview",
     entries,
     (interviewRow as { questions?: unknown[] } | null)?.questions?.length,
   );
 
-  const row = interviewRow as unknown as
-    | (InterviewKindRow & { aiAnalysis?: { text: string; generatedAt: string } | null })
-    | null;
-  const isInterviewKind = (row?.kind ?? "INTERVIEW") === "INTERVIEW";
   let aggregate = undefined;
   if (!isInterviewKind) {
     // Public-safe aggregate: tallies, averages, and correct rates only —

@@ -22,7 +22,10 @@ export default function InvitePage() {
   );
 
   const createSession = trpc.session.createFromInvite.useMutation({
-    onSuccess: () => {
+    onSuccess: (data) => {
+      if (data.sessionToken) {
+        try { localStorage.setItem("aural_token_invite_" + token, data.sessionToken); } catch { /* noop */ }
+      }
       goToSession();
     },
   });

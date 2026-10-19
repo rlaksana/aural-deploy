@@ -31,6 +31,7 @@ Kumpulkan semua item ini **sebelum** mulai. Tanpa item bertanda **(wajib)** depl
 | Supabase project | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` (ambil dari dashboard Supabase → Settings → API) | ✅ |
 | Supabase schema | Project sudah termigrasi (`npx supabase db push` dari workstation) + bucket Storage **`recordings`** sudah dibuat | ✅ |
 | MiniMax API key | `MINIMAX_API_KEY` — dipakai semua LLM + voice ASR/TTS. Relay menolak start tanpa ini | ✅ |
+| Relay auth secret | `VOICE_RELAY_SECRET` — string acak (mis. `openssl rand -hex 32`) di `.env` server. Web app (menerbitkan tiket via `/api/voice/relay-ticket`) dan voice-relay (memverifikasi) membaca variabel yang sama. Tanpa ini relay terbuka bagi siapa pun yang bisa menjangkau `/ws/voice` | ✅ |
 | Akses clone repo | Repo public: `https://github.com/1146345502/aural-oss.git` | ✅ |
 
 ### D. Operator (laptop yang menjalankan deploy)

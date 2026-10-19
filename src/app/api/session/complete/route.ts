@@ -7,6 +7,7 @@ import {
 import { generateSessionSummary } from "@/lib/ai/session-summary";
 import { createLogger } from "@/lib/logger";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { sessionTokenValid } from "@/lib/session-access";
 import { NextResponse, after } from "next/server";
 
 const log = createLogger("api/session/complete");
@@ -17,6 +18,9 @@ export async function POST(req: Request) {
     const sessionId = body?.sessionId;
     if (!sessionId) {
       return NextResponse.json({ error: "Missing sessionId" }, { status: 400 });
+    }
+    if (!(await sessionTokenValid(supabaseAdmin, sessionId, body?.sessionToken))) {
+      return NextResponse.json({ error: "Invalid session token" }, { status: 403 });
     }
 
     const { data: session } = await supabaseAdmin

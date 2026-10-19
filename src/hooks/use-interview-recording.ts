@@ -24,6 +24,7 @@ export interface ScreenshotEntry {
 interface UseInterviewRecordingOptions {
   sessionId: string;
   enabled: boolean;
+  sessionToken?: string | null;
   screenshotIntervalMs?: number;
 }
 
@@ -88,6 +89,7 @@ function resolveBlobDuration(blob: Blob): Promise<number | undefined> {
 export function useInterviewRecording({
   sessionId,
   enabled,
+  sessionToken,
   screenshotIntervalMs = 60_000,
 }: UseInterviewRecordingOptions) {
   const [isRecording, setIsRecording] = useState(false);
@@ -251,6 +253,7 @@ export function useInterviewRecording({
         const form = new FormData();
         form.append("file", blob, filename);
         form.append("sessionId", sessionId);
+        if (sessionToken) form.append("sessionToken", sessionToken);
         form.append("type", "screenshot");
         form.append("filename", filename);
 
@@ -273,7 +276,7 @@ export function useInterviewRecording({
         log.error("Screenshot upload failed:", err);
       }
     },
-    [sessionId],
+    [sessionId, sessionToken],
   );
 
   /** Take screenshots from both camera and screen streams. */
@@ -413,6 +416,7 @@ export function useInterviewRecording({
           const form = new FormData();
           form.append("file", audioBlob, fname);
           form.append("sessionId", sessionId);
+          if (sessionToken) form.append("sessionToken", sessionToken);
           form.append("type", "recording");
           form.append("filename", fname);
 
@@ -467,7 +471,7 @@ export function useInterviewRecording({
       audioDuration,
       screenshots: screenshotsRef.current,
     };
-  }, [sessionId, takeScreenshots]);
+  }, [sessionId, sessionToken, takeScreenshots]);
 
   // Cleanup on unmount
   useEffect(() => {

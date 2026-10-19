@@ -1,3 +1,4 @@
+import { createHash } from "crypto";
 import { checkRateLimit } from "@/lib/api-rate-limit";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { filterAccessibleProjectIds } from "@/server/trpc";
@@ -26,11 +27,13 @@ export async function validateApiKey(
   }
 
   const key = auth.slice(7);
+  // Keys are stored hashed (migrations/014) — look up by digest.
+  const keyHash = createHash("sha256").update(key).digest("hex");
 
   const { data: apiKey } = await supabaseAdmin
     .from("api_keys")
     .select("userId, isActive, expiresAt")
-    .eq("key", key)
+    .eq("key", keyHash)
     .single();
 
   if (!apiKey || !apiKey.isActive) {
@@ -47,13 +50,13 @@ export async function validateApiKey(
     );
   }
 
-  const rateLimited = checkRateLimit(key);
+  const rateLimited = checkRateLimit(keyHash);
   if (rateLimited) return rateLimited;
 
   supabaseAdmin
     .from("api_keys")
     .update({ lastUsedAt: new Date().toISOString() })
-    .eq("key", key)
+    .eq("key", keyHash)
     .then();
 
   const userId: string = apiKey.userId;

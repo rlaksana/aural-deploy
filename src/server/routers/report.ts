@@ -53,13 +53,12 @@ export const reportRouter = router({
           .maybeSingle(),
       ]);
 
-      const entries = await fetchReportEntries(
-        ctx.supabase,
-        input.interviewId,
-      );
       const row = interviewRow as unknown as
         | (InterviewKindRow & { aiAnalysis?: { text: string; generatedAt: string } | null })
         | null;
+      const entries = await fetchReportEntries(ctx.supabase, input.interviewId, {
+        includeMessages: (row?.kind ?? "INTERVIEW") !== "INTERVIEW",
+      });
       const report = buildReportRows(
         row?.title ?? "Interview",
         entries,
@@ -182,7 +181,10 @@ export const reportRouter = router({
         .single();
 
       const row = interviewRow as unknown as InterviewKindRow | null;
-      const entries = await fetchReportEntries(ctx.supabase, interviewId);
+      const isInterviewKind = (row?.kind ?? "INTERVIEW") === "INTERVIEW";
+      const entries = await fetchReportEntries(ctx.supabase, interviewId, {
+        includeMessages: !isInterviewKind,
+      });
       const report: InterviewReport = buildReportRows(
         row?.title ?? "Interview",
         entries,
@@ -192,7 +194,6 @@ export const reportRouter = router({
       // Non-interview kinds share a public-safe aggregate ONLY: no row table
       // and no textAnswers (open-text answers + respondent names would leak
       // through a public token).
-      const isInterviewKind = (row?.kind ?? "INTERVIEW") === "INTERVIEW";
       const fullAggregate = buildAggregateIfNonInterview(row, entries);
       return {
         report: isInterviewKind ? report : { ...report, rows: [] },

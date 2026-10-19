@@ -80,6 +80,7 @@ const CHAT_NEXT_TRANSITION =
 export function ChatInterface({
   sessionId,
   interview,
+  sessionToken,
   durationMinutes,
   initialMessages,
   initialQuestionIndex,
@@ -88,6 +89,7 @@ export function ChatInterface({
 }: {
   sessionId: string;
   interview: Interview;
+  sessionToken?: string | null;
   durationMinutes?: number;
   initialMessages?: Message[];
   initialQuestionIndex?: number;
@@ -216,6 +218,7 @@ export function ChatInterface({
           const payload = {
             json: {
               sessionId,
+              sessionToken: sessionToken ?? undefined,
               drawingId: active.id,
               label: active.label,
               snapshotData,
@@ -235,6 +238,7 @@ export function ChatInterface({
           const payload = {
             json: {
               sessionId,
+              sessionToken: sessionToken ?? undefined,
               snippetId: activeSnippet.id,
               label: activeSnippet.label,
               snapshotData: codeSnapshot,
@@ -250,7 +254,7 @@ export function ChatInterface({
     return () => {
       window.removeEventListener("beforeunload", handleBeforeUnload);
     };
-  }, [sessionId, preview]);
+  }, [sessionId, sessionToken, preview]);
 
   // ── Coding / Whiteboard question detection ─────────────────────
   const currentQ = interview.questions[currentQuestion];
@@ -481,6 +485,7 @@ export function ChatInterface({
           body: JSON.stringify({
             json: {
               sessionId,
+              sessionToken: sessionToken ?? undefined,
               drawingId: drawing.id,
               label: drawing.label,
               snapshotData,
@@ -492,7 +497,7 @@ export function ChatInterface({
         console.error("[chat] Failed to save whiteboard:", err);
       }
     },
-    [sessionId],
+    [sessionId, sessionToken],
   );
 
   /** Save all drawings that have content (with images for final save). */
@@ -617,7 +622,7 @@ export function ChatInterface({
       fetch("/api/trpc/session.deleteWhiteboard", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ json: { sessionId, drawingId: drawing.id } }),
+        body: JSON.stringify({ json: { sessionId, sessionToken: sessionToken ?? undefined, drawingId: drawing.id } }),
       }).catch((err) => console.error("[chat] Failed to delete whiteboard:", err));
 
       setDrawings((prev) => prev.filter((_, i) => i !== idx));
@@ -636,7 +641,7 @@ export function ChatInterface({
       }
       lastAutoSave.current = null;
     },
-    [drawings, activeDrawingIdx, sessionId, lang],
+    [drawings, activeDrawingIdx, sessionId, sessionToken, lang],
   );
 
   // ── Save status tracking (whiteboard) ─────────────────────────
@@ -675,6 +680,7 @@ export function ChatInterface({
           body: JSON.stringify({
             json: {
               sessionId,
+              sessionToken: sessionToken ?? undefined,
               snippetId: snippet.id,
               label: snippet.label,
               snapshotData,
@@ -685,7 +691,7 @@ export function ChatInterface({
         console.error("[chat] Failed to save code:", err);
       }
     },
-    [sessionId],
+    [sessionId, sessionToken],
   );
 
   const saveAllCodeSnippets = useCallback(async () => {
@@ -799,7 +805,7 @@ export function ChatInterface({
       fetch("/api/trpc/session.deleteCode", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ json: { sessionId, snippetId: snippet.id } }),
+        body: JSON.stringify({ json: { sessionId, sessionToken: sessionToken ?? undefined, snippetId: snippet.id } }),
       }).catch((err) => console.error("[chat] Failed to delete code:", err));
 
       setCodeSnippets((prev) => prev.filter((_, i) => i !== idx));
@@ -818,7 +824,7 @@ export function ChatInterface({
       }
       lastCodeAutoSave.current = null;
     },
-    [codeSnippets, activeSnippetIdx, sessionId, lang],
+    [codeSnippets, activeSnippetIdx, sessionId, sessionToken, lang],
   );
 
   // ── Code save status tracking ───────────────────────────────────
@@ -862,6 +868,7 @@ export function ChatInterface({
         signal: controller.signal,
         body: JSON.stringify({
           sessionId,
+          sessionToken: sessionToken ?? undefined,
           interviewId: interview.id,
           messages: conversationHistory.map((m) => ({
             role:
@@ -907,7 +914,7 @@ export function ChatInterface({
         await fetch(`/api/trpc/session.complete`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ json: { id: sessionId } }),
+          body: JSON.stringify({ json: { id: sessionId, sessionToken: sessionToken ?? undefined } }),
         });
 
         setTimeout(onComplete, 2000);
@@ -940,11 +947,11 @@ export function ChatInterface({
       await fetch(`/api/trpc/session.complete`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ json: { id: sessionId } }),
+        body: JSON.stringify({ json: { id: sessionId, sessionToken: sessionToken ?? undefined } }),
       });
       onComplete("INTERVIEW_TIME_LIMIT_REACHED");
     })();
-  }, [remainingSeconds, saveAllDrawings, saveAllCodeSnippets, sessionId, onComplete]);
+  }, [remainingSeconds, saveAllDrawings, saveAllCodeSnippets, sessionId, sessionToken, onComplete]);
 
   const handleFinishInterview = useCallback(async () => {
     if (preview || finishing) return;
@@ -954,14 +961,14 @@ export function ChatInterface({
       await fetch(`/api/trpc/session.complete`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ json: { id: sessionId } }),
+        body: JSON.stringify({ json: { id: sessionId, sessionToken: sessionToken ?? undefined } }),
       });
       setFinishDialogOpen(false);
       onComplete();
     } finally {
       setFinishing(false);
     }
-  }, [preview, finishing, saveAllDrawings, saveAllCodeSnippets, sessionId, onComplete]);
+  }, [preview, finishing, saveAllDrawings, saveAllCodeSnippets, sessionId, sessionToken, onComplete]);
 
   async function handleQuestionTransition(direction: "next" | "previous") {
     if (preview || sending || aiTyping) return;
@@ -994,7 +1001,7 @@ export function ChatInterface({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          json: { sessionId, questionId: targetQuestionId },
+          json: { sessionId, sessionToken: sessionToken ?? undefined, questionId: targetQuestionId },
         }),
       }).catch(() => {});
     }
@@ -1017,6 +1024,7 @@ export function ChatInterface({
         body: JSON.stringify({
           json: {
             sessionId,
+            sessionToken: sessionToken ?? undefined,
             content: transitionContent,
             questionId: targetQuestionId,
             internal: true,
@@ -1040,7 +1048,7 @@ export function ChatInterface({
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            json: { sessionId, questionId: prevQuestionId },
+            json: { sessionId, sessionToken: sessionToken ?? undefined, questionId: prevQuestionId },
           }),
         }).catch(() => {});
       }
@@ -1081,6 +1089,7 @@ export function ChatInterface({
         body: JSON.stringify({
           json: {
             sessionId,
+            sessionToken: sessionToken ?? undefined,
             content: userMessage.content,
             questionId: interview.questions[currentQuestion]?.id,
           },

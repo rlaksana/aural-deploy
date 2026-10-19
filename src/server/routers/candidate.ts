@@ -5,6 +5,13 @@ import {
     assertMinRole, filterAccessibleProjectIds,
     getEffectiveProjectRole, getOrgMembership, hasProjectAccess, protectedProcedure, publicProcedure, router, type MemberRole
 } from "../trpc";
+
+// Session columns the candidate lists actually render. `sessions(*)` drags
+// activitySegments/antiCheatingLog/screenshots (large JSON blobs) into every
+// row; add a column here ONLY if a consumer starts using it.
+const SESSION_LIST_COLUMNS =
+  "id, status, modeUsed, insights, summary, startedAt, completedAt, createdAt, updatedAt, totalDurationSeconds, participantName, participantEmail, currentQuestionId";
+
 const candidateFields = z.object({
   name: z.string().min(1),
   email: z.string().email().optional().or(z.literal("")),
@@ -158,7 +165,7 @@ export const candidateRouter = router({
 
       const { data: candidates } = await ctx.supabase
         .from("candidates")
-        .select("*, session:sessions(*)")
+        .select(`*, session:sessions(${SESSION_LIST_COLUMNS})`)
         .eq("interviewId", input.interviewId)
         .order("createdAt", { ascending: false });
 
@@ -168,7 +175,7 @@ export const candidateRouter = router({
 
       let walkInQuery = ctx.supabase
         .from("sessions")
-        .select("*, messages(id)")
+        .select(`${SESSION_LIST_COLUMNS}, messages(id)`)
         .eq("interviewId", input.interviewId)
         .order("createdAt", { ascending: false });
 
@@ -389,14 +396,16 @@ export const candidateRouter = router({
         (userInterviews ?? []).map((i) => [i.id, i.title]),
       );
 
+      // Fetch one past the limit so the page can surface truncation instead
+      // of silently hiding older rows.
       const { data: candidates } = await ctx.supabase
         .from("candidates")
         .select(
-          "*, session:sessions(*), interview:interviews!inner(id, title)",
+          `*, session:sessions(${SESSION_LIST_COLUMNS}), interview:interviews!inner(id, title)`,
         )
         .in("interviewId", interviewIds)
         .order("createdAt", { ascending: false })
-        .limit(input.limit);
+        .limit(input.limit + 1);
 
       const linkedSessionIds = (candidates ?? [])
         .map((c: { sessionId: string | null }) => c.sessionId)
@@ -405,11 +414,11 @@ export const candidateRouter = router({
       let walkInQuery = ctx.supabase
         .from("sessions")
         .select(
-          "*, messages(id), interview:interviews!inner(id, title)",
+          `${SESSION_LIST_COLUMNS}, messages(id), interview:interviews!inner(id, title)`,
         )
         .in("interviewId", interviewIds)
         .order("createdAt", { ascending: false })
-        .limit(input.limit);
+        .limit(input.limit + 1);
 
       if (linkedSessionIds.length > 0) {
         walkInQuery = walkInQuery.not(
@@ -420,7 +429,7 @@ export const candidateRouter = router({
       }
 
       const { data: sessions } = await walkInQuery;
-      const walkInSessions = (sessions ?? []).map(
+      const walkInSessions = (sessions ?? []).slice(0, input.limit).map(
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (s: any) => ({
           ...s,
@@ -429,9 +438,12 @@ export const candidateRouter = router({
       );
 
       return {
-        candidates: candidates ?? [],
+        candidates: (candidates ?? []).slice(0, input.limit),
         walkInSessions,
         interviewMap,
+        truncated:
+          (candidates?.length ?? 0) > input.limit ||
+          (sessions?.length ?? 0) > input.limit,
       };
     }),
 

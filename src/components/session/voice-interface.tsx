@@ -372,6 +372,7 @@ function DraggablePip({ children }: { children: React.ReactNode }) {
 interface VoiceInterfaceProps {
   sessionId: string;
   interviewId: string;
+  sessionToken?: string | null;
   interviewTitle: string;
   aiName: string;
   questionCount: number;
@@ -424,6 +425,7 @@ function localizeVoiceError(message: string, lang: LangKey): string {
 export function VoiceInterface({
   sessionId,
   interviewId,
+  sessionToken,
   interviewTitle,
   aiName,
   interviewContext,
@@ -557,7 +559,7 @@ export function VoiceInterface({
     const handleBeforeUnload = () => {
       navigator.sendBeacon(
         "/api/session/leave",
-        new Blob([JSON.stringify({ sessionId })], { type: "application/json" }),
+        new Blob([JSON.stringify({ sessionId, sessionToken: sessionToken ?? undefined })], { type: "application/json" }),
       );
 
       // Persist any unsent transcript messages
@@ -574,7 +576,7 @@ export function VoiceInterface({
         const wb = whiteboardRef.current;
         const snapshotData = wb?.getSnapshotData() ?? active.snapshotData;
         if (snapshotData) {
-          const payload = { json: { sessionId, drawingId: active.id, label: active.label, snapshotData } };
+          const payload = { json: { sessionId, sessionToken: sessionToken ?? undefined, drawingId: active.id, label: active.label, snapshotData } };
           const blob = new Blob([JSON.stringify(payload)], { type: "application/json" });
           navigator.sendBeacon("/api/trpc/session.saveWhiteboard", blob);
         }
@@ -585,7 +587,7 @@ export function VoiceInterface({
         const ce = codeEditorRef.current;
         const codeSnapshot = ce?.getSnapshotData() ?? activeSnippet.snapshotData;
         if (codeSnapshot) {
-          const payload = { json: { sessionId, snippetId: activeSnippet.id, label: activeSnippet.label, snapshotData: codeSnapshot } };
+          const payload = { json: { sessionId, sessionToken: sessionToken ?? undefined, snippetId: activeSnippet.id, label: activeSnippet.label, snapshotData: codeSnapshot } };
           const blob = new Blob([JSON.stringify(payload)], { type: "application/json" });
           navigator.sendBeacon("/api/trpc/session.saveCode", blob);
         }
@@ -595,7 +597,7 @@ export function VoiceInterface({
     const handlePageHide = () => {
       navigator.sendBeacon(
         "/api/session/leave",
-        new Blob([JSON.stringify({ sessionId })], { type: "application/json" }),
+        new Blob([JSON.stringify({ sessionId, sessionToken: sessionToken ?? undefined })], { type: "application/json" }),
       );
       // Persist any unsent transcript messages
       const msgPayload = getUnsentPayloadRef.current();
@@ -613,7 +615,7 @@ export function VoiceInterface({
       window.removeEventListener("beforeunload", handleBeforeUnload);
       window.removeEventListener("pagehide", handlePageHide);
     };
-  }, [sessionId, preview]);
+  }, [sessionId, sessionToken, preview]);
 
   // ── Draggable divider state (vertical — left/right panels) ──────
   const [rightWidth, setRightWidth] = useState(DEFAULT_RIGHT_WIDTH);
@@ -677,6 +679,7 @@ export function VoiceInterface({
   const recording = useInterviewRecording({
     sessionId,
     enabled: videoMode,
+    sessionToken,
   });
 
   const cameraPipRef = useRef<HTMLVideoElement>(null);
@@ -748,6 +751,7 @@ export function VoiceInterface({
   const voice = useVoice({
     interviewId,
     sessionId,
+    sessionToken,
     interviewContext,
     onTranscript: handleTranscript,
     onAIResponse: handleAIResponse,
@@ -820,6 +824,7 @@ export function VoiceInterface({
           body: JSON.stringify({
             json: {
               sessionId,
+              sessionToken: sessionToken ?? undefined,
               drawingId: drawing.id,
               label: drawing.label,
               snapshotData,
@@ -831,7 +836,7 @@ export function VoiceInterface({
         console.error("[voice] Failed to save whiteboard:", err);
       }
     },
-    [sessionId],
+    [sessionId, sessionToken],
   );
 
   /** Save all drawings that have content (with images for final save). */
@@ -963,7 +968,7 @@ export function VoiceInterface({
       fetch("/api/trpc/session.deleteWhiteboard", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ json: { sessionId, drawingId: drawing.id } }),
+        body: JSON.stringify({ json: { sessionId, sessionToken: sessionToken ?? undefined, drawingId: drawing.id } }),
       }).catch((err) => console.error("[voice] Failed to delete whiteboard:", err));
 
       setDrawings((prev) => prev.filter((_, i) => i !== idx));
@@ -983,7 +988,7 @@ export function VoiceInterface({
       }
       lastAutoSave.current = null;
     },
-    [drawings, activeDrawingIdx, sessionId],
+    [drawings, activeDrawingIdx, sessionId, sessionToken],
   );
 
   // ── Save status tracking ───────────────────────────────────────
@@ -1022,14 +1027,14 @@ export function VoiceInterface({
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            json: { sessionId, snippetId: snippet.id, label: snippet.label, snapshotData },
+            json: { sessionId, sessionToken: sessionToken ?? undefined, snippetId: snippet.id, label: snippet.label, snapshotData },
           }),
         });
       } catch (err) {
         console.error("[voice] Failed to save code:", err);
       }
     },
-    [sessionId],
+    [sessionId, sessionToken],
   );
 
   const saveAllCodeSnippets = useCallback(async () => {
@@ -1124,7 +1129,7 @@ export function VoiceInterface({
       fetch("/api/trpc/session.deleteCode", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ json: { sessionId, snippetId: snippet.id } }),
+        body: JSON.stringify({ json: { sessionId, sessionToken: sessionToken ?? undefined, snippetId: snippet.id } }),
       }).catch((err) => console.error("[voice] Failed to delete code:", err));
       setCodeSnippets((prev) => prev.filter((_, i) => i !== idx));
       if (idx === activeSnippetIdx) {
@@ -1138,7 +1143,7 @@ export function VoiceInterface({
       }
       lastCodeAutoSave.current = null;
     },
-    [codeSnippets, activeSnippetIdx, sessionId],
+    [codeSnippets, activeSnippetIdx, sessionId, sessionToken],
   );
 
   const [codeSaveStatus, setCodeSaveStatus] = useState<"idle" | "saving" | "saved">("saved");
@@ -1305,6 +1310,7 @@ export function VoiceInterface({
               body: JSON.stringify({
                 json: {
                   sessionId,
+                  sessionToken: sessionToken ?? undefined,
                   audioRecordingUrl: result.audioUrl,
                   audioDuration: result.audioDuration,
                   screenshots: result.screenshots,
@@ -1325,7 +1331,7 @@ export function VoiceInterface({
     } finally {
       onComplete?.(normalizedReason);
     }
-  }, [saveAllDrawings, saveAllCodeSnippets, videoMode, recording, sessionId, voice, onComplete]);
+  }, [saveAllDrawings, saveAllCodeSnippets, videoMode, recording, sessionId, sessionToken, voice, onComplete]);
 
   useEffect(() => {
     handleEndInterviewRef.current = handleEndInterview;

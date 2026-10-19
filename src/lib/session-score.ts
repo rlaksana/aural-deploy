@@ -92,14 +92,16 @@ export function getSessionOverallScore(
   totalQuestions?: number,
 ): number | null {
   const evals = insights?.questionEvaluations;
-  if (!Array.isArray(evals) || evals.length === 0) {
-    return averageScore(insights?.criteriaEvaluations);
-  }
   // Unanswered questions count as 0: divide by ALL interview questions, not
   // just the ones that were answered. Without a total, keep the legacy
-  // average-of-answered behavior.
-  if (!totalQuestions || totalQuestions <= 0) return averageScore(evals);
-  return sumScore(evals) / totalQuestions;
+  // average-of-answered behavior, including its criteria fallback when no
+  // evaluation carries a valid score.
+  if (Array.isArray(evals) && evals.length > 0 && totalQuestions && totalQuestions > 0) {
+    return sumScore(evals) / totalQuestions;
+  }
+  const questionScore = averageScore(evals);
+  if (questionScore !== null) return questionScore;
+  return averageScore(insights?.criteriaEvaluations);
 }
 
 export function usesQuestionEvaluationScore(

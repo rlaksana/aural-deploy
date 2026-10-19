@@ -114,8 +114,9 @@ export default async function PublicSessionReportPage({
     },
     interview?.questions?.length,
   );
-  const name =
-    session.participantName || session.participantEmail || "Anonymous";
+  // Public share link: never fall back to the email — a forwarded link must
+  // not leak candidate contact details.
+  const name = session.participantName || "Anonymous";
 
   return (
     <div className="mx-auto min-h-screen w-full max-w-4xl space-y-6 px-4 py-8">

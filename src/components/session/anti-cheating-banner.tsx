@@ -11,6 +11,7 @@ import { useCallback, useRef, useState } from "react";
 interface AntiCheatingGuardProps {
   enabled: boolean;
   sessionId?: string;
+  sessionToken?: string | null;
   language?: string;
 }
 
@@ -26,7 +27,7 @@ function departureBody(lang: LangKey, count: number): string {
   }. All departures are recorded and may be reviewed. Excessive departures could affect the evaluation of your session.`;
 }
 
-export function AntiCheatingGuard({ enabled, sessionId, language }: AntiCheatingGuardProps) {
+export function AntiCheatingGuard({ enabled, sessionId, sessionToken, language }: AntiCheatingGuardProps) {
   const lang = getLanguageKey(language);
   const { toast } = useToast();
   const [warningOpen, setWarningOpen] = useState(false);
@@ -41,6 +42,7 @@ export function AntiCheatingGuard({ enabled, sessionId, language }: AntiCheating
       if (!sessionId) return;
       reportMutation.mutate({
         sessionId,
+        sessionToken: sessionToken ?? undefined,
         violation: {
           type: violation.type,
           timestamp: violation.timestamp,
@@ -48,7 +50,7 @@ export function AntiCheatingGuard({ enabled, sessionId, language }: AntiCheating
         },
       });
     },
-    [sessionId, reportMutation],
+    [sessionId, sessionToken, reportMutation],
   );
 
   const recordDeparture = useCallback(() => {

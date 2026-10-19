@@ -1109,6 +1109,13 @@ export default function CandidatesPage() {
 
       {/* Table */}
       <div className="rounded-lg border">
+        {candidateList.data?.truncated && (
+          <p className="border-b bg-amber-50 px-4 py-2 text-sm text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+            {isZh
+              ? `已显示最新的 ${candidateList.data.candidates.length + candidateList.data.walkInSessions.length} 条记录 —— 更早的记录未加载。`
+              : `Showing the most recent ${candidateList.data.candidates.length + candidateList.data.walkInSessions.length} rows — older rows were not loaded.`}
+          </p>
+        )}
         {candidateList.isLoading ? (
           <div className="p-6">
             <Skeleton className="h-48" />

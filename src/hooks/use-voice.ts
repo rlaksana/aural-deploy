@@ -52,6 +52,7 @@ export interface InterviewContext {
 interface UseVoiceOptions {
   interviewId: string;
   sessionId: string;
+  sessionToken?: string | null;
   interviewContext: InterviewContext;
   onTranscript?: (text: string, isFinal: boolean) => void;
   onAIResponse?: (text: string) => void;
@@ -101,6 +102,7 @@ interface TrackedMessage {
  */
 export function useVoice({
   sessionId,
+  sessionToken,
   interviewContext,
   onTranscript,
   onAIResponse,
@@ -640,6 +642,20 @@ export function useVoice({
 
       relayConnectorRef.current?.close();
 
+      // Relay admission ticket — optional; connect anyway without one if the fetch fails
+      // (relays that don't require a ticket ignore it).
+      let relayTicket: string | undefined;
+      try {
+        const res = await fetch("/api/voice/relay-ticket", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sessionId, sessionToken: sessionToken ?? undefined }),
+        });
+        if (res.ok) relayTicket = (await res.json()).ticket;
+      } catch {
+        // failure-tolerant: relay may not require a ticket
+      }
+
       const targets = buildRelayTargets({
         language: interviewContext.language,
         voiceRelayUrl: process.env.NEXT_PUBLIC_VOICE_RELAY_URL,
@@ -659,6 +675,7 @@ export function useVoice({
           context: {
             ...interviewContext,
             startQuestionIndex: currentQuestionIndexRef.current,
+            ...(relayTicket ? { relayTicket } : {}),
           },
         }),
         onJsonMessage: (msg) => {
@@ -704,7 +721,7 @@ export function useVoice({
       onError?.(msg);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [onError, playAudio, interviewContext]);
+  }, [onError, playAudio, interviewContext, sessionId, sessionToken]);
 
   /** Extract text from an ASR event payload, trying common field names */
   const extractText = useCallback(
@@ -745,7 +762,7 @@ export function useVoice({
         const res = await fetch("/api/voice/save", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ sessionId, messages: unsaved, currentQuestionIndex }),
+          body: JSON.stringify({ sessionId, sessionToken: sessionToken ?? undefined, messages: unsaved, currentQuestionIndex }),
         });
         if (res.status === 403) {
           const body = await res.json().catch(() => ({}));
@@ -761,7 +778,7 @@ export function useVoice({
         log.error("Failed to save progress:", err);
       }
     },
-    [sessionId]
+    [sessionId, sessionToken]
   );
 
   /** Periodically flush unsaved tracked messages to the server. */
@@ -777,7 +794,7 @@ export function useVoice({
         const res = await fetch("/api/voice/save", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ sessionId, messages: unsaved }),
+          body: JSON.stringify({ sessionId, sessionToken: sessionToken ?? undefined, messages: unsaved }),
         });
         if (res.status === 403) {
           const body = await res.json().catch(() => ({}));
@@ -799,7 +816,7 @@ export function useVoice({
 
     flushingPromiseRef.current = promise;
     await promise;
-  }, [sessionId]);
+  }, [sessionId, sessionToken]);
 
   useEffect(() => {
     if (!state.isConnected) return;
@@ -1421,7 +1438,7 @@ export function useVoice({
       `Saving ${unsaved.length} remaining messages and completing session`
     );
 
-    const payload = JSON.stringify({ sessionId, messages: unsaved, complete: true });
+    const payload = JSON.stringify({ sessionId, sessionToken: sessionToken ?? undefined, messages: unsaved, complete: true });
 
     try {
       await fetch("/api/voice/save", {
@@ -1440,15 +1457,15 @@ export function useVoice({
       }
       log.error("Failed to save voice data:", err);
     }
-  }, [sessionId]);
+  }, [sessionId, sessionToken]);
 
   /** Return a JSON payload of unsaved messages for sendBeacon on unload. */
   const getUnsentPayload = useCallback((): string | null => {
     const start = savedMessageCountRef.current;
     const unsaved = trackedMessagesRef.current.slice(start);
     if (unsaved.length === 0) return null;
-    return JSON.stringify({ sessionId, messages: unsaved });
-  }, [sessionId]);
+    return JSON.stringify({ sessionId, sessionToken: sessionToken ?? undefined, messages: unsaved });
+  }, [sessionId, sessionToken]);
 
   /** Disconnect, save messages, and clean up everything */
   const disconnect = useCallback(async () => {

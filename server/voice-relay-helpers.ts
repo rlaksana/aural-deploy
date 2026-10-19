@@ -6,9 +6,11 @@ const STRONG_END_PATTERNS = [
   /I'?m\s+done(?!\s+with\s+(?:this|that|the)\s+question)\s*[!?.]?\s*$/i,
   /that'?s\s+(?:all|it|everything)\b/i,
   /(?:结束面试|结束吧|我(?:答|做)完了|就这样吧|面试结束|(?:我们|咱们)?结束(?:答题|这?题|面试)?吧|(?:没有了?|没了)(?:，|,)?结束(?:吧)?|到这(?:里|儿)(?:就)?(?:行了|结束)?吧?)/,
-  // Indonesian closers: "saya sudah selesai", "itu saja", "sampai jumpa",
-  // "terima kasih untuk waktunya/sesinya".
-  /\bsudah selesai\b|\bitu saja\b|\bsampai jumpa\b|\bterima kasih\b.*\b(?:waktunya|sesi)\b|\bselesai(?: \w+)? wawancara\b/i,
+  // Indonesian closers. Bare "sudah selesai"/"itu saja" are deliberately NOT
+  // here — both occur constantly inside answers about finished work
+  // ("...fitur tersebut sudah selesai dan dirilis") and ended real interviews
+  // mid-answer. Only explicit interview/bid cues qualify.
+  /\bsampai jumpa\b|\bterima kasih\b.*\b(?:waktunya|sesi)\b|\bselesai(?: \w+)? wawancara\b/i,
 ];
 
 // Contextual: can appear as natural descriptions when the user is talking ABOUT
