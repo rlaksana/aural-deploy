@@ -1,6 +1,7 @@
 import { buildInterviewerPrompt } from "@/lib/ai/prompts/interviewer";
 import { getProvider } from "@/lib/ai/registry";
 import type { LLMMessage } from "@/lib/ai/types";
+import { resolveChatAdvance } from "@/lib/chat-advance";
 import { resolveChoiceQuestionFlow } from "@/lib/choice-question-flow";
 import { resolveDeterministicFlow } from "@/lib/deterministic-flow";
 import { createLogger } from "@/lib/logger";
@@ -9,9 +10,6 @@ import { sessionTokenValid } from "@/lib/session-access";
 import { NextResponse } from "next/server";
 
 const log = createLogger("api/ai/chat");
-
-const MOVE_ON_PATTERN =
-  /\b(next\s*question|move\s*on|skip\s*(this|it)?|next\s*one|let'?s\s*(move|continue)\s*(on|forward)?)\b/i;
 
 export async function POST(req: Request) {
   const { sessionId, interviewId, messages, currentQuestionIndex, manualNavigation, sessionToken } =
@@ -91,48 +89,33 @@ export async function POST(req: Request) {
         });
 
     const responseContent = detFlow?.content ?? choiceFlow?.content ?? response?.content ?? "";
-    const rawIsComplete =
-      detFlow?.isComplete ?? choiceFlow?.isComplete ?? responseContent.includes("[INTERVIEW_COMPLETE]");
-    let questionAdvanced =
-      detFlow?.questionAdvanced ??
-      choiceFlow?.questionAdvanced ??
-      responseContent.includes("[NEXT_QUESTION]");
     const isDeterministicChoiceFlow = choiceFlow !== null;
 
-    // Ignore [NEXT_QUESTION] in the greeting message — the AI sometimes
-    // mistakenly includes it when first asking Q1 from the introduction.
-    if (questionAdvanced && conversationHistory.length === 0) {
-      questionAdvanced = false;
+    const { questionAdvanced, isComplete, cleanContent, markerComplete, advancedWithoutMarker } =
+      resolveChatAdvance({
+        responseContent,
+        detFlow,
+        choiceFlow,
+        manualNavigation,
+        currentQuestionIndex,
+        questions: (interview.questions ?? []) as { id: string; text: string }[],
+        conversationHistory,
+      });
+
+    if (markerComplete && !isComplete) {
+      log.info("Suppressed premature [INTERVIEW_COMPLETE] marker", {
+        sessionId,
+        currentQuestionIndex,
+        totalQuestions: (interview.questions ?? []).length,
+        conversationLength: conversationHistory.length,
+      });
     }
 
-    if (questionAdvanced && manualNavigation) {
-      questionAdvanced = false;
-    }
-
-    // The deterministic flow completes exactly on the last question, so its
-    // isComplete bypasses the premature-completion guard below.
-    let isComplete: boolean;
-    if (detFlow) {
-      isComplete = rawIsComplete;
-    } else {
-      // Guard against premature completion: only honor [INTERVIEW_COMPLETE]
-      // when the conversation has actually covered the whole script. The AI
-      // sometimes emits the marker after a SINGLE_CHOICE selection, reading
-      // the option text as a complete answer with reasoning.
-      const totalQuestions = (interview.questions ?? []).length;
-      const isOnLastQuestion =
-        (currentQuestionIndex ?? 0) >= Math.max(totalQuestions - 1, 0);
-      const hasEnoughBackAndForth = conversationHistory.length >= totalQuestions * 2 - 1;
-      isComplete = rawIsComplete && isOnLastQuestion && hasEnoughBackAndForth;
-
-      if (rawIsComplete && !isComplete) {
-        log.info("Suppressed premature [INTERVIEW_COMPLETE] marker", {
-          sessionId,
-          currentQuestionIndex,
-          totalQuestions,
-          conversationLength: conversationHistory.length,
-        });
-      }
+    if (advancedWithoutMarker) {
+      log.info("Fallback: detected question advancement without marker", {
+        sessionId,
+        currentQuestionIndex,
+      });
     }
 
     if (isDeterministicChoiceFlow) {
@@ -142,54 +125,6 @@ export async function POST(req: Request) {
         questionAdvanced,
         isComplete,
       });
-    }
-
-    const cleanContent = responseContent
-      .replace("[INTERVIEW_COMPLETE]", "")
-      .replace("[NEXT_QUESTION]", "")
-      .trim();
-
-    // Fallback: detect when the AI moved to the next question without the marker.
-    // This catches the common case where the user says "next question" and the AI
-    // transitions verbally but forgets [NEXT_QUESTION].
-    if (
-      !manualNavigation &&
-      !detFlow &&
-      !isDeterministicChoiceFlow &&
-      !questionAdvanced &&
-      !isComplete &&
-      conversationHistory.length > 0
-    ) {
-      const lastUserMsg = [...conversationHistory]
-        .reverse()
-        .find((m) => m.role === "user");
-      if (lastUserMsg) {
-        const userText =
-          typeof lastUserMsg.content === "string"
-            ? lastUserMsg.content
-            : lastUserMsg.content.map((p) => ("text" in p ? p.text : "")).join(" ");
-        const userAskedToMoveOn = MOVE_ON_PATTERN.test(userText);
-        if (userAskedToMoveOn) {
-          const questions = (interview.questions ?? []) as { id: string; text: string }[];
-          const nextQ = questions[(currentQuestionIndex ?? 0) + 1];
-          if (nextQ) {
-            // Check if the AI's response references the next question's content
-            const nextQWords = nextQ.text.toLowerCase().split(/\s+/).filter((w) => w.length > 4);
-            const responseLower = cleanContent.toLowerCase();
-            const matchCount = nextQWords.filter((w) => responseLower.includes(w)).length;
-            const matchRatio = nextQWords.length > 0 ? matchCount / nextQWords.length : 0;
-
-            if (matchRatio >= 0.4) {
-              questionAdvanced = true;
-              log.info("Fallback: detected question advancement without marker", {
-                sessionId,
-                nextQuestionText: nextQ.text,
-                matchRatio,
-              });
-            }
-          }
-        }
-      }
     }
 
     // An empty reply carries no transcript value and would trip the
