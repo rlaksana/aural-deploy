@@ -13,7 +13,21 @@ import {
 } from "@/components/ui/table";
 import type { InterviewReport, ReportRow } from "@/lib/interview-report";
 import { cn } from "@/lib/utils";
-import { Loader2, RefreshCw, Trophy, UserCheck, Users } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
+  CheckCircle2,
+  Clock,
+  Loader2,
+  MinusCircle,
+  RefreshCw,
+  Trophy,
+  UserCheck,
+  Users,
+  XCircle,
+} from "lucide-react";
+import { useMemo, useState } from "react";
 
 export function scoreColor(score: number): string {
   return score >= 7
@@ -21,19 +35,6 @@ export function scoreColor(score: number): string {
     : score >= 4
       ? "text-amber-700 dark:text-amber-400"
       : "text-red-700 dark:text-red-400";
-}
-
-function statusBadgeVariant(status: string) {
-  switch (status) {
-    case "COMPLETED":
-      return "default" as const;
-    case "IN_PROGRESS":
-      return "outline" as const;
-    case "ABANDONED":
-      return "destructive" as const;
-    default:
-      return "secondary" as const;
-  }
 }
 
 function formatDate(date: string | null): string {
@@ -45,6 +46,82 @@ function formatDate(date: string | null): string {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+function formatShortDate(date: string | null): string {
+  if (!date) return "-";
+  return new Date(date).toLocaleDateString(undefined, {
+    year: "2-digit",
+    month: "numeric",
+    day: "numeric",
+  });
+}
+
+function StatusIcon({ status }: { status: string }) {
+  switch (status) {
+    case "COMPLETED":
+      return (
+        <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
+      );
+    case "IN_PROGRESS":
+      return <Clock className="h-4 w-4 text-amber-600 dark:text-amber-400" />;
+    case "ABANDONED":
+      return <XCircle className="h-4 w-4 text-red-600 dark:text-red-400" />;
+    default:
+      return (
+        <MinusCircle className="h-4 w-4 text-muted-foreground" />
+      );
+  }
+}
+
+type SortKey = `q:${string}` | "name" | "score" | "status" | "finished";
+
+/** Compact clickable column header used for every sortable column. */
+function SortHead({
+  label,
+  sortKey,
+  active,
+  dir,
+  onSort,
+  center,
+  title,
+}: {
+  label: string;
+  sortKey: SortKey;
+  active: boolean;
+  dir: "asc" | "desc";
+  onSort: (key: SortKey) => void;
+  center?: boolean;
+  title?: string;
+}) {
+  return (
+    <TableHead
+      className={cn(
+        "cursor-pointer select-none hover:bg-muted/50",
+        center && "px-2 text-center",
+      )}
+      title={title}
+      onClick={() => onSort(sortKey)}
+    >
+      <span
+        className={cn(
+          "inline-flex items-center gap-1",
+          center && "justify-center",
+        )}
+      >
+        {label}
+        {active ? (
+          dir === "desc" ? (
+            <ArrowDown className="h-3 w-3" />
+          ) : (
+            <ArrowUp className="h-3 w-3" />
+          )
+        ) : (
+          <ArrowUpDown className="h-3 w-3 opacity-30" />
+        )}
+      </span>
+    </TableHead>
+  );
 }
 
 /**
@@ -91,6 +168,48 @@ export function ReportView({
       return [q, avg];
     }),
   );
+
+  // Rank is fixed to the score order (server default); sorting reorders the
+  // view without renumbering it.
+  const ranked = useMemo(() => rows.map((row, i) => ({ row, rank: i + 1 })), [rows]);
+  const [sort, setSort] = useState<{ key: SortKey; dir: "asc" | "desc" } | null>(
+    null,
+  );
+  const handleSort = (key: SortKey) =>
+    setSort((prev) =>
+      prev?.key === key
+        ? prev.dir === "desc"
+          ? { key, dir: "asc" }
+          : null
+        : { key, dir: "desc" },
+    );
+  const sortValue = (r: ReportRow, key: SortKey): string | number => {
+    switch (key) {
+      case "name":
+        return r.name.toLowerCase();
+      case "score":
+        return r.overallScore ?? -1;
+      case "status":
+        return r.status;
+      case "finished":
+        return r.completedAt ?? "";
+      default:
+        return r.criteria[key.slice(2)] ?? -1;
+    }
+  };
+  const viewRows = useMemo(() => {
+    if (!sort) return ranked;
+    const { key, dir } = sort;
+    return [...ranked].sort((a, b) => {
+      const va = sortValue(a.row, key);
+      const vb = sortValue(b.row, key);
+      const cmp =
+        typeof va === "number" && typeof vb === "number"
+          ? va - vb
+          : String(va).localeCompare(String(vb));
+      return dir === "desc" ? -cmp : cmp;
+    });
+  }, [ranked, sort]);
 
   return (
     <div className="space-y-6">
@@ -147,28 +266,49 @@ export function ReportView({
             <TableHeader>
               <TableRow className="hover:bg-transparent">
                 <TableHead className="w-10">#</TableHead>
-                <TableHead>Name</TableHead>
+                <SortHead
+                  label="Name"
+                  sortKey="name"
+                  active={sort?.key === "name"}
+                  dir={sort?.dir ?? "desc"}
+                  onSort={handleSort}
+                />
                 {questionKeys.map((q) => (
-                  <TableHead
+                  <SortHead
                     key={q}
-                    className="px-2 text-center"
+                    label={q}
+                    sortKey={`q:${q}`}
+                    active={sort?.key === `q:${q}`}
+                    dir={sort?.dir ?? "desc"}
+                    onSort={handleSort}
+                    center
                     title={questionLabels[q]}
-                  >
-                    {q}
-                  </TableHead>
+                  />
                 ))}
-                <TableHead>Score</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="whitespace-nowrap">Finished</TableHead>
+                <SortHead
+                  label="Score"
+                  sortKey="score"
+                  active={sort?.key === "score"}
+                  dir={sort?.dir ?? "desc"}
+                  onSort={handleSort}
+                />
+                <TableHead className="w-12" title="Status" />
+                <SortHead
+                  label="Finished"
+                  sortKey="finished"
+                  active={sort?.key === "finished"}
+                  dir={sort?.dir ?? "desc"}
+                  onSort={handleSort}
+                />
                 {onRegenerate && <TableHead className="w-10" />}
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rows.map((row, i) => (
+              {viewRows.map(({ row, rank }) => (
                 <BodyRow
-                  key={`${row.sessionId}-${i}`}
+                  key={`${row.sessionId}-${rank}`}
                   row={row}
-                  rank={row.overallScore !== null ? i + 1 : null}
+                  rank={row.overallScore !== null ? rank : null}
                   questionKeys={questionKeys}
                   sessionBasePath={sessionBasePath}
                   onRegenerate={onRegenerate}
@@ -274,13 +414,14 @@ function BodyRow({
           <span className="text-muted-foreground">-</span>
         )}
       </TableCell>
-      <TableCell>
-        <Badge variant={statusBadgeVariant(row.status)}>
-          {row.status.replace("_", " ")}
-        </Badge>
+      <TableCell title={row.status.replace("_", " ")}>
+        <StatusIcon status={row.status} />
       </TableCell>
-      <TableCell className="whitespace-nowrap text-muted-foreground">
-        {formatDate(row.completedAt)}
+      <TableCell
+        className="whitespace-nowrap text-muted-foreground"
+        title={formatDate(row.completedAt)}
+      >
+        {formatShortDate(row.completedAt)}
       </TableCell>
       {onRegenerate && (
         <TableCell className="w-10">
