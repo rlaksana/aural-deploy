@@ -138,67 +138,57 @@ export function ReportView({
             start collecting responses.
           </p>
         ) : (
-          <div className="overflow-x-auto code-scrollbar">
-            <Table className="border-collapse">
-              <TableHeader>
-                <TableRow className="hover:bg-transparent">
-                  <TableHead className="w-10">#</TableHead>
-                  <TableHead className="min-w-[160px]">Name</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Score</TableHead>
-                  {criteriaNames.map((name) => (
-                    <TableHead
-                      key={name}
-                      className="max-w-[200px] truncate whitespace-nowrap"
-                      title={questionLabels[name] ?? name}
-                    >
-                      {name}
-                    </TableHead>
-                  ))}
-                  <TableHead className="min-w-[220px]">Summary</TableHead>
-                  <TableHead className="whitespace-nowrap">Finished</TableHead>
-                  {onRegenerate && <TableHead className="w-10" />}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {rows.map((row, i) => (
-                  <BodyRow
-                    key={`${row.sessionId}-${i}`}
-                    row={row}
-                    rank={row.overallScore !== null ? i + 1 : null}
-                    criteriaNames={criteriaNames}
-                    sessionBasePath={sessionBasePath}
-                    onRegenerate={onRegenerate}
-                    regenerating={!!row.sessionId && regeneratingSessionId === row.sessionId}
-                  />
-                ))}
-                {criteriaNames.length > 0 && scored.length > 0 && (
-                  <TableRow className="border-t bg-muted/40 font-medium hover:bg-muted/40">
-                    <TableCell colSpan={4} className="text-right text-sm">
-                      Avg per criterion
-                    </TableCell>
-                    {criteriaNames.map((name) => {
-                      const avg = criteriaAvg[name];
-                      return (
-                        <TableCell key={name} className="whitespace-nowrap">
-                          {avg !== null ? (
-                            <span className={scoreColor(avg)}>
-                              {avg.toFixed(1)}
-                            </span>
-                          ) : (
-                            "-"
-                          )}
-                        </TableCell>
-                      );
-                    })}
-                    <TableCell colSpan={onRegenerate ? 3 : 2} />
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </div>
+          <Table className="border-collapse">
+            <TableHeader>
+              <TableRow className="hover:bg-transparent">
+                <TableHead className="w-10">#</TableHead>
+                <TableHead>Name</TableHead>
+                <TableHead>Score</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="w-[38%]">Summary</TableHead>
+                <TableHead className="whitespace-nowrap">Finished</TableHead>
+                {onRegenerate && <TableHead className="w-10" />}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {rows.map((row, i) => (
+                <BodyRow
+                  key={`${row.sessionId}-${i}`}
+                  row={row}
+                  rank={row.overallScore !== null ? i + 1 : null}
+                  sessionBasePath={sessionBasePath}
+                  onRegenerate={onRegenerate}
+                  regenerating={!!row.sessionId && regeneratingSessionId === row.sessionId}
+                />
+              ))}
+            </TableBody>
+          </Table>
         )}
       </div>
+
+      {/* Per-criterion interview averages — kept out of the table so it never
+          scrolls sideways; per-candidate criteria live in the session report. */}
+      {criteriaNames.length > 0 && scored.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          <span className="text-muted-foreground">Avg per criterion:</span>
+          {criteriaNames.map((name) => {
+            const avg = criteriaAvg[name];
+            return (
+              <Badge
+                key={name}
+                variant="outline"
+                className="whitespace-nowrap"
+                title={questionLabels[name] ?? name}
+              >
+                {name}{" "}
+                <span className={cn("ml-1 font-medium", avg !== null && scoreColor(avg))}>
+                  {avg !== null ? avg.toFixed(1) : "-"}
+                </span>
+              </Badge>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -206,14 +196,12 @@ export function ReportView({
 function BodyRow({
   row,
   rank,
-  criteriaNames,
   sessionBasePath,
   onRegenerate,
   regenerating,
 }: {
   row: ReportRow;
   rank: number | null;
-  criteriaNames: string[];
   sessionBasePath?: string;
   onRegenerate?: (row: ReportRow) => void;
   regenerating?: boolean;
@@ -248,12 +236,7 @@ function BodyRow({
       }
     >
       <TableCell className="text-muted-foreground">{rank ?? "-"}</TableCell>
-      <TableCell className="max-w-[240px] truncate">{nameCell}</TableCell>
-      <TableCell>
-        <Badge variant={statusBadgeVariant(row.status)}>
-          {row.status.replace("_", " ")}
-        </Badge>
-      </TableCell>
+      <TableCell className="max-w-[220px] truncate">{nameCell}</TableCell>
       <TableCell>
         {row.overallScore !== null ? (
           <span className={cn("font-semibold", scoreColor(row.overallScore))}>
@@ -263,19 +246,12 @@ function BodyRow({
           <span className="text-muted-foreground">-</span>
         )}
       </TableCell>
-      {criteriaNames.map((name) => {
-        const v = row.criteria[name];
-        return (
-          <TableCell key={name}>
-            {typeof v === "number" ? (
-              <span className={scoreColor(v)}>{v.toFixed(1)}</span>
-            ) : (
-              <span className="text-muted-foreground">-</span>
-            )}
-          </TableCell>
-        );
-      })}
-      <TableCell className="max-w-[320px]">
+      <TableCell>
+        <Badge variant={statusBadgeVariant(row.status)}>
+          {row.status.replace("_", " ")}
+        </Badge>
+      </TableCell>
+      <TableCell>
         {row.summary ? (
           <p
             className="line-clamp-2 text-xs text-muted-foreground"
