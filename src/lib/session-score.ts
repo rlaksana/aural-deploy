@@ -64,6 +64,34 @@ export function completeQuestionEvaluations(
   });
 }
 
+/**
+ * Whether stored evaluations are already the canonical one-per-question list
+ * (right count, every entry matching its positional question by the same
+ * text-match rules as completeQuestionEvaluations). Batch regeneration uses
+ * this to skip the AI call for sessions whose report is already correct.
+ */
+export function evaluationsAreCanonical(
+  evals: unknown,
+  questions: { text: string }[],
+): boolean {
+  if (!Array.isArray(evals) || evals.length !== questions.length) return false;
+  const normalize = (s: unknown) =>
+    String(s ?? "")
+      .toLowerCase()
+      .replace(/\s+/g, " ")
+      .trim();
+  return questions.every((q, i) => {
+    const stored = normalize((evals[i] as { question?: unknown })?.question);
+    const canonical = normalize(q.text);
+    if (!stored || !canonical) return false;
+    return (
+      stored === canonical ||
+      stored.includes(canonical) ||
+      canonical.includes(stored)
+    );
+  });
+}
+
 function averageScore(entries: ScoreEntry[] | null | undefined): number | null {
   if (!Array.isArray(entries) || entries.length === 0) return null;
   const scores = entries

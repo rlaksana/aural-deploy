@@ -2,6 +2,7 @@ import { generateSessionSummaryCore } from "@/lib/ai/session-summary";
 import { getAuthUser } from "@/lib/auth";
 import { createLogger } from "@/lib/logger";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { evaluationsAreCanonical } from "@/lib/session-score";
 import { NextResponse } from "next/server";
 
 const log = createLogger("api/ai/summarize");
@@ -23,8 +24,11 @@ export async function POST(req: Request) {
   try {
     const { data: session } = await supabaseAdmin
       .from("sessions")
-      .select("id, interview:interviews!inner(userId)")
+      .select(
+        "id, summary, insights, interview:interviews!inner(userId, questions(text, order))",
+      )
       .eq("id", sessionId)
+      .order("order", { referencedTable: "interviews.questions", ascending: true })
       .single();
 
     if (
@@ -34,16 +38,22 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
-    // Batch callers set skipExisting so re-running a backfill never
-    // re-generates summaries that already exist. force overrides that —
-    // used by the reports-tab regenerate action to rebuild stale summaries.
+    // Batch callers set skipExisting so a run never pays for reports that are
+    // already correct: skip when a summary exists AND the stored evaluations
+    // are the canonical one-per-question list (broken or missing evaluations
+    // are repaired even without force). force overrides everything — used by
+    // the single-candidate regenerate action for a deliberate full rebuild.
     if (skipExisting && !force) {
-      const { data: current } = await supabaseAdmin
-        .from("sessions")
-        .select("summary")
-        .eq("id", sessionId)
-        .single();
-      if (current?.summary) return NextResponse.json({ skipped: true });
+      const questions =
+        (session.interview as unknown as { questions?: { text: string }[] })
+          .questions ?? [];
+      const evals = (
+        session.insights as { questionEvaluations?: unknown } | null
+      )?.questionEvaluations;
+      const healthy =
+        !!session.summary &&
+        (questions.length === 0 || evaluationsAreCanonical(evals, questions));
+      if (healthy) return NextResponse.json({ skipped: true });
     }
 
     await generateSessionSummaryCore(sessionId, {

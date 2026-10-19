@@ -14,6 +14,13 @@ export type BackfillProgress = {
 
 const DEFAULT_CONCURRENCY = 5;
 
+/**
+ * Hard cap on parallel AI calls per batch run — the batch budget. Callers may
+ * ask for fewer, never more: report regeneration must not stampede the LLM
+ * provider regardless of roster size.
+ */
+export const MAX_BATCH_CONCURRENCY = 5;
+
 export async function runBatchSummaries(
   sessions: { sessionId: string; name: string }[],
   opts: {
@@ -27,7 +34,11 @@ export async function runBatchSummaries(
   const fetchImpl = opts.fetchImpl ?? fetch;
   const limit = Math.max(
     1,
-    Math.min(opts.concurrency ?? DEFAULT_CONCURRENCY, sessions.length),
+    Math.min(
+      opts.concurrency ?? DEFAULT_CONCURRENCY,
+      MAX_BATCH_CONCURRENCY,
+      sessions.length,
+    ),
   );
   let cursor = 0;
   let done = 0;

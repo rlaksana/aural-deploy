@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { trpc } from "@/lib/trpc/client";
-import { runBatchSummaries } from "@/lib/report-backfill";
+import { MAX_BATCH_CONCURRENCY, runBatchSummaries } from "@/lib/report-backfill";
 import {
   Calculator,
   Check,
@@ -117,7 +117,7 @@ export function ReportsTab({ interviewId }: { interviewId: string }) {
     if (runningRef.current || completed.length === 0) return;
     if (
       !window.confirm(
-        `Regenerate AI summaries for all ${completed.length} completed sessions? Existing summaries and scores will be overwritten.`,
+        `Check AI summaries for all ${completed.length} completed sessions? Sessions whose report is already complete and consistent keep their existing summary — only missing or inconsistent ones call the AI (max ${MAX_BATCH_CONCURRENCY} parallel).`,
       )
     )
       return;
@@ -126,7 +126,7 @@ export function ReportsTab({ interviewId }: { interviewId: string }) {
     try {
       const { failed } = await runBatchSummaries(
         completed.map((r) => ({ sessionId: r.sessionId, name: r.name })),
-        { concurrency: 5, force: true, onProgress: setProgress },
+        { concurrency: 5, onProgress: setProgress },
       );
       if (failed > 0) {
         toast({

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  evaluationsAreCanonical,
   getSessionOverallScore,
   usesQuestionEvaluationScore,
 } from "../src/lib/session-score";
@@ -70,6 +71,48 @@ test("caps stored evaluations at the interview's question count", () => {
 
   // (8+6+9+7+5+5+4+4+3+3)/10 = 5.4 — the trailing 9s are ignored.
   assert.equal(getSessionOverallScore(insights, 10), 5.4);
+});
+
+test("evaluationsAreCanonical accepts only the exact one-per-question list", () => {
+  const questions = [{ text: "What is REST?" }, { text: "Explain indexes." }];
+
+  assert.equal(
+    evaluationsAreCanonical(
+      [
+        { question: "Q1: What is REST?", score: 8 },
+        { question: "Explain indexes.", score: 5 },
+      ],
+      questions,
+    ),
+    true,
+  );
+  // Wrong count — follow-ups stored as extra questions.
+  assert.equal(
+    evaluationsAreCanonical(
+      [
+        { question: "What is REST?", score: 8 },
+        { question: "follow-up: why?", score: 9 },
+        { question: "Explain indexes.", score: 5 },
+      ],
+      questions,
+    ),
+    false,
+  );
+  // Missing evaluations entirely.
+  assert.equal(evaluationsAreCanonical(undefined, questions), false);
+  // A canonical question replaced by something unmatched.
+  assert.equal(
+    evaluationsAreCanonical(
+      [
+        { question: "What is REST?", score: 8 },
+        { question: "Something else entirely", score: 5 },
+      ],
+      questions,
+    ),
+    false,
+  );
+  // Empty question list with no evaluations is trivially canonical.
+  assert.equal(evaluationsAreCanonical(undefined, []), false);
 });
 
 test("counts unanswered questions as zero when totalQuestions is given", () => {
