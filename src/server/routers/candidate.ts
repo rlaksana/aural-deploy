@@ -165,7 +165,7 @@ export const candidateRouter = router({
 
       const { data: candidates } = await ctx.supabase
         .from("candidates")
-        .select(`*, session:sessions(${SESSION_LIST_COLUMNS})`)
+        .select(`*, session:sessions(${SESSION_LIST_COLUMNS}, interview:interviews(questions(id)))`)
         .eq("interviewId", input.interviewId)
         .order("createdAt", { ascending: false });
 
@@ -175,7 +175,7 @@ export const candidateRouter = router({
 
       let walkInQuery = ctx.supabase
         .from("sessions")
-        .select(`${SESSION_LIST_COLUMNS}, messages(id)`)
+        .select(`${SESSION_LIST_COLUMNS}, messages(id), interview:interviews(questions(id))`)
         .eq("interviewId", input.interviewId)
         .order("createdAt", { ascending: false });
 
@@ -401,7 +401,7 @@ export const candidateRouter = router({
       const { data: candidates } = await ctx.supabase
         .from("candidates")
         .select(
-          `*, session:sessions(${SESSION_LIST_COLUMNS}), interview:interviews!inner(id, title)`,
+          `*, session:sessions(${SESSION_LIST_COLUMNS}, interview:interviews(questions(id))), interview:interviews!inner(id, title)`,
         )
         .in("interviewId", interviewIds)
         .order("createdAt", { ascending: false })
@@ -414,7 +414,7 @@ export const candidateRouter = router({
       let walkInQuery = ctx.supabase
         .from("sessions")
         .select(
-          `${SESSION_LIST_COLUMNS}, messages(id), interview:interviews!inner(id, title)`,
+          `${SESSION_LIST_COLUMNS}, messages(id), interview:interviews!inner(id, title, questions(id))`,
         )
         .in("interviewId", interviewIds)
         .order("createdAt", { ascending: false })

@@ -74,7 +74,7 @@ async function getInterviewWithAccess(
 ) {
   const { data: interview } = await supabase
     .from("interviews")
-    .select("*, project:projects!inner(id, organizationId)")
+    .select("*, project:projects!inner(id, organizationId), questions(id)")
     .eq("id", interviewId)
     .single();
 
@@ -1214,7 +1214,7 @@ export const interviewRouter = router({
       const { data: sessions } = await ctx.supabase
         .from("sessions")
         .select(
-          "id, interviewId, status, modeUsed, totalDurationSeconds, themes, createdAt, participantName, participantEmail, insights",
+          "id, interviewId, status, modeUsed, totalDurationSeconds, themes, createdAt, participantName, participantEmail, insights, interview:interviews(questions(id))",
         )
         .in("interviewId", interviewIds);
       const allSessions = sessions ?? [];
@@ -1358,6 +1358,9 @@ export const interviewRouter = router({
               questionEvaluations?: { score: number }[];
               criteriaEvaluations?: { score: number }[];
             } | null,
+            (
+              s.interview as { questions?: unknown[] } | null | undefined
+            )?.questions?.length,
           );
           return {
             id: s.id,

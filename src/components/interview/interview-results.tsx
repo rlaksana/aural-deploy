@@ -451,10 +451,13 @@ function SessionDetail({
     (summary.data?.themes && summary.data.themes.length > 0)
   );
 
-  const overallScore = getSessionOverallScore({
-    questionEvaluations,
-    criteriaEvaluations,
-  });
+  const overallScore = getSessionOverallScore(
+    {
+      questionEvaluations,
+      criteriaEvaluations,
+    },
+    summary.data?.totalQuestions,
+  );
   const avgQuestionScore =
     overallScore !== null ? overallScore.toFixed(1) : null;
 

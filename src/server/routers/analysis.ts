@@ -25,7 +25,7 @@ export const analysisRouter = router({
       const { data: session } = await ctx.supabase
         .from("sessions")
         .select(
-          `*, interview:interviews!inner(userId, title, objective, projectId, project:projects!inner(organizationId)), messages(*)`,
+          `*, interview:interviews!inner(userId, title, objective, projectId, questions(id), project:projects!inner(organizationId)), messages(*)`,
         )
         .eq("id", input.sessionId)
         .order("timestamp", { referencedTable: "messages", ascending: true })
@@ -83,6 +83,11 @@ export const analysisRouter = router({
       return {
         interviewTitle: interview.title,
         interviewObjective: interview.objective,
+        // Question count of the candidate's interview — the report must score
+        // unanswered questions as zero, not average over answered ones.
+        totalQuestions: (
+          session.interview as unknown as { questions?: unknown[] }
+        ).questions?.length,
         participantName: session.participantName,
         participantEmail: session.participantEmail,
         status: session.status,

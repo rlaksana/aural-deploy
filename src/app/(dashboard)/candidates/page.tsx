@@ -286,6 +286,8 @@ function getSessionScore(row: UnifiedRow): number | null {
       questionEvaluations?: { score: number }[];
       criteriaEvaluations?: { score: number }[];
     },
+    // Unanswered questions count as 0 — divide by the interview's question count.
+    session.interview?.questions?.length as number | undefined,
   );
 }
 
