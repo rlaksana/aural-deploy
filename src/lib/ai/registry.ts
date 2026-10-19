@@ -4,6 +4,7 @@ import { GeminiProvider } from "./providers/gemini";
 import { KimiProvider } from "./providers/kimi";
 import { MinimaxProvider } from "./providers/minimax";
 import { OpenRouterProvider } from "./providers/openrouter";
+import { ZaiProvider } from "./providers/zai";
 
 const providers = new Map<string, LLMProvider>();
 
@@ -16,6 +17,7 @@ registerProvider(new GeminiProvider());
 registerProvider(new KimiProvider());
 registerProvider(new MinimaxProvider());
 registerProvider(new OpenRouterProvider());
+registerProvider(new ZaiProvider());
 
 /** Resolve the right provider for a given model name or provider id. */
 export function getProvider(idOrModel?: string | null): LLMProvider {
@@ -43,9 +45,10 @@ export function listProviders(): LLMProvider[] {
 
 /**
  * Model used for post-interview report generation.
- * All text LLM tasks run on MiniMax-M3.1-Flash-Preview.
+ * Report/summary paths run on Z.AI GLM-5.3-Flash (reasoning_effort low);
+ * interview chat/generation stays on MiniMax-M3.1-Flash-Preview.
  */
-export const REPORT_MODEL = "MiniMax-M3.1-Flash-Preview";
+export const REPORT_MODEL = "glm-5.3-flash";
 
 /**
  * Model used for interview question generation and refinement.
