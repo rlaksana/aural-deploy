@@ -17,10 +17,12 @@ export async function POST(req: Request) {
   const { sessionId, interviewId, messages, currentQuestionIndex, manualNavigation, sessionToken } =
     await req.json();
 
-  if (
-    typeof sessionId === "string" &&
-    !(await sessionTokenValid(supabaseAdmin, sessionId, sessionToken))
-  ) {
+  // sessionId is required: the LLM generation must never run without a
+  // validated session, or this endpoint is a free LLM oracle.
+  if (typeof sessionId !== "string" || !sessionId) {
+    return NextResponse.json({ error: "Missing sessionId" }, { status: 400 });
+  }
+  if (!(await sessionTokenValid(supabaseAdmin, sessionId, sessionToken))) {
     return NextResponse.json({ error: "Invalid session token" }, { status: 403 });
   }
 
