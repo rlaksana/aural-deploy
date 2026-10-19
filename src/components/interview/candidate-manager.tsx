@@ -318,6 +318,57 @@ function getSessionScore(row: UnifiedRow): number | null {
   );
 }
 
+/** Plain-text value of a column for a row — shared by XLSX export and the
+ *  all-empty column detection so the two can never disagree. */
+function getColumnValue(key: string, row: UnifiedRow): string | number | null {
+  const c = getCandidateField(row);
+  const status = getSessionStatus(row);
+  const session = row.session;
+  const hasSession = !!session && status !== "Not Started";
+  switch (key) {
+    case "name":
+      return row.name || null;
+    case "email":
+      return row.email;
+    case "phone":
+      return c?.phone ?? null;
+    case "gender":
+      return c?.gender ?? null;
+    case "birthday":
+      return c?.birthday ?? null;
+    case "education":
+      return c?.education ?? null;
+    case "school":
+      return c?.school ?? null;
+    case "major":
+      return c?.major ?? null;
+    case "gradYear":
+      return c?.graduationYear ?? null;
+    case "experience":
+      return c?.workExperience ?? null;
+    case "notes":
+      return c?.notes ?? null;
+    case "created":
+      return c?.createdAt ? formatDate(c.createdAt) : null;
+    case "score":
+      return getSessionScore(row)?.toFixed(1) ?? null;
+    case "duration":
+      return hasSession ? formatDuration(session.totalDurationSeconds) : null;
+    case "started":
+      return hasSession ? formatDate(getStartDate(row)) : null;
+    case "finished":
+      return hasSession && session?.completedAt
+        ? formatDate(session.completedAt)
+        : null;
+    case "source":
+      return row.type === "walkin" ? "Walk-in" : "Invited";
+    case "status":
+      return status === "Not Started" ? "NOT STARTED" : status.replace("_", " ");
+    default:
+      return null;
+  }
+}
+
 function getSortValue(row: UnifiedRow, key: SortKey): string | number {
   const c = getCandidateField(row);
   switch (key) {
@@ -647,6 +698,22 @@ export function CandidateManager({
     return result;
   }, [candidates, walkIns, searchQuery, statusFilter, timeRange, sortKey, sortDir]);
 
+  // Columns whose every row is empty (e.g. profile fields of walk-in-only
+  // interviews) render as blank noise — hide them even when toggled on.
+  const emptyColumnKeys = useMemo(() => {
+    const keys = new Set<string>();
+    if (processedRows.length === 0) return keys;
+    for (const col of COLUMNS) {
+      if (col.alwaysVisible) continue;
+      const hasData = processedRows.some((row) => {
+        const v = getColumnValue(col.key, row);
+        return v !== null && v !== "";
+      });
+      if (!hasData) keys.add(col.key);
+    }
+    return keys;
+  }, [processedRows]);
+
   // ── Pagination ──
   const totalPages = Math.max(1, Math.ceil(processedRows.length / pageSize));
   const safePage = Math.min(page, totalPages - 1);
@@ -740,88 +807,22 @@ export function CandidateManager({
   const handleExport = useCallback(() => {
     const nameCol = COLUMNS.find((c) => c.alwaysVisible)!;
     const dynCols = COLUMNS.filter(
-      (c) => c !== nameCol && visibleColumns.has(c.key),
+      (c) =>
+        c !== nameCol &&
+        visibleColumns.has(c.key) &&
+        !emptyColumnKeys.has(c.key),
     );
     const exportCols = [nameCol, ...dynCols];
 
     const rows = processedRows.map((row) => {
-      const c = getCandidateField(row);
-      const status = getSessionStatus(row);
-      const session = row.session;
-      const hasSession = !!session && status !== "Not Started";
       const record: Record<string, string | number | null> = {};
       for (const col of exportCols) {
-        switch (col.key) {
-          case "name":
-            record[col.label] = row.name || "";
-            break;
-          case "email":
-            record[col.label] = row.email || "";
-            break;
-          case "phone":
-            record[col.label] = c?.phone || "";
-            break;
-          case "gender":
-            record[col.label] = c?.gender || "";
-            break;
-          case "birthday":
-            record[col.label] = c?.birthday || "";
-            break;
-          case "education":
-            record[col.label] = c?.education || "";
-            break;
-          case "school":
-            record[col.label] = c?.school || "";
-            break;
-          case "major":
-            record[col.label] = c?.major || "";
-            break;
-          case "gradYear":
-            record[col.label] = c?.graduationYear ?? "";
-            break;
-          case "experience":
-            record[col.label] = c?.workExperience || "";
-            break;
-          case "notes":
-            record[col.label] = c?.notes || "";
-            break;
-          case "created":
-            record[col.label] = c?.createdAt ? formatDate(c.createdAt) : "";
-            break;
-          case "score": {
-            const sv = getSessionScore(row);
-            record[col.label] = sv !== null ? Number(sv.toFixed(1)) : "";
-            break;
-          }
-          case "duration":
-            record[col.label] = hasSession
-              ? formatDuration(session.totalDurationSeconds)
-              : "";
-            break;
-          case "started":
-            record[col.label] = hasSession ? formatDate(getStartDate(row)) : "";
-            break;
-          case "finished":
-            record[col.label] =
-              hasSession && session.completedAt
-                ? formatDate(session.completedAt)
-                : "";
-            break;
-          case "source":
-            record[col.label] = row.type === "walkin" ? "Walk-in" : "Invited";
-            break;
-          case "status":
-            record[col.label] =
-              status === "Not Started"
-                ? "NOT STARTED"
-                : status.replace("_", " ");
-            break;
-        }
+        record[col.label] = getColumnValue(col.key, row);
       }
       return record;
     });
     exportToXlsx(rows, `candidates-${new Date().toISOString().slice(0, 10)}`);
-  }, [processedRows, visibleColumns]);
+  }, [processedRows, visibleColumns, emptyColumnKeys]);
 
   // ── Stats ──
   const totalCandidates = candidates.length + walkIns.length;
@@ -1030,7 +1031,9 @@ export function CandidateManager({
                     {orderedColumns
                       .filter(
                         (col) =>
-                          col.key !== "name" && visibleColumns.has(col.key),
+                          col.key !== "name" &&
+                          visibleColumns.has(col.key) &&
+                          !emptyColumnKeys.has(col.key),
                       )
                       .map((col) =>
                         col.sortKey ? (
@@ -1280,7 +1283,9 @@ export function CandidateManager({
                         {orderedColumns
                           .filter(
                             (col) =>
-                              col.key !== "name" && visibleColumns.has(col.key),
+                              col.key !== "name" &&
+                              visibleColumns.has(col.key) &&
+                              !emptyColumnKeys.has(col.key),
                           )
                           .map((col) => (
                             <TableCell key={col.key}>
