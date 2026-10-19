@@ -156,7 +156,7 @@ export function validateAnswer(
 }
 
 const DET_REPLIES: Record<
-  "welcome" | "ack" | "selectOption" | "complete" | "correct" | "wrong",
+  "welcome" | "ack" | "selectOption" | "complete" | "correct" | "wrong" | "partial",
   BiText
 > = {
   welcome: {
@@ -188,6 +188,11 @@ const DET_REPLIES: Record<
     en: "Not quite.",
     id: "Kurang tepat.",
     zh: "不太对。",
+  },
+  partial: {
+    en: "Partially correct.",
+    id: "Sebagian benar.",
+    zh: "部分正确。",
   },
 };
 
@@ -245,19 +250,31 @@ export function resolveDeterministicFlow({
     }
   }
 
-  // Quizzes grade the selection on the spot; assessments stay neutral and
-  // are graded at completion.
+  // Quizzes grade the selection on the spot with the SAME semantics as the
+  // stored union score in quiz-grading (score 10 = exact correct set):
+  // wrong → "Not quite", proportional credit → "Partially correct", perfect →
+  // "Correct!". Feedback and the report can no longer contradict each other.
   let feedback = "";
   if (kind === "QUIZ" && isChoiceQuestion) {
     const correctIndices = currentQuestion?.options?.correctIndices;
     if (Array.isArray(correctIndices) && correctIndices.length > 0) {
       const selected = parseChoiceSelection(latestUserMessage);
-      const correct =
-        currentQuestion?.type === "MULTIPLE_CHOICE"
-          ? selected.length === correctIndices.length &&
-            selected.every((i) => correctIndices.includes(i))
-          : selected.length === 1 && correctIndices.includes(selected[0]);
-      feedback = bt(lang, correct ? DET_REPLIES.correct : DET_REPLIES.wrong);
+      // Mirror gradeSelection exactly: multiple choice earns proportional
+      // union credit; single choice is all-or-nothing.
+      let score: number;
+      if (currentQuestion?.type === "MULTIPLE_CHOICE") {
+        const key = new Set(correctIndices);
+        const hits = selected.filter((i) => key.has(i)).length;
+        const union = new Set([...selected, ...correctIndices]).size;
+        score = union === 0 ? 0 : Math.round((hits / union) * 10);
+      } else {
+        score =
+          selected.length === 1 && correctIndices.includes(selected[0]) ? 10 : 0;
+      }
+      feedback = bt(
+        lang,
+        score === 10 ? DET_REPLIES.correct : score > 0 ? DET_REPLIES.partial : DET_REPLIES.wrong,
+      );
     }
   }
 

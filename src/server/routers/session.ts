@@ -660,10 +660,21 @@ export const sessionRouter = router({
           });
           // Without AI the score line IS the summary; with AI the summary
           // is generated (generateSessionSummary skips when one exists).
+          // Two distinct numbers, labeled so they cannot be confused:
+          // fully-correct answers vs the 0-10 average the report ranks by.
           if (!aiSummaryEnabled) {
+            const avg =
+              graded.total > 0
+                ? (
+                    graded.questionEvaluations.reduce((s, e) => s + e.score, 0) /
+                    graded.total
+                  ).toFixed(1)
+                : "0";
             await ctx.supabase
               .from("sessions")
-              .update({ summary: `Score: ${graded.totalCorrect}/${graded.total}` })
+              .update({
+                summary: `Score: ${graded.totalCorrect}/${graded.total} fully correct · average ${avg}/10`,
+              })
               .eq("id", input.id);
           }
         }

@@ -52,7 +52,24 @@ export async function POST(req: Request) {
         content: m.content.trim(),
       }));
 
-    const questionIndex = currentQuestionIndex ?? 0;
+    // Trust the server, not the client, for which question is active: this
+    // route maintains sessions.currentQuestionId on every advance, and the
+    // updateCurrentQuestion procedure keeps it in sync for manual navigation.
+    // The client-supplied index is only a fallback for legacy sessions whose
+    // currentQuestionId no longer resolves — a crafted client can no longer
+    // fast-forward the completion guard by claiming to be on the last question.
+    const { data: sessionRow } = await supabaseAdmin
+      .from("sessions")
+      .select("currentQuestionId")
+      .eq("id", sessionId)
+      .single();
+    const questions = (interview.questions ?? []) as { id: string; text: string }[];
+    const serverIndex = questions.findIndex(
+      (q) =>
+        q.id ===
+        (sessionRow as { currentQuestionId?: string | null } | null)?.currentQuestionId,
+    );
+    const questionIndex = serverIndex >= 0 ? serverIndex : (currentQuestionIndex ?? 0);
 
     // Non-interview kinds (SURVEY/QUIZ/FORM/ASSESSMENT) never call the LLM.
     // Must run BEFORE the choice flow so surveys don't get the rationale probe.
@@ -97,8 +114,8 @@ export async function POST(req: Request) {
         detFlow,
         choiceFlow,
         manualNavigation,
-        currentQuestionIndex,
-        questions: (interview.questions ?? []) as { id: string; text: string }[],
+        currentQuestionIndex: questionIndex,
+        questions,
         conversationHistory,
       });
 
@@ -139,8 +156,7 @@ export async function POST(req: Request) {
     }
 
     if (questionAdvanced) {
-      const nextIndex = (currentQuestionIndex ?? 0) + 1;
-      const questions = (interview.questions ?? []) as { id: string }[];
+      const nextIndex = questionIndex + 1;
       const nextQuestion = questions[nextIndex];
       if (nextQuestion) {
         await supabaseAdmin

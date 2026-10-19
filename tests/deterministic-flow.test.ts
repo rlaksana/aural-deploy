@@ -232,8 +232,8 @@ test("QUIZ grades on the spot: all-or-nothing single, strict-set multiple", () =
   assert.ok(wrong);
   assert.match(wrong.content, /Not quite/);
 
-  // On-the-spot feedback is strict-set: a partial selection reads wrong even
-  // though the stored union score would give partial credit.
+  // On-the-spot feedback mirrors the stored union score: a partial selection
+  // earns proportional credit and says so instead of a bare "wrong".
   const partial = resolveDeterministicFlow({
     kind: "QUIZ",
     questions: quizQuestions,
@@ -241,7 +241,7 @@ test("QUIZ grades on the spot: all-or-nothing single, strict-set multiple", () =
     conversationHistory: history([{ role: "user", content: "Selected options: A" }]),
   });
   assert.ok(partial);
-  assert.match(partial.content, /Not quite/);
+  assert.match(partial.content, /Partially correct/);
 
   const exact = resolveDeterministicFlow({
     kind: "QUIZ",
