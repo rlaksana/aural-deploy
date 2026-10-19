@@ -6,7 +6,7 @@
 -- (see src/server/routers/session.ts).
 ALTER TABLE sessions ADD COLUMN IF NOT EXISTS "accessToken" text;
 
-UPDATE sessions SET "accessToken" = encode(gen_random_bytes(24), 'hex') WHERE "accessToken" IS NULL;
+UPDATE sessions SET "accessToken" = replace(gen_random_uuid()::text || gen_random_uuid()::text, '-', '') WHERE "accessToken" IS NULL;
 
 CREATE OR REPLACE FUNCTION create_interview_session(
   p_interview_id       uuid,
@@ -33,7 +33,7 @@ BEGIN
   END IF;
 
   INSERT INTO sessions ("interviewId", "participantName", "participantEmail", "modeUsed", "currentQuestionId", "accessToken")
-  VALUES (p_interview_id, p_participant_name, p_participant_email, p_mode_used, p_current_question_id, encode(gen_random_bytes(24), 'hex'))
+  VALUES (p_interview_id, p_participant_name, p_participant_email, p_mode_used, p_current_question_id, replace(gen_random_uuid()::text || gen_random_uuid()::text, '-', ''))
   RETURNING * INTO v_session;
 
   RETURN row_to_json(v_session);
@@ -71,7 +71,7 @@ BEGIN
   END IF;
 
   INSERT INTO sessions ("interviewId", "participantName", "participantEmail", "modeUsed", "currentQuestionId", "accessToken")
-  VALUES (v_interview.id, v_candidate.name, v_candidate.email, coalesce(p_mode_used, v_interview.mode), p_current_question_id, encode(gen_random_bytes(24), 'hex'))
+  VALUES (v_interview.id, v_candidate.name, v_candidate.email, coalesce(p_mode_used, v_interview.mode), p_current_question_id, replace(gen_random_uuid()::text || gen_random_uuid()::text, '-', ''))
   RETURNING * INTO v_session;
 
   UPDATE candidates SET "sessionId" = v_session.id, "updatedAt" = now() WHERE id = v_candidate.id;
