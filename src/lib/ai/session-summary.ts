@@ -23,29 +23,53 @@ export function generateSessionSummary(sessionId: string): Promise<void> {
   const existing = inFlight.get(sessionId);
   if (existing) return existing;
 
-  const job = run(sessionId).finally(() => inFlight.delete(sessionId));
+  const job = generateSessionSummaryCore(sessionId)
+    .then(() => undefined)
+    .catch(async (error) => {
+      log.error(`Summary generation failed for session ${sessionId}:`, error);
+      // Best-effort marker so a backfill can find permanently failed
+      // summaries; a failure here must not mask the original error path.
+      try {
+        await supabaseAdmin.rpc("merge_session_insights", {
+          p_session_id: sessionId,
+          p_insights: { summaryFailedAt: new Date().toISOString() },
+        });
+      } catch {
+        // ignore — the marker is diagnostic only
+      }
+    })
+    .finally(() => inFlight.delete(sessionId));
   inFlight.set(sessionId, job);
   return job;
 }
 
-async function run(sessionId: string): Promise<void> {
-  try {
-    const { data: interviewSession } = await supabaseAdmin
-      .from("sessions")
-      .select(
-        `summary, insights, interview:interviews!inner(title, objective, language, kind, assessmentCriteria, questions(text, order, type)), messages(*)`,
-      )
-      .eq("id", sessionId)
-      .order("order", { referencedTable: "interviews.questions", ascending: true })
-      .order("timestamp", { referencedTable: "messages", ascending: true })
-      .single();
+/**
+ * Single generation pipeline shared by completion paths and the
+ * /api/ai/summarize route (regenerate buttons / batch backfill). Throws on
+ * failure so the route can surface a 500; `force` rebuilds even when a
+ * summary already exists. Returns "generated" or "skipped".
+ */
+export async function generateSessionSummaryCore(
+  sessionId: string,
+  opts: { force?: boolean } = {},
+): Promise<{ status: "generated" | "skipped" }> {
+  const { data: interviewSession } = await supabaseAdmin
+    .from("sessions")
+    .select(
+      `summary, insights, interview:interviews!inner(title, objective, language, kind, assessmentCriteria, questions(text, order, type)), messages(*)`,
+    )
+    .eq("id", sessionId)
+    .order("order", { referencedTable: "interviews.questions", ascending: true })
+    .order("timestamp", { referencedTable: "messages", ascending: true })
+    .single();
 
-    if (!interviewSession) {
-      log.info(`Session ${sessionId} not found, skipping summary`);
-      return;
-    }
-    // Already summarized (summary and insights are written together) — nothing to do.
-    if (interviewSession.summary) return;
+  if (!interviewSession) {
+    log.info(`Session ${sessionId} not found, skipping summary`);
+    return { status: "skipped" };
+  }
+  // Already summarized (summary and insights are written together) — nothing
+  // to do unless the caller explicitly wants a rebuild.
+  if (interviewSession.summary && !opts.force) return { status: "skipped" };
 
     const interview = interviewSession.interview as unknown as {
       title: string;
@@ -66,7 +90,7 @@ async function run(sessionId: string): Promise<void> {
 
     if (msgs.length === 0) {
       log.info(`Session ${sessionId} has no messages, skipping summary`);
-      return;
+      return { status: "skipped" };
     }
 
     const whiteboardDrawingsRaw = msgs
@@ -218,17 +242,6 @@ async function run(sessionId: string): Promise<void> {
       `Summary generated for session ${sessionId}: ` +
         `${themeCount} themes, ${qEvalCount} question evaluations`,
     );
-  } catch (error) {
-    log.error(`Summary generation failed for session ${sessionId}:`, error);
-    // Best-effort marker so a backfill can find permanently failed summaries;
-    // a second-order failure here must not mask the original error path.
-    try {
-      await supabaseAdmin.rpc("merge_session_insights", {
-        p_session_id: sessionId,
-        p_insights: { summaryFailedAt: new Date().toISOString() },
-      });
-    } catch {
-      // ignore — the marker is diagnostic only
-    }
-  }
+
+  return { status: "generated" };
 }

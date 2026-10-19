@@ -1,4 +1,5 @@
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { canonicalizeInsights } from "@/lib/interview-report";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { getOrgMembership, hasProjectAccess, protectedProcedure, router } from "../trpc";
@@ -25,7 +26,7 @@ export const analysisRouter = router({
       const { data: session } = await ctx.supabase
         .from("sessions")
         .select(
-          `*, interview:interviews!inner(userId, title, objective, projectId, questions(id), project:projects!inner(organizationId)), messages(*)`,
+          `*, interview:interviews!inner(userId, title, objective, projectId, questions(id, text), project:projects!inner(organizationId)), messages(*)`,
         )
         .eq("id", input.sessionId)
         .order("timestamp", { referencedTable: "messages", ascending: true })
@@ -93,7 +94,14 @@ export const analysisRouter = router({
         status: session.status,
         createdAt: session.createdAt,
         summary: session.summary,
-        insights: session.insights,
+        // Canonicalized detail view: follow-up entries miscounted as
+        // questions never reach the candidate's report page.
+        insights: canonicalizeInsights(
+          session.insights,
+          (
+            session.interview as unknown as { questions?: { text: string }[] }
+          ).questions,
+        ),
         themes: session.themes,
         sentiment: session.sentiment,
         messages: session.messages,

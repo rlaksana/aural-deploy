@@ -1,4 +1,5 @@
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { canonicalizeInsights } from "@/lib/interview-report";
 import { getSessionOverallScore } from "@/lib/session-score";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -105,7 +106,12 @@ export default async function PublicSessionReportPage({
     | null;
   const insights = (session.insights ?? null) as SessionInsights | null;
   const criteria = toCriteria(insights?.criteriaEvaluations);
-  const questions = toQuestions(insights?.questionEvaluations);
+  // Canonicalized: follow-up entries miscounted as questions never show here.
+  const questions = toQuestions(
+    (
+      canonicalizeInsights(insights, interview?.questions) as SessionInsights | null
+    )?.questionEvaluations,
+  );
   const keyInsights = toKeyInsights(insights?.keyInsights);
   const overall = getSessionOverallScore(
     {

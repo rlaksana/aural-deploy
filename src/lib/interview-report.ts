@@ -94,7 +94,7 @@ function extractCriteria(
  * the list is capped to the canonical count — a mis-generated report can
  * never grow phantom Q-columns or inflate the score.
  */
-function canonicalizeInsights(
+export function canonicalizeInsights(
   insights: unknown,
   questions?: { text: string }[],
 ): unknown {

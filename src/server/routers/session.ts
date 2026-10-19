@@ -1,6 +1,7 @@
 import { generateSessionSummary } from "@/lib/ai/session-summary";
 import { gradeQuiz } from "@/lib/quiz-grading";
 import { createLogger } from "@/lib/logger";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 import { TRPCError } from "@trpc/server";
 import { after } from "next/server";
 import { z } from "zod";
@@ -647,18 +648,24 @@ export const sessionRouter = router({
         );
 
         if (graded.questionEvaluations.length > 0) {
-          await ctx.supabase
-            .from("sessions")
-            .update({
-              insights: {
-                questionEvaluations: graded.questionEvaluations,
-                keyInsights: [],
-              },
-              // Without AI the score line IS the summary; with AI the summary
-              // is generated (generateSessionSummary skips when one exists).
-              ...(aiSummaryEnabled ? {} : { summary: `Score: ${graded.totalCorrect}/${graded.total}` }),
-            })
-            .eq("id", input.id);
+          // Atomic merge (not a column overwrite): quiz scores replace their
+          // own keys while any narrative/insights keys already written by a
+          // concurrent or earlier summary run survive the re-grade.
+          await supabaseAdmin.rpc("merge_session_insights", {
+            p_session_id: input.id,
+            p_insights: {
+              questionEvaluations: graded.questionEvaluations,
+              keyInsights: [],
+            },
+          });
+          // Without AI the score line IS the summary; with AI the summary
+          // is generated (generateSessionSummary skips when one exists).
+          if (!aiSummaryEnabled) {
+            await ctx.supabase
+              .from("sessions")
+              .update({ summary: `Score: ${graded.totalCorrect}/${graded.total}` })
+              .eq("id", input.id);
+          }
         }
       }
 
