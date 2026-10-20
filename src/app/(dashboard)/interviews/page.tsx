@@ -78,6 +78,17 @@ import {
   Code2,
   MessageSquare,
   Sparkles,
+  Bookmark,
+  BookmarkPlus,
+  Compass,
+  DoorOpen,
+  GraduationCap,
+  HeartHandshake,
+  Lightbulb,
+  Network,
+  Star,
+  TrendingUp,
+  UserCheck,
   type LucideIcon,
   Users,
 } from "lucide-react";
@@ -175,6 +186,15 @@ const TEMPLATE_ICONS: Record<string, LucideIcon> = {
   Search,
   BrainCircuit,
   Briefcase,
+  Network,
+  HeartHandshake,
+  UserCheck,
+  Compass,
+  GraduationCap,
+  Lightbulb,
+  Star,
+  TrendingUp,
+  DoorOpen,
 };
 
 /* ------------------------------------------------------------------ */
@@ -313,6 +333,42 @@ export default function InterviewsPage() {
       toast({ title: t("interviews.interviewDeleted") });
     },
   });
+
+  // Org-wide custom templates
+  const [showTemplates, setShowTemplates] = useState(false);
+  const customTemplates = trpc.customTemplate.list.useQuery();
+
+  const saveAsTemplate = trpc.customTemplate.createFromInterview.useMutation({
+    onSuccess: () => {
+      utils.customTemplate.list.invalidate();
+      toast({ title: "Saved as a team template" });
+    },
+    onError: (err) =>
+      toast({
+        title: "Failed to save template",
+        description: err.message,
+        variant: "destructive",
+      }),
+  });
+
+  const deleteCustomTemplate = trpc.customTemplate.delete.useMutation({
+    onSuccess: () => {
+      utils.customTemplate.list.invalidate();
+      toast({ title: "Template deleted" });
+    },
+  });
+
+  const handleCustomTemplateClick = useCallback(
+    (tpl: { id: string }) => {
+      if (creatingTemplateId) return;
+      setCreatingTemplateId(tpl.id);
+      createFromTemplate.mutate({
+        customTemplateId: tpl.id,
+        projectId: projectId ?? undefined,
+      });
+    },
+    [creatingTemplateId, createFromTemplate, projectId],
+  );
 
   const deleteManyMutation = trpc.interview.deleteMany.useMutation({
     onSuccess: (data) => {
@@ -518,6 +574,16 @@ export default function InterviewsPage() {
           Duplicate
         </DropdownMenuItem>
         <DropdownMenuItem
+          disabled={saveAsTemplate.isPending}
+          onClick={(e) => {
+            e.stopPropagation();
+            saveAsTemplate.mutate({ interviewId: interview.id });
+          }}
+        >
+          <BookmarkPlus className="mr-2 h-4 w-4" />
+          Save as Template
+        </DropdownMenuItem>
+        <DropdownMenuItem
           onClick={(e) => {
             e.stopPropagation();
             toggleSelect(interview.id);
@@ -538,6 +604,155 @@ export default function InterviewsPage() {
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+
+  const customTemplateList = customTemplates.data?.templates ?? [];
+
+  const renderTemplatesSection = (includeCreateLink: boolean) => (
+    <div className="space-y-6">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {INTERVIEW_TEMPLATES.map((tpl) => {
+          const Icon = TEMPLATE_ICONS[tpl.icon] ?? FileText;
+          const isCreating = creatingTemplateId === tpl.id;
+          return (
+            <button
+              key={tpl.id}
+              type="button"
+              disabled={!!creatingTemplateId}
+              onClick={() => handleTemplateClick(tpl)}
+              className={cn(
+                "group relative flex flex-col items-start gap-3 rounded-lg border bg-card p-5 text-left transition-all hover:border-primary/40 hover:shadow-md",
+                isCreating && "border-primary/40 shadow-md",
+                creatingTemplateId && !isCreating && "opacity-50",
+              )}
+            >
+              <div className="flex w-full items-center gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                  {isCreating ? (
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                  ) : (
+                    <Icon className="h-5 w-5" />
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h4 className="font-semibold leading-tight">
+                    {tpl.title}
+                  </h4>
+                </div>
+                <Sparkles className="h-4 w-4 shrink-0 text-muted-foreground/40 transition-colors group-hover:text-primary/60" />
+              </div>
+              <p className="text-[13px] leading-relaxed text-muted-foreground line-clamp-2">
+                {tpl.description}
+              </p>
+              <div className="flex flex-wrap gap-2 text-[11px] text-muted-foreground/70">
+                <span className="inline-flex items-center gap-1">
+                  <MessageSquare className="h-3 w-3" />
+                  {tpl.questions.length} questions
+                </span>
+                {tpl.timeLimitMinutes ? (
+                  <span className="inline-flex items-center gap-1">
+                    <Clock className="h-3 w-3" />
+                    {tpl.timeLimitMinutes} min
+                  </span>
+                ) : null}
+              </div>
+            </button>
+          );
+        })}
+
+        {includeCreateLink && (
+          <Link
+            href="/interviews/new"
+            className={cn(
+              "group flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed bg-card p-5 text-center transition-all hover:border-primary/40 hover:shadow-md",
+              creatingTemplateId && "pointer-events-none opacity-50",
+            )}
+          >
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted text-muted-foreground transition-colors group-hover:bg-primary/10 group-hover:text-primary">
+              <Plus className="h-5 w-5" />
+            </div>
+            <span className="text-sm font-medium text-muted-foreground group-hover:text-foreground">
+              Create from scratch
+            </span>
+          </Link>
+        )}
+      </div>
+
+      {customTemplateList.length > 0 && (
+        <div className="space-y-3">
+          <p className="text-sm font-medium text-muted-foreground">
+            Your team templates
+          </p>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {customTemplateList.map((tpl) => {
+              const isCreating = creatingTemplateId === tpl.id;
+              return (
+                <div key={tpl.id} className="relative">
+                  <button
+                    type="button"
+                    disabled={!!creatingTemplateId}
+                    onClick={() => handleCustomTemplateClick(tpl)}
+                    className={cn(
+                      "flex h-full w-full flex-col items-start gap-3 rounded-lg border bg-card p-5 pr-10 text-left transition-all hover:border-primary/40 hover:shadow-md",
+                      isCreating && "border-primary/40 shadow-md",
+                      creatingTemplateId && !isCreating && "opacity-50",
+                    )}
+                  >
+                    <div className="flex w-full items-center gap-3">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                        {isCreating ? (
+                          <Loader2 className="h-5 w-5 animate-spin" />
+                        ) : (
+                          <Bookmark className="h-5 w-5" />
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <h4 className="font-semibold leading-tight">
+                          {tpl.title}
+                        </h4>
+                      </div>
+                    </div>
+                    <p className="text-[13px] leading-relaxed text-muted-foreground line-clamp-2">
+                      {tpl.description || "Saved from one of your interviews."}
+                    </p>
+                    <div className="flex flex-wrap gap-2 text-[11px] text-muted-foreground/70">
+                      <span className="inline-flex items-center gap-1">
+                        <MessageSquare className="h-3 w-3" />
+                        {tpl.questionCount} questions
+                      </span>
+                      {tpl.timeLimitMinutes ? (
+                        <span className="inline-flex items-center gap-1">
+                          <Clock className="h-3 w-3" />
+                          {tpl.timeLimitMinutes} min
+                        </span>
+                      ) : null}
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    title="Delete template"
+                    aria-label={`Delete template ${tpl.title}`}
+                    disabled={deleteCustomTemplate.isPending}
+                    onClick={() => {
+                      if (
+                        window.confirm(
+                          `Delete the "${tpl.title}" template? Interviews already created from it are not affected.`,
+                        )
+                      ) {
+                        deleteCustomTemplate.mutate({ id: tpl.id });
+                      }
+                    }}
+                    className="absolute right-2 top-2 rounded-md p-1.5 text-muted-foreground/50 transition-colors hover:bg-muted hover:text-destructive"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
   );
 
   return (
@@ -731,6 +946,25 @@ export default function InterviewsPage() {
         </AlertDialogContent>
       </AlertDialog>
 
+      {/* Template browser — also reachable when interviews already exist */}
+      {!interviews.isLoading && (
+        <div className="space-y-4">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowTemplates((s) => !s)}
+          >
+            <Bookmark className="mr-2 h-4 w-4" />
+            {showTemplates ? "Hide templates" : "Start from a template"}
+          </Button>
+          {showTemplates && (
+            <div className="rounded-lg border p-6">
+              {renderTemplatesSection(false)}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Content */}
       {interviews.isLoading ? (
         viewMode === "card" ? (
@@ -762,71 +996,7 @@ export default function InterviewsPage() {
               </p>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {INTERVIEW_TEMPLATES.map((tpl) => {
-                const Icon = TEMPLATE_ICONS[tpl.icon] ?? FileText;
-                const isCreating = creatingTemplateId === tpl.id;
-                return (
-                  <button
-                    key={tpl.id}
-                    type="button"
-                    disabled={!!creatingTemplateId}
-                    onClick={() => handleTemplateClick(tpl)}
-                    className={cn(
-                      "group relative flex flex-col items-start gap-3 rounded-lg border bg-card p-5 text-left transition-all hover:border-primary/40 hover:shadow-md",
-                      isCreating && "border-primary/40 shadow-md",
-                      creatingTemplateId && !isCreating && "opacity-50",
-                    )}
-                  >
-                    <div className="flex w-full items-center gap-3">
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                        {isCreating ? (
-                          <Loader2 className="h-5 w-5 animate-spin" />
-                        ) : (
-                          <Icon className="h-5 w-5" />
-                        )}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <h4 className="font-semibold leading-tight">
-                          {tpl.title}
-                        </h4>
-                      </div>
-                      <Sparkles className="h-4 w-4 shrink-0 text-muted-foreground/40 transition-colors group-hover:text-primary/60" />
-                    </div>
-                    <p className="text-[13px] leading-relaxed text-muted-foreground line-clamp-2">
-                      {tpl.description}
-                    </p>
-                    <div className="flex flex-wrap gap-2 text-[11px] text-muted-foreground/70">
-                      <span className="inline-flex items-center gap-1">
-                        <MessageSquare className="h-3 w-3" />
-                        {tpl.questions.length} questions
-                      </span>
-                      {tpl.timeLimitMinutes ? (
-                        <span className="inline-flex items-center gap-1">
-                          <Clock className="h-3 w-3" />
-                          {tpl.timeLimitMinutes} min
-                        </span>
-                      ) : null}
-                    </div>
-                  </button>
-                );
-              })}
-
-              <Link
-                href="/interviews/new"
-                className={cn(
-                  "group flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed bg-card p-5 text-center transition-all hover:border-primary/40 hover:shadow-md",
-                  creatingTemplateId && "pointer-events-none opacity-50",
-                )}
-              >
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted text-muted-foreground transition-colors group-hover:bg-primary/10 group-hover:text-primary">
-                  <Plus className="h-5 w-5" />
-                </div>
-                <span className="text-sm font-medium text-muted-foreground group-hover:text-foreground">
-                  Create from scratch
-                </span>
-              </Link>
-            </div>
+            {renderTemplatesSection(true)}
           </div>
         )
       ) : viewMode === "card" ? (

@@ -130,6 +130,74 @@ async function resolveDefaultProject(
   return defaultProject?.id ?? null;
 }
 
+const QUESTION_TYPES = [
+  "OPEN_ENDED",
+  "SINGLE_CHOICE",
+  "MULTIPLE_CHOICE",
+  "CODING",
+  "WHITEBOARD",
+  "RESEARCH",
+] as const;
+
+const TEMPLATE_TONES = ["CASUAL", "PROFESSIONAL", "FORMAL", "FRIENDLY"] as const;
+const TEMPLATE_DEPTHS = ["LIGHT", "MODERATE", "DEEP"] as const;
+
+/**
+ * Coerce a saved-template jsonb snapshot back into the built-in template
+ * shape, defaulting unknown fields and dropping malformed questions —
+ * the snapshot is stored data, not a trusted contract.
+ */
+function normalizeCustomTemplate(
+  title: string,
+  description: string | null,
+  config: Record<string, unknown>,
+): (typeof INTERVIEW_TEMPLATES)[number] {
+  const rawQuestions = Array.isArray(config.questions) ? config.questions : [];
+  const questions = rawQuestions
+    .filter((q): q is Record<string, unknown> => typeof q === "object" && q !== null)
+    .filter(
+      (q) =>
+        typeof q.text === "string" &&
+        q.text.trim() &&
+        QUESTION_TYPES.includes(q.type as (typeof QUESTION_TYPES)[number]),
+    )
+    .map((q, i) => ({
+      text: q.text as string,
+      description: typeof q.description === "string" ? q.description : undefined,
+      type: q.type as (typeof INTERVIEW_TEMPLATES)[number]["questions"][number]["type"],
+      options: q.options ?? undefined,
+      order: typeof q.order === "number" ? q.order : i,
+      probeOnShort: q.probeOnShort !== false,
+      isRequired: q.isRequired !== false,
+    }));
+
+  return {
+    id: "custom",
+    title,
+    description: description ?? "",
+    objective: typeof config.objective === "string" ? config.objective : "",
+    icon: "Bookmark",
+    aiTone: TEMPLATE_TONES.includes(config.aiTone as (typeof TEMPLATE_TONES)[number])
+      ? (config.aiTone as (typeof TEMPLATE_TONES)[number])
+      : "PROFESSIONAL",
+    followUpDepth: TEMPLATE_DEPTHS.includes(
+      config.followUpDepth as (typeof TEMPLATE_DEPTHS)[number],
+    )
+      ? (config.followUpDepth as (typeof TEMPLATE_DEPTHS)[number])
+      : "MODERATE",
+    assessmentCriteria: Array.isArray(config.assessmentCriteria)
+      ? (config.assessmentCriteria as { name: string; description: string }[]).filter(
+          (c) => typeof c?.name === "string" && typeof c?.description === "string",
+        )
+      : [],
+    chatEnabled: config.chatEnabled !== false,
+    voiceEnabled: config.voiceEnabled !== false,
+    videoEnabled: config.videoEnabled !== false,
+    timeLimitMinutes: typeof config.timeLimitMinutes === "number" ? config.timeLimitMinutes : undefined,
+    questions,
+  };
+}
+
 export const interviewRouter = router({
   list: protectedProcedure
     .input(
@@ -646,18 +714,52 @@ export const interviewRouter = router({
 
   createFromTemplate: protectedProcedure
     .input(
-      z.object({
-        templateId: z.string(),
-        projectId: z.string().optional(),
-      }),
+      z
+        .object({
+          templateId: z.string().optional(),
+          customTemplateId: z.string().optional(),
+          projectId: z.string().optional(),
+        })
+        .refine((v) => !!v.templateId !== !!v.customTemplateId, {
+          message: "Pass exactly one of templateId or customTemplateId",
+        }),
     )
     .mutation(async ({ ctx, input }) => {
-      const template = INTERVIEW_TEMPLATES.find((t) => t.id === input.templateId);
-      if (!template) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Template not found",
-        });
+      let template: (typeof INTERVIEW_TEMPLATES)[number];
+      // Built-in template content is English; saved templates keep the
+      // language of the interview they were snapshotted from.
+      let language = "en";
+
+      if (input.customTemplateId) {
+        const { data: row } = await ctx.supabase
+          .from("custom_templates")
+          .select("title, description, config, organizationId")
+          .eq("id", input.customTemplateId)
+          .single();
+        const config = (row?.config ?? null) as Record<string, unknown> | null;
+        if (
+          !row ||
+          !config ||
+          !(await getOrgMembership(ctx.supabase, row.organizationId, ctx.user.id))
+        ) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Template not found",
+          });
+        }
+        template = normalizeCustomTemplate(row.title, row.description, config);
+        if (typeof config.language === "string" && config.language) {
+          language = config.language;
+        }
+      } else {
+        const builtin = INTERVIEW_TEMPLATES.find((t) => t.id === input.templateId);
+        if (!builtin) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Template not found",
+          });
+        }
+        template = builtin;
       }
 
       const projectId =
@@ -710,9 +812,7 @@ export const interviewRouter = router({
           aiTone: template.aiTone,
           followUpDepth: template.followUpDepth,
           assessmentCriteria: template.assessmentCriteria,
-          // ponytail: template content is English — pin language to match; add
-          // id template variants when templates get translated.
-          language: "en",
+          language,
           chatEnabled: template.chatEnabled,
           voiceEnabled: template.voiceEnabled,
           videoEnabled: template.videoEnabled,
