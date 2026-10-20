@@ -17,6 +17,7 @@ import {
   ArrowDown,
   ArrowUp,
   ArrowUpDown,
+  Check,
   CheckCircle2,
   Clock,
   Loader2,
@@ -134,6 +135,8 @@ export function ReportView({
   sessionBasePath,
   onRegenerate,
   regeneratingSessionId,
+  onFinalize,
+  finalizingSessionId,
 }: {
   data: InterviewReport;
   /** When set, clicking a row opens this path with ?session={id} */
@@ -141,6 +144,9 @@ export function ReportView({
   /** Dashboard-only: enables the per-candidate regenerate action. */
   onRegenerate?: (row: ReportRow) => void;
   regeneratingSessionId?: string | null;
+  /** Dashboard-only: enables the per-candidate finalize action. */
+  onFinalize?: (row: ReportRow) => void;
+  finalizingSessionId?: string | null;
 }) {
   const { rows, questionLabels } = data;
   // Per-question columns only ("Q1".."Qn") — criteria-name columns made the
@@ -301,6 +307,7 @@ export function ReportView({
                   onSort={handleSort}
                 />
                 {onRegenerate && <TableHead className="w-10" />}
+                {onFinalize && <TableHead className="w-10" title="Draft → final" />}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -313,6 +320,8 @@ export function ReportView({
                   sessionBasePath={sessionBasePath}
                   onRegenerate={onRegenerate}
                   regenerating={!!row.sessionId && regeneratingSessionId === row.sessionId}
+                  onFinalize={onFinalize}
+                  finalizing={!!row.sessionId && finalizingSessionId === row.sessionId}
                 />
               ))}
             </TableBody>
@@ -354,6 +363,8 @@ function BodyRow({
   sessionBasePath,
   onRegenerate,
   regenerating,
+  onFinalize,
+  finalizing,
 }: {
   row: ReportRow;
   rank: number | null;
@@ -361,6 +372,8 @@ function BodyRow({
   sessionBasePath?: string;
   onRegenerate?: (row: ReportRow) => void;
   regenerating?: boolean;
+  onFinalize?: (row: ReportRow) => void;
+  finalizing?: boolean;
 }) {
   const hasSession = !!row.sessionId;
 
@@ -370,6 +383,15 @@ function BodyRow({
       {row.source === "Walk-in" && (
         <Badge variant="secondary" className="ml-2 text-xs">
           Walk-in
+        </Badge>
+      )}
+      {row.reportStatus === "DRAFT" && (
+        <Badge
+          variant="outline"
+          className="ml-2 border-amber-500/50 text-xs text-amber-600 dark:text-amber-400"
+          title="AI draft — not visible on the public share link until finalized"
+        >
+          Draft
         </Badge>
       )}
     </span>
@@ -445,6 +467,33 @@ function BodyRow({
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
               ) : (
                 <RefreshCw className="h-3.5 w-3.5 text-muted-foreground" />
+              )}
+            </Button>
+          )}
+        </TableCell>
+      )}
+      {onFinalize && (
+        <TableCell className="w-10">
+          {row.sessionId && row.reportStatus === "DRAFT" && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              title={
+                finalizing
+                  ? "Finalizing…"
+                  : `Finalize report for ${row.name} — makes it visible on the share link`
+              }
+              disabled={finalizing}
+              onClick={(e) => {
+                e.stopPropagation();
+                onFinalize(row);
+              }}
+            >
+              {finalizing ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
               )}
             </Button>
           )}

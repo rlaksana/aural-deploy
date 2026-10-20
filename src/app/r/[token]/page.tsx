@@ -4,6 +4,7 @@ import {
   buildReportRows,
   buildSurveyAggregate,
   fetchReportEntries,
+  filterFinalForAiKinds,
 } from "@/lib/interview-report";
 import { AutoRefresh } from "./auto-refresh";
 import { supabaseAdmin } from "@/lib/supabase/admin";
@@ -58,10 +59,12 @@ export default async function PublicReportPage({
     | (InterviewKindRow & { aiAnalysis?: { text: string; generatedAt: string } | null })
     | null;
   const isInterviewKind = (row?.kind ?? "INTERVIEW") === "INTERVIEW";
-  const entries = (
+  // Draft→finalize gate: AI-judged kinds only show finalized sessions publicly.
+  const entries = filterFinalForAiKinds(
     await fetchReportEntries(supabaseAdmin, interviewId, {
       includeMessages: !isInterviewKind,
-    })
+    }),
+    row?.kind ?? "INTERVIEW",
   ).map((entry) => ({ ...entry, email: null, participantEmail: null }));
   const report = buildReportRows(
     interviewRow?.title ?? "Interview",

@@ -4,6 +4,7 @@ import {
   buildReportRows,
   buildSurveyAggregate,
   fetchReportEntries,
+  filterFinalForAiKinds,
   type InterviewReport,
   type SurveyAggregate,
 } from "@/lib/interview-report";
@@ -157,6 +158,62 @@ export const reportRouter = router({
       return { success: true };
     }),
 
+  /** Draft→finalize: mark sessions FINAL so they appear on the share link. */
+  finalizeSessions: protectedProcedure
+    .input(
+      z.object({
+        interviewId: z.string(),
+        sessionIds: z.array(z.string()).min(1),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      await verifyInterviewAccess(ctx.supabase, input.interviewId, ctx.user.id);
+
+      const { error } = await ctx.supabase
+        .from("sessions")
+        .update({
+          reportStatus: "FINAL",
+          finalizedAt: new Date().toISOString(),
+          finalizedBy: ctx.user.id,
+        })
+        .in("id", input.sessionIds)
+        .eq("interviewId", input.interviewId);
+
+      if (error) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: error.message,
+        });
+      }
+      return { success: true };
+    }),
+
+  /** Draft→finalize: mark every completed session of the interview FINAL. */
+  finalizeAll: protectedProcedure
+    .input(z.object({ interviewId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      await verifyInterviewAccess(ctx.supabase, input.interviewId, ctx.user.id);
+
+      const { error } = await ctx.supabase
+        .from("sessions")
+        .update({
+          reportStatus: "FINAL",
+          finalizedAt: new Date().toISOString(),
+          finalizedBy: ctx.user.id,
+        })
+        .eq("interviewId", input.interviewId)
+        .eq("status", "COMPLETED")
+        .eq("reportStatus", "DRAFT");
+
+      if (error) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: error.message,
+        });
+      }
+      return { success: true };
+    }),
+
   /** Public: resolve a share token to the aggregate report. */
   getByToken: publicProcedure
     .input(z.object({ token: z.string() }))
@@ -181,10 +238,16 @@ export const reportRouter = router({
         .single();
 
       const row = interviewRow as unknown as InterviewKindRow | null;
-      const isInterviewKind = (row?.kind ?? "INTERVIEW") === "INTERVIEW";
-      const entries = await fetchReportEntries(ctx.supabase, interviewId, {
-        includeMessages: !isInterviewKind,
-      });
+      const kind = row?.kind ?? "INTERVIEW";
+      const isInterviewKind = kind === "INTERVIEW";
+      // Draft→finalize gate: AI-judged kinds only show finalized sessions
+      // through a public token.
+      const entries = filterFinalForAiKinds(
+        await fetchReportEntries(ctx.supabase, interviewId, {
+          includeMessages: !isInterviewKind,
+        }),
+        kind,
+      );
       const report: InterviewReport = buildReportRows(
         row?.title ?? "Interview",
         entries,

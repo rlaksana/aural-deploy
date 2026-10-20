@@ -19,6 +19,8 @@ export type ReportRow = {
   criteria: Record<string, number>;
   summary: string | null;
   completedAt: string | null;
+  /** Draft→finalize state; null = no session yet (invited roster row). */
+  reportStatus: string | null;
 };
 
 export type InterviewReport = {
@@ -51,6 +53,8 @@ type SessionLike = {
   participantName?: string | null;
   participantEmail?: string | null;
   completedAt?: string | null;
+  /** Draft→finalize gate; only meaningful for AI-judged kinds. */
+  reportStatus?: string | null;
   messages?: SessionMessage[] | null;
 } | null;
 
@@ -123,6 +127,22 @@ export type ReportEntry = {
   session: SessionLike;
 };
 
+const AI_JUDGED_KINDS = new Set(["INTERVIEW", "ASSESSMENT"]);
+
+/**
+ * Public-read gate for the draft→finalize workflow: sessions of AI-judged
+ * kinds (INTERVIEW, ASSESSMENT) stay hidden from share links until the
+ * recruiter finalizes them. Invited candidates without a session remain
+ * visible roster rows, and objective kinds pass through untouched.
+ */
+export function filterFinalForAiKinds(
+  entries: ReportEntry[],
+  kind: string,
+): ReportEntry[] {
+  if (!AI_JUDGED_KINDS.has(kind)) return entries;
+  return entries.filter((e) => !e.session || e.session.reportStatus !== "DRAFT");
+}
+
 /** Build ranked report rows from invited candidates + walk-in sessions. */
 export function buildReportRows(
   interviewTitle: string,
@@ -157,6 +177,7 @@ export function buildReportRows(
           criteria: {},
           summary: null,
           completedAt: null,
+          reportStatus: null,
         });
       }
       continue;
@@ -184,6 +205,7 @@ export function buildReportRows(
       criteria,
       summary: extractSummary(session, insights),
       completedAt: session.completedAt ?? null,
+      reportStatus: session.reportStatus ?? null,
     });
   }
 

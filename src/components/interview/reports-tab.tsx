@@ -165,6 +165,41 @@ export function ReportsTab({ interviewId }: { interviewId: string }) {
       toast({ title: "Failed to delete link", description: err.message, variant: "destructive" }),
   });
 
+  // Draft→finalize: AI-written reports stay off the share link until approved.
+  const [finalizingId, setFinalizingId] = useState<string | null>(null);
+  const finalizeSessions = trpc.report.finalizeSessions.useMutation({
+    onSuccess: () => {
+      utils.report.get.invalidate({ interviewId });
+      toast({ title: "Report finalized — now visible on the share link" });
+    },
+    onError: (err) =>
+      toast({ title: "Failed to finalize", description: err.message, variant: "destructive" }),
+  });
+  const finalizeAll = trpc.report.finalizeAll.useMutation({
+    onSuccess: () => {
+      utils.report.get.invalidate({ interviewId });
+      toast({ title: "All drafts finalized" });
+    },
+    onError: (err) =>
+      toast({ title: "Failed to finalize", description: err.message, variant: "destructive" }),
+  });
+
+  const handleFinalizeOne = useCallback(
+    async (row: { sessionId: string }) => {
+      if (!row.sessionId || finalizingId) return;
+      setFinalizingId(row.sessionId);
+      try {
+        await finalizeSessions.mutateAsync({
+          interviewId,
+          sessionIds: [row.sessionId],
+        });
+      } finally {
+        setFinalizingId(null);
+      }
+    },
+    [finalizingId, finalizeSessions, interviewId],
+  );
+
   const handleCreate = useCallback(async () => {
     const { token } = await createLink.mutateAsync({ interviewId });
     const url = `${window.location.origin}/r/${token}`;
@@ -175,6 +210,20 @@ export function ReportsTab({ interviewId }: { interviewId: string }) {
 
   const token = report.data?.linkToken ?? null;
   const shareUrl = token ? `${typeof window !== "undefined" ? window.location.origin : ""}/r/${token}` : "";
+  const draftCount = (report.data?.report.rows ?? []).filter(
+    (r) => r.reportStatus === "DRAFT" && r.sessionId,
+  ).length;
+
+  const handleFinalizeAll = useCallback(async () => {
+    if (draftCount === 0) return;
+    if (
+      !window.confirm(
+        `Finalize ${draftCount} draft report${draftCount > 1 ? "s" : ""}? They become visible to anyone with the share link.`,
+      )
+    )
+      return;
+    await finalizeAll.mutateAsync({ interviewId });
+  }, [draftCount, finalizeAll, interviewId]);
 
   return (
     <div className="space-y-6">
@@ -358,11 +407,36 @@ export function ReportsTab({ interviewId }: { interviewId: string }) {
             aggregate={report.data.aggregate ?? { respondentCount: 0, questions: [] }}
             aiAnalysis={report.data.aiAnalysis}
           />
+          {/* Draft→finalize: unapproved AI reports are not on the share link */}
+          {draftCount > 0 && (
+            <div className="flex flex-col gap-3 rounded-lg border border-amber-500/40 bg-amber-500/5 p-4 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm">
+                {draftCount} draft report{draftCount > 1 ? "s" : ""} not yet
+                visible on the share link. Review each candidate, then
+                finalize.
+              </p>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleFinalizeAll}
+                disabled={finalizeAll.isPending}
+              >
+                {finalizeAll.isPending ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <Check className="mr-2 h-4 w-4 text-emerald-600" />
+                )}
+                Finalize all ({draftCount})
+              </Button>
+            </div>
+          )}
           <ReportView
             data={report.data.report}
             sessionBasePath={`/interviews/${interviewId}/edit/sessions`}
             onRegenerate={handleRegenerateOne}
             regeneratingSessionId={regeneratingId}
+            onFinalize={handleFinalizeOne}
+            finalizingSessionId={finalizingId}
           />
         </div>
       ) : null}
