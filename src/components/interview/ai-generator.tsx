@@ -283,6 +283,15 @@ const PROMPT_TEMPLATES: PromptTemplate[] = [
 ];
 
 const PARSE_TEXT_GUIDE = `You are helping me prepare interview question text for Aural's "Parse Text" extractor.
+Aural interviews support these question types:
+- Open-ended: candidate answers freely in text. The default for any question without choices.
+- Single choice: one correct option selected from A/B/C/D choices.
+- Multiple choice: several correct options selected from the choices.
+- Coding: a programming task; you may include starter code, which becomes the
+  candidate's starting editor content.
+- Whiteboard: a system-design or diagram-style discussion question.
+- Research: an open investigation/analysis task done with external resources.
+
 Write interview questions as plain text following these rules:
 
 1. One question per line, numbered (1. 2. 3.) or bulleted (- ).
@@ -291,15 +300,18 @@ Write interview questions as plain text following these rules:
 3. Make the choice type explicit in the question wording:
    - single choice: end with "Pilih salah satu" / "Which one"
    - multiple choice: end with "Pilih semua yang sesuai" / "Select all that apply"
-4. Optionally add a short line of context under a question (topic or what it
+4. For coding/whiteboard/research questions, write them as such (a coding task,
+   a system-design prompt, a research task) — the parser detects the type from
+   the wording. Coding questions may include a fenced code block as starter code.
+5. Optionally add a short line of context under a question (topic or what it
    assesses) — it becomes the question's helper description.
-5. Optionally end the choices with "Answer: B" as the answer key — it is read
+6. Optionally end the choices with "Answer: B" as the answer key — it is read
    as a key, never as another question.
-6. You may add an "Assessment criteria" section at the end; each criterion
+7. You may add an "Assessment criteria" section at the end; each criterion
    becomes a scoring criterion, not a question. Map criteria to question
    numbers if useful.
-7. Plain text or Markdown only — no tables, no images.
-8. Write the questions in the language I ask for.
+8. Plain text or Markdown only — no tables, no images.
+9. Write the questions in the language I ask for.
 
 Example output:
 1. Explain a REST API.
@@ -308,7 +320,12 @@ A. O(1)
 B. O(log n)
 C. O(n)
 D. O(n log n)
-Answer: B`;
+Answer: B
+3. Implement a function that reverses a linked list.
+\`\`\`python
+def reverse(head):
+    pass
+\`\`\``;
 
 export function AIGenerator({ projectId }: { projectId?: string } = {}) {
   const router = useRouter();
@@ -987,6 +1004,11 @@ export function AIGenerator({ projectId }: { projectId?: string } = {}) {
                             <p>• Put answer choices on the lines below the question (A. … B. …) — they belong to that one question</p>
                             <p>• End with “Answer: B” to mark the key — it is read as a key, not a question</p>
                             <p>• Plain text or Markdown; an “Assessment criteria” section becomes scoring criteria</p>
+                            <p className="pt-1 font-medium text-foreground">Question types in interviews</p>
+                            <p>• Open-ended (default) — free-form answer</p>
+                            <p>• Single choice / multiple choice — detected from “Pilih salah satu” vs “Pilih semua yang sesuai”</p>
+                            <p>• Coding — a coding task; a fenced code block becomes starter code</p>
+                            <p>• Whiteboard / research — a design prompt / open research task</p>
                             <p className="pt-1 font-medium text-foreground">Example</p>
                             <pre className="whitespace-pre-wrap font-mono text-[10px] leading-snug">{`1. Explain a REST API.
 2. What is the time complexity of binary search?
