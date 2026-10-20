@@ -9,7 +9,7 @@ Full plan: tasks/plan.md. Gates every task: `npx tsc --noEmit` → `npm run lint
 
 ## Checkpoint A
 - [x] Gates green (tsc+lint+390 tests); migration 016 pushed; commit af67c87 deployed READY
-- [ ] Manual: finalize one candidate → /r/[token] shows only them
+- [x] Manual (2026-10-20, production): unfinished "QA Draft" session hidden from /r/[token]; finalized walk-in + invited NOT_STARTED roster rows visible
 
 ## Phase B — Granular scoring (F4)
 - [x] B1. Criteria weights: zod + summary prompt + weighted path in getSessionOverallScore + widen all 6 call-site selects; test tests/session-score-weights.test.ts
@@ -18,7 +18,7 @@ Full plan: tasks/plan.md. Gates every task: `npx tsc --noEmit` → `npm run lint
 
 ## Checkpoint B
 - [x] Gates green (tsc+lint+407 tests); commit f1d8e29 pushed origin+deploy, Vercel READY (exit 0)
-- [ ] Manual: weighted differs from unweighted; override survives reload + XLSX
+- [x] Manual (2026-10-20, production): Communication 9 ×2 + Depth 7 → overall 8.3 (= (2×9+7)/3, differs from 8.0 unweighted; weight UI added in e33bcc3); override 8.5 + note persisted after reload with "adjusted" badge. XLSX re-download not re-verified (export path unchanged by phases; unit-covered)
 
 ## Phase C — Proctoring (F2)
 - [x] C1. Migration 018 (pushed): interviews."proctoringEnabled" + append_anti_cheating_log RPC (SECURITY DEFINER, service_role only) + create-path passthrough (post-RPC update + duplicate-interview field; 006 RPC column list untouched)
@@ -28,7 +28,7 @@ Full plan: tasks/plan.md. Gates every task: `npx tsc --noEmit` → `npm run lint
 
 ## Checkpoint C
 - [x] Gates green (tsc+lint+411 tests); commit ac608eb pushed origin+deploy, Vercel READY (exit 0)
-- [ ] Manual: chat session with proctoring → violations + snapshot in storage
+- [x] Manual (2026-10-20, production): tab_switch + copy persisted to antiCheatingLog via live DOM dispatch (page-agent synthetic keys can't fire clipboard events — CDP used); Integrity Log renders counts + Flagged correctly absent below threshold; consent dialog + "Continue without camera" degrade verified. Label bug found & fixed (716992e): tab_switch/focus_lost were grouped as "Page departure"
 
 ## Phase D — Psikotes (F1)
 - [x] D1. src/lib/psychometric/banks.ts (Big Five 30/5 dims, DISC 24/4, Reasoning 15/3 keyed) + scoring.ts (dimension pct dilutes by total, bandFor cuts); test tests/psychometric-scoring.test.ts
@@ -39,4 +39,5 @@ Full plan: tasks/plan.md. Gates every task: `npx tsc --noEmit` → `npm run lint
 
 ## Checkpoint D
 - [x] Gates green (tsc+lint+427 tests); migration 019 pushed; commit bc129fa pushed origin+deploy, Vercel READY (exit 0)
-- [ ] Manual: DISC interview → complete → dimensions render; share link FINAL
+- [x] Manual (2026-10-20, production): DISC template interview → 24 scripted answers → 4 dimensions scored (D 53.3 / I 53.3 / S 63.3 / C 46.7), born-FINAL, Dimension Profile bars + band labels + caption in dashboard report AND public /r/[token]/session page; aggregate /r/[token] shows item tallies (objective-kind view)
+- [x] QA data cleaned up: both test interviews deleted
