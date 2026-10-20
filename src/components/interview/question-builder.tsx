@@ -25,6 +25,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { trpc } from "@/lib/trpc/client";
@@ -62,6 +63,7 @@ interface Question {
 interface AssessmentCriterion {
   name: string;
   description: string;
+  weight?: number;
 }
 
 export function QuestionBuilder({
@@ -431,6 +433,35 @@ export function QuestionBuilder({
                     rows={2}
                     className="resize-y text-sm"
                   />
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor={`criterion-weight-${i}`} className="text-xs text-muted-foreground">
+                      Weight
+                    </Label>
+                    <Input
+                      id={`criterion-weight-${i}`}
+                      type="number"
+                      min={0}
+                      max={10}
+                      step={0.1}
+                      value={c.weight ?? ""}
+                      onChange={(e) => {
+                        const parsed = e.target.value === "" ? undefined : e.target.valueAsNumber;
+                        setEditableCriteria((prev) =>
+                          prev.map((cr, idx) =>
+                            idx === i
+                              ? { ...cr, weight: parsed !== undefined && Number.isFinite(parsed) ? parsed : undefined }
+                              : cr,
+                          ),
+                        );
+                        setCriteriaChanged(true);
+                      }}
+                      placeholder="1"
+                      className="h-8 w-20 text-sm"
+                    />
+                    <span className="text-xs text-muted-foreground">
+                      relative importance (default 1)
+                    </span>
+                  </div>
                   <div className="flex justify-end gap-2">
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
@@ -517,6 +548,14 @@ export function QuestionBuilder({
                       {c.name || (
                         <span className="italic text-muted-foreground">
                           Untitled criterion
+                        </span>
+                      )}
+                      {c.weight !== undefined && c.weight !== 1 && (
+                        <span
+                          className="ml-2 rounded bg-muted px-1.5 py-0.5 text-[10px] font-normal text-muted-foreground"
+                          title="Criteria weight — affects the weighted average score"
+                        >
+                          ×{c.weight}
                         </span>
                       )}
                     </p>
