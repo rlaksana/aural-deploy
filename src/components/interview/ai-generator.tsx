@@ -52,6 +52,7 @@ import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
+    DropdownMenuLabel,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -59,6 +60,12 @@ import {
     PopoverContent,
     PopoverTrigger,
 } from "@/components/ui/popover";
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
     ArrowRight,
     BrainCircuit,
@@ -91,6 +98,7 @@ type PromptSegment = string | { text: string; highlight: true };
 
 interface PromptTemplate {
   label: string;
+  hint: string;
   icon: React.ElementType;
   segments: PromptSegment[];
 }
@@ -162,6 +170,7 @@ const h = (text: string): { text: string; highlight: true } => ({
 const PROMPT_TEMPLATES: PromptTemplate[] = [
   {
     label: "Tech Hiring",
+    hint: "Prefills a senior software engineer assessment mixing open-ended, coding, multiple-choice, and whiteboard questions.",
     icon: Code2,
     segments: [
       "Assess ",
@@ -177,6 +186,7 @@ const PROMPT_TEMPLATES: PromptTemplate[] = [
   },
   {
     label: "Behavioral",
+    hint: "Prefills behavioral questions about leadership, teamwork, and conflict resolution.",
     icon: Users,
     segments: [
       "Conduct a ",
@@ -192,6 +202,7 @@ const PROMPT_TEMPLATES: PromptTemplate[] = [
   },
   {
     label: "User Research",
+    hint: "Prefills open-ended discovery questions about product usage, pain points, and user needs.",
     icon: Search,
     segments: [
       "Conduct ",
@@ -207,6 +218,7 @@ const PROMPT_TEMPLATES: PromptTemplate[] = [
   },
   {
     label: "Screening Call",
+    hint: "Prefills a quick first-pass screen for fundamentals and communication skills.",
     icon: Briefcase,
     segments: [
       "Design a ",
@@ -222,6 +234,7 @@ const PROMPT_TEMPLATES: PromptTemplate[] = [
   },
   {
     label: "Case Study",
+    hint: "Prefills an analytical scenario with whiteboard, multiple-choice, and open-ended analysis.",
     icon: BrainCircuit,
     segments: [
       "Design a ",
@@ -235,6 +248,7 @@ const PROMPT_TEMPLATES: PromptTemplate[] = [
   },
   {
     label: "Expert Interview",
+    hint: "Prefills deep domain-expertise and industry-trend questions for subject-matter experts.",
     icon: MessageSquareText,
     segments: [
       "Conduct an ",
@@ -252,6 +266,7 @@ const PROMPT_TEMPLATES: PromptTemplate[] = [
   },
   {
     label: "Screening Interview",
+    hint: "Prefills a general first interview covering background, motivation, role-fit, and communication.",
     icon: ListOrdered,
     segments: [
       "Conduct a ",
@@ -891,23 +906,41 @@ export function AIGenerator({ projectId }: { projectId?: string } = {}) {
                     </div>
 
                     {/* Bottom toolbar: JD, Resume, & Parse Text buttons (right-aligned) */}
+                    <TooltipProvider delayDuration={200}>
                     <div className="flex items-center justify-end gap-1.5 px-3 pb-2">
                       {/* Parse Text button */}
                       <Popover>
-                        <PopoverTrigger asChild>
-                          <button
-                            type="button"
-                            className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-                          >
-                            <BrainCircuit className="h-3.5 w-3.5" />
-                            Parse Text
-                          </button>
-                        </PopoverTrigger>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <PopoverTrigger asChild>
+                              <button
+                                type="button"
+                                className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                              >
+                                <BrainCircuit className="h-3.5 w-3.5" />
+                                Parse Text
+                              </button>
+                            </PopoverTrigger>
+                          </TooltipTrigger>
+                          <TooltipContent side="top" className="max-w-72 text-xs">
+                            Convert questions you pasted in the box above into a structured interview — click for the accepted formats.
+                          </TooltipContent>
+                        </Tooltip>
                         <PopoverContent align="end" className="w-80 p-3 space-y-2">
                           <Label className="text-xs font-semibold">Extract Questions from Raw Text</Label>
                           <p className="text-[11px] text-muted-foreground">
-                            Paste unformatted text, Markdown notes, or list of questions to extract them with AI.
+                            Paste the text into the big box above first, then click below — AI reads it and builds a structured interview from it.
                           </p>
+                          <div className="space-y-1 rounded-md border bg-muted/40 p-2 text-[11px] text-muted-foreground">
+                            <p className="font-medium text-foreground">Text that works well</p>
+                            <p>• Numbered or bulleted lists of questions (1. … / - …)</p>
+                            <p>• Questions with answer choices (A. … B. …, or a. … b. …)</p>
+                            <p>• Plain notes or Markdown — AI splits them into questions and detects each type (open-ended, multiple choice, coding, …)</p>
+                            <p className="pt-1 font-medium text-foreground">Example</p>
+                            <pre className="whitespace-pre-wrap font-mono text-[10px] leading-snug">{`1. Explain a REST API.
+2. What is the time complexity of binary search?
+   A. O(1)  B. O(log n)  C. O(n)  D. O(n log n)`}</pre>
+                          </div>
                           <Button
                             size="sm"
                             className="w-full h-8 text-xs"
@@ -926,21 +959,31 @@ export function AIGenerator({ projectId }: { projectId?: string } = {}) {
                       </Popover>
                       {/* JD button */}
                       <Popover open={jdPopoverOpen} onOpenChange={(open) => { setJdPopoverOpen(open); if (!open) setJdUrlInput(""); }}>
-                        <PopoverTrigger asChild>
-                          <button
-                            type="button"
-                            className={cn(
-                              "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-colors",
-                              jdText
-                                ? "bg-primary/10 text-primary"
-                                : "text-muted-foreground hover:bg-muted hover:text-foreground",
-                            )}
-                          >
-                            {jdLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Briefcase className="h-3.5 w-3.5" />}
-                            JD
-                          </button>
-                        </PopoverTrigger>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <PopoverTrigger asChild>
+                              <button
+                                type="button"
+                                className={cn(
+                                  "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-colors",
+                                  jdText
+                                    ? "bg-primary/10 text-primary"
+                                    : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                                )}
+                              >
+                                {jdLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Briefcase className="h-3.5 w-3.5" />}
+                                JD
+                              </button>
+                            </PopoverTrigger>
+                          </TooltipTrigger>
+                          <TooltipContent side="top" className="max-w-72 text-xs">
+                            Job Description — attach it (link or PDF) so AI tailors the questions to the role.
+                          </TooltipContent>
+                        </Tooltip>
                         <PopoverContent align="end" className="w-64 p-2">
+                          <p className="px-1 pb-1.5 text-[11px] text-muted-foreground">
+                            A job description helps AI generate questions that match the requirements of the role.
+                          </p>
                           {jdText ? (
                             <button
                               type="button"
@@ -993,21 +1036,31 @@ export function AIGenerator({ projectId }: { projectId?: string } = {}) {
 
                       {/* Resume button */}
                       <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <button
-                            type="button"
-                            className={cn(
-                              "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-colors",
-                              resumeText
-                                ? "bg-primary/10 text-primary"
-                                : "text-muted-foreground hover:bg-muted hover:text-foreground",
-                            )}
-                          >
-                            {resumeLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileText className="h-3.5 w-3.5" />}
-                            Resume
-                          </button>
-                        </DropdownMenuTrigger>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <DropdownMenuTrigger asChild>
+                              <button
+                                type="button"
+                                className={cn(
+                                  "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-colors",
+                                  resumeText
+                                    ? "bg-primary/10 text-primary"
+                                    : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                                )}
+                              >
+                                {resumeLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileText className="h-3.5 w-3.5" />}
+                                Resume
+                              </button>
+                            </DropdownMenuTrigger>
+                          </TooltipTrigger>
+                          <TooltipContent side="top" className="max-w-72 text-xs">
+                            Candidate resume — attach a PDF so AI adapts questions to their background.
+                          </TooltipContent>
+                        </Tooltip>
                         <DropdownMenuContent align="end" className="w-44">
+                          <DropdownMenuLabel className="px-2 py-1.5 text-[11px] font-normal text-muted-foreground">
+                            The CV of the candidate (PDF) — AI tailors questions to their experience.
+                          </DropdownMenuLabel>
                           {resumeText ? (
                             <DropdownMenuItem onClick={() => { setResumeText(""); setResumeSource(""); setResumeError(""); }}>
                               <X className="mr-2 h-4 w-4" />
@@ -1022,32 +1075,46 @@ export function AIGenerator({ projectId }: { projectId?: string } = {}) {
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </div>
+                    </TooltipProvider>
 
                   </div>
-                  <div className="flex flex-wrap gap-1.5">
+                  <TooltipProvider delayDuration={200}>
+                  <div className="space-y-1.5">
+                    <p className="text-[11px] text-muted-foreground">
+                      Quick start — click a template to prefill the description above, then edit the highlighted parts.
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
                     {PROMPT_TEMPLATES.map((t, i) => (
-                      <button
-                        key={t.label}
-                        type="button"
-                        className={cn(
-                          "inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors",
-                          activeTemplate === i
-                            ? "border-primary bg-primary/10 text-primary"
-                            : "border-border text-muted-foreground hover:border-primary/40 hover:text-foreground",
-                        )}
-                        onClick={() => {
-                          const text = templateToText(t.segments);
-                          setDescription(text);
-                          prevDescRef.current = text;
-                          setActiveTemplate(i);
-                          setHlRanges(rangesFromSegments(t.segments));
-                        }}
-                      >
-                        <t.icon className="h-3 w-3" />
-                        {t.label}
-                      </button>
+                      <Tooltip key={t.label}>
+                        <TooltipTrigger asChild>
+                          <button
+                            type="button"
+                            className={cn(
+                              "inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors",
+                              activeTemplate === i
+                                ? "border-primary bg-primary/10 text-primary"
+                                : "border-border text-muted-foreground hover:border-primary/40 hover:text-foreground",
+                            )}
+                            onClick={() => {
+                              const text = templateToText(t.segments);
+                              setDescription(text);
+                              prevDescRef.current = text;
+                              setActiveTemplate(i);
+                              setHlRanges(rangesFromSegments(t.segments));
+                            }}
+                          >
+                            <t.icon className="h-3 w-3" />
+                            {t.label}
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent side="bottom" className="max-w-72 text-xs">
+                          {t.hint}
+                        </TooltipContent>
+                      </Tooltip>
                     ))}
+                    </div>
                   </div>
+                  </TooltipProvider>
                 </>
               );
             })()}
