@@ -1,7 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { parseChoiceSelection } from "./deterministic-flow";
-import { completeQuestionEvaluations, getSessionOverallScore } from "./session-score";
-
+import {
+  completeQuestionEvaluations,
+  getSessionOverallScore,
+  hasScoreAdjustments,
+} from "./session-score";
 /**
  * Aggregate per-candidate rows for the interview-level report.
  * DB access lives in `fetchReportEntries` (server-only); the row building
@@ -15,6 +18,8 @@ export type ReportRow = {
   status: string;
   source: "Invited" | "Walk-in";
   overallScore: number | null;
+  /** Recruiter overrode the AI score (insights.adjustments). */
+  adjusted: boolean;
   /** criteria/question label -> score (0-10) */
   criteria: Record<string, number>;
   summary: string | null;
@@ -150,6 +155,9 @@ export function buildReportRows(
   /** Canonical interview questions — follow-up evaluation entries stored in
    *  session insights are dropped and unanswered questions score 0. */
   questions?: { text: string }[],
+  /** Criteria name -> weight (from buildCriteriaWeights); when any weight
+   *  differs from 1 the overall becomes the weighted criteria average. */
+  criteriaWeights?: Record<string, number>,
 ): InterviewReport {
   const criteriaNames: string[] = [];
   const questionLabels: Record<string, string> = {};
@@ -174,6 +182,7 @@ export function buildReportRows(
           status: "NOT_STARTED",
           source: entry.source,
           overallScore: null,
+          adjusted: false,
           criteria: {},
           summary: null,
           completedAt: null,
@@ -201,7 +210,9 @@ export function buildReportRows(
       overallScore: getSessionOverallScore(
         insights as Parameters<typeof getSessionOverallScore>[0],
         questions?.length,
+        criteriaWeights,
       ),
+      adjusted: hasScoreAdjustments(insights),
       criteria,
       summary: extractSummary(session, insights),
       completedAt: session.completedAt ?? null,

@@ -17,12 +17,26 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { getSessionOverallScore } from "@/lib/session-score";
+import {
+  getSessionOverallScore,
+  hasScoreAdjustments,
+} from "@/lib/session-score";
 import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
 import {
@@ -206,6 +220,11 @@ function SessionDetail({
   const [transcriptOpen, setTranscriptOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [pdfCapture, setPdfCapture] = useState(false);
+  const [adjustOpen, setAdjustOpen] = useState(false);
+  const [overallInput, setOverallInput] = useState("");
+  const [criteriaInputs, setCriteriaInputs] = useState<Record<string, string>>({});
+  const [noteInput, setNoteInput] = useState("");
+  const adjustScore = trpc.session.adjustScore.useMutation();
   const [lightboxImg, setLightboxImg] = useState<{
     src: string;
     alt: string;
@@ -259,6 +278,67 @@ function SessionDetail({
     }
     handleGenerateSummary();
   }, [sessionId, completeSession, summary, handleGenerateSummary, toast]);
+
+  const openAdjustDialog = useCallback(() => {
+    // Read from summary.data (not the parse block below) — this callback is
+    // declared before those consts and would otherwise hit the TDZ.
+    const insights = summary.data?.insights as
+      | {
+          criteriaEvaluations?: { name: string; score: number }[];
+          adjustments?: { overallScore?: number; note?: string };
+        }
+      | null;
+    setOverallInput(
+      insights?.adjustments?.overallScore != null
+        ? String(insights.adjustments.overallScore)
+        : "",
+    );
+    setCriteriaInputs(
+      Object.fromEntries(
+        (insights?.criteriaEvaluations ?? []).map((ce) => [ce.name, String(ce.score)]),
+      ),
+    );
+    setNoteInput(insights?.adjustments?.note ?? "");
+    setAdjustOpen(true);
+  }, [summary.data]);
+
+  const handleSaveAdjustments = useCallback(async () => {
+    const insights = summary.data?.insights as
+      | { criteriaEvaluations?: { name: string; score: number }[] }
+      | null;
+    const original = Object.fromEntries(
+      (insights?.criteriaEvaluations ?? []).map((ce) => [ce.name, ce.score]),
+    );
+    // Only changed criteria are recorded, so "adjusted" markers stay precise.
+    const criteriaScores: Record<string, number> = {};
+    for (const [name, raw] of Object.entries(criteriaInputs)) {
+      const v = Number(raw);
+      if (Number.isFinite(v) && v !== original[name]) criteriaScores[name] = v;
+    }
+    const overall = Number(overallInput);
+    const adjustments: {
+      overallScore?: number;
+      criteriaScores?: Record<string, number>;
+      note?: string;
+    } = {};
+    if (overallInput.trim() !== "" && Number.isFinite(overall)) {
+      adjustments.overallScore = overall;
+    }
+    if (Object.keys(criteriaScores).length > 0) adjustments.criteriaScores = criteriaScores;
+    if (noteInput.trim()) adjustments.note = noteInput.trim();
+    try {
+      await adjustScore.mutateAsync({
+        sessionId,
+        // null clears every override; the read path recomputes from AI scores.
+        adjustments: Object.keys(adjustments).length > 0 ? adjustments : null,
+      });
+      await summary.refetch();
+      toast({ title: "Score adjusted" });
+      setAdjustOpen(false);
+    } catch {
+      toast({ title: "Failed to adjust score", variant: "destructive" });
+    }
+  }, [sessionId, criteriaInputs, overallInput, noteInput, adjustScore, summary, toast]);
 
   // Auto-generate report for completed sessions that have no summary yet
   const autoTriggered = useRef(false);
@@ -402,6 +482,11 @@ function SessionDetail({
         }[];
         questionEvaluations?: QuestionEvaluation[];
         researchFindings?: ResearchFinding[];
+        adjustments?: {
+          overallScore?: number;
+          criteriaScores?: Record<string, number>;
+          note?: string;
+        };
         toneAnalysis?: {
           overall?: string;
           details?: string;
@@ -418,9 +503,16 @@ function SessionDetail({
   const keyInsights = Array.isArray(insightsData)
     ? insightsData
     : (insightsData?.keyInsights ?? []);
+  const scoreAdjustments = Array.isArray(insightsData)
+    ? undefined
+    : insightsData?.adjustments;
   const criteriaEvaluations = Array.isArray(insightsData)
     ? []
-    : (insightsData?.criteriaEvaluations ?? []);
+    : (insightsData?.criteriaEvaluations ?? []).map((ce) => ({
+        ...ce,
+        // Recruiter overrides replace the AI criteria scores at display time.
+        score: scoreAdjustments?.criteriaScores?.[ce.name] ?? ce.score,
+      }));
   const questionEvaluations: QuestionEvaluation[] = Array.isArray(insightsData)
     ? []
     : (insightsData?.questionEvaluations ?? []);
@@ -455,8 +547,10 @@ function SessionDetail({
     {
       questionEvaluations,
       criteriaEvaluations,
+      adjustments: scoreAdjustments,
     },
     summary.data?.totalQuestions,
+    summary.data?.criteriaWeights,
   );
   const avgQuestionScore =
     overallScore !== null ? overallScore.toFixed(1) : null;
@@ -613,6 +707,15 @@ function SessionDetail({
                           <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground/60">
                             Avg Score
                           </p>
+                          {scoreAdjustments && hasScoreAdjustments({ adjustments: scoreAdjustments }) && (
+                            <Badge
+                              variant="outline"
+                              className="mt-1 border-amber-500/50 text-[10px] text-amber-600"
+                              title="Recruiter-adjusted score"
+                            >
+                              adjusted
+                            </Badge>
+                          )}
                           <div className="relative mt-2 flex h-24 w-24 items-center justify-center">
                             <svg
                               className="absolute inset-0 h-full w-full -rotate-90"
@@ -650,6 +753,23 @@ function SessionDetail({
                           <p className="mt-1 text-xs text-muted-foreground">
                             out of 10
                           </p>
+                          {scoreAdjustments?.note && (
+                            <p
+                              className="mt-1 max-w-full truncate text-[10px] text-muted-foreground/70"
+                              title={scoreAdjustments.note}
+                            >
+                              {scoreAdjustments.note}
+                            </p>
+                          )}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="mt-2 h-7 gap-1 text-xs no-print"
+                            onClick={openAdjustDialog}
+                          >
+                            <PenLine className="h-3 w-3" />
+                            Adjust
+                          </Button>
                         </CardContent>
                       </Card>
                     )}
@@ -785,7 +905,18 @@ function SessionDetail({
                   {criteriaEvaluations.map((ce, i) => (
                     <div key={i} className="space-y-1.5">
                       <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium">{ce.name}</span>
+                        <span className="text-sm font-medium">
+                          {ce.name}
+                          {scoreAdjustments?.criteriaScores?.[ce.name] != null && (
+                            <Badge
+                              variant="outline"
+                              className="ml-2 border-amber-500/50 text-[10px] font-normal text-amber-600"
+                              title="Recruiter-adjusted score"
+                            >
+                              adjusted
+                            </Badge>
+                          )}
+                        </span>
                         <span className="text-sm font-bold">{ce.score}/10</span>
                       </div>
                       <Progress value={ce.score * 10} className="h-2" />
@@ -797,6 +928,91 @@ function SessionDetail({
                 </CardContent>
               </Card>
             )}
+
+            {/* Recruiter score override dialog */}
+            <Dialog open={adjustOpen} onOpenChange={setAdjustOpen}>
+              <DialogContent className="no-print sm:max-w-md">
+                <DialogHeader>
+                  <DialogTitle>Adjust scores</DialogTitle>
+                  <DialogDescription>
+                    Override the AI scores before finalizing. Leave the overall
+                    empty to keep the computed value; only changed criteria are
+                    recorded as adjusted.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="adjust-overall">Overall score (0-10)</Label>
+                    <Input
+                      id="adjust-overall"
+                      type="number"
+                      min={0}
+                      max={10}
+                      step={0.1}
+                      placeholder="Computed automatically"
+                      value={overallInput}
+                      onChange={(e) => setOverallInput(e.target.value)}
+                    />
+                  </div>
+                  {criteriaEvaluations.length > 0 && (
+                    <div className="space-y-2">
+                      <Label>Criteria scores</Label>
+                      {criteriaEvaluations.map((ce) => (
+                        <div
+                          key={ce.name}
+                          className="flex items-center justify-between gap-3"
+                        >
+                          <span className="min-w-0 flex-1 truncate text-sm">
+                            {ce.name}
+                          </span>
+                          <Input
+                            type="number"
+                            min={0}
+                            max={10}
+                            step={0.1}
+                            className="h-8 w-20"
+                            value={criteriaInputs[ce.name] ?? ""}
+                            onChange={(e) =>
+                              setCriteriaInputs((prev) => ({
+                                ...prev,
+                                [ce.name]: e.target.value,
+                              }))
+                            }
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <div className="space-y-1.5">
+                    <Label htmlFor="adjust-note">Note (why adjusted)</Label>
+                    <Textarea
+                      id="adjust-note"
+                      rows={2}
+                      placeholder="Optional reason shown with the score"
+                      value={noteInput}
+                      onChange={(e) => setNoteInput(e.target.value)}
+                    />
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button
+                    variant="outline"
+                    onClick={() => setAdjustOpen(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleSaveAdjustments}
+                    disabled={adjustScore.isPending}
+                  >
+                    {adjustScore.isPending && (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    )}
+                    Save
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
 
             {/* Research Findings */}
             {researchFindings.length > 0 && (

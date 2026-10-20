@@ -1,5 +1,6 @@
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { canonicalizeInsights } from "@/lib/interview-report";
+import { buildCriteriaWeights } from "@/lib/session-score";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { getOrgMembership, hasProjectAccess, protectedProcedure, router } from "../trpc";
@@ -26,7 +27,7 @@ export const analysisRouter = router({
       const { data: session } = await ctx.supabase
         .from("sessions")
         .select(
-          `*, interview:interviews!inner(userId, title, objective, projectId, questions(id, text), project:projects!inner(organizationId)), messages(*)`,
+          `*, interview:interviews!inner(userId, title, objective, projectId, assessmentCriteria, questions(id, text), project:projects!inner(organizationId)), messages(*)`,
         )
         .eq("id", input.sessionId)
         .order("timestamp", { referencedTable: "messages", ascending: true })
@@ -89,6 +90,13 @@ export const analysisRouter = router({
         totalQuestions: (
           session.interview as unknown as { questions?: unknown[] }
         ).questions?.length,
+        criteriaWeights: buildCriteriaWeights(
+          (
+            session.interview as unknown as {
+              assessmentCriteria?: { name: string; weight?: number }[] | null;
+            }
+          ).assessmentCriteria,
+        ),
         participantName: session.participantName,
         participantEmail: session.participantEmail,
         status: session.status,

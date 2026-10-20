@@ -40,7 +40,7 @@ import {
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { exportToXlsx } from "@/lib/export-xlsx";
-import { getSessionOverallScore } from "@/lib/session-score";
+import { buildCriteriaWeights, getSessionOverallScore } from "@/lib/session-score";
 import { trpc } from "@/lib/trpc/client";
 import {
   ArrowDown,
@@ -288,6 +288,7 @@ function getSessionScore(row: UnifiedRow): number | null {
     },
     // Unanswered questions count as 0 — divide by the interview's question count.
     session.interview?.questions?.length as number | undefined,
+    buildCriteriaWeights(session.interview?.assessmentCriteria),
   );
 }
 

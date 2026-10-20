@@ -6,6 +6,7 @@ export type SessionScoreInsights =
   | {
       questionEvaluations?: ScoreEntry[] | null;
       criteriaEvaluations?: ScoreEntry[] | null;
+      adjustments?: ScoreAdjustments;
     }
   | null
   | undefined;
@@ -161,11 +162,71 @@ function sumScore(entries: ScoreEntry[] | null | undefined): number {
   }, 0);
 }
 
+/**
+ * Extract {criteria name -> weight} from an interview's assessmentCriteria,
+ * or undefined when no criterion carries a non-unit weight — callers pass
+ * the result straight to getSessionOverallScore, and undefined keeps the
+ * legacy question-average math byte-identical.
+ */
+export function buildCriteriaWeights(
+  criteria: unknown,
+): Record<string, number> | undefined {
+  if (!Array.isArray(criteria)) return undefined;
+  const weights: Record<string, number> = {};
+  let anyNonUnit = false;
+  for (const c of criteria as { name?: unknown; weight?: unknown }[]) {
+    if (!c || typeof c.name !== "string") continue;
+    const w =
+      typeof c.weight === "number" && Number.isFinite(c.weight) && c.weight > 0
+        ? c.weight
+        : 1;
+    weights[c.name] = w;
+    if (w !== 1) anyNonUnit = true;
+  }
+  return anyNonUnit ? weights : undefined;
+}
+
+function weightedCriteriaAverage(
+  criteria: ScoreEntry[] | null | undefined,
+  weights: Record<string, number> | undefined,
+): number | null {
+  if (!weights || !Array.isArray(criteria) || criteria.length === 0) return null;
+  let sum = 0;
+  let weightSum = 0;
+  for (const c of criteria) {
+    if (!c || c.score == null) continue;
+    const score = typeof c.score === "number" ? c.score : Number(c.score);
+    if (!Number.isFinite(score)) continue;
+    const name = (c as { name?: unknown }).name;
+    const w =
+      typeof name === "string" && Number.isFinite(weights[name])
+        ? weights[name]
+        : 1;
+    sum += score * w;
+    weightSum += w;
+  }
+  return weightSum > 0 ? sum / weightSum : null;
+}
+
 export function getSessionOverallScore(
   insights: SessionScoreInsights,
   totalQuestions?: number,
+  criteriaWeights?: Record<string, number>,
 ): number | null {
-  const evals = insights?.questionEvaluations;
+  // Recruiter score override (adjustments.insights) wins over every computed
+  // path; per-criteria overrides are applied to the evaluations below.
+  const adj = getScoreAdjustments(insights);
+  if (adj && Number.isFinite(adj.overallScore)) return adj.overallScore as number;
+  const effective = applyScoreAdjustments(insights);
+  // Recruiter-set criteria weights take precedence: the overall becomes the
+  // weighted average of the criteria evaluations instead of the question
+  // average. Only active when at least one weight differs from 1.
+  const weighted = weightedCriteriaAverage(
+    effective?.criteriaEvaluations,
+    criteriaWeights,
+  );
+  if (weighted !== null) return weighted;
+  const evals = effective?.questionEvaluations;
   // Unanswered questions count as 0: divide by ALL interview questions, not
   // just the ones that were answered. Without a total, keep the legacy
   // average-of-answered behavior, including its criteria fallback when no
@@ -178,7 +239,59 @@ export function getSessionOverallScore(
   }
   const questionScore = averageScore(evals);
   if (questionScore !== null) return questionScore;
-  return averageScore(insights?.criteriaEvaluations);
+  return averageScore(effective?.criteriaEvaluations);
+}
+
+/**
+ * Recruiter score adjustments stored under `insights.adjustments`.
+ * `overallScore` replaces the computed overall outright; `criteriaScores`
+ * replaces individual criteria evaluation scores; `note` records why.
+ * An empty object means "no active adjustment" (cleared state).
+ */
+export type ScoreAdjustments = {
+  overallScore?: number;
+  criteriaScores?: Record<string, number>;
+  note?: string;
+  adjustedAt?: string;
+  adjustedBy?: string;
+};
+
+export function getScoreAdjustments(insights: unknown): ScoreAdjustments | null {
+  const a = (insights as { adjustments?: unknown } | null)?.adjustments;
+  if (!a || typeof a !== "object" || Array.isArray(a)) return null;
+  return a as ScoreAdjustments;
+}
+
+/** Whether an adjustment actively changes any score or carries a note. */
+export function hasScoreAdjustments(insights: unknown): boolean {
+  const a = getScoreAdjustments(insights);
+  if (!a) return false;
+  return (
+    (a.overallScore != null && Number.isFinite(a.overallScore)) ||
+    (!!a.criteriaScores && Object.keys(a.criteriaScores).length > 0) ||
+    (typeof a.note === "string" && a.note.trim().length > 0)
+  );
+}
+
+/**
+ * Pure: insights with per-criteria adjustments applied to criteriaEvaluations.
+ * Returns the SAME object when nothing applies; never mutates the input.
+ */
+export function applyScoreAdjustments<T extends SessionScoreInsights>(insights: T): T {
+  const criteriaScores = getScoreAdjustments(insights)?.criteriaScores;
+  if (!criteriaScores || Object.keys(criteriaScores).length === 0) return insights;
+  const evals = insights?.criteriaEvaluations;
+  if (!Array.isArray(evals)) return insights;
+  let changed = false;
+  const next = evals.map((e) => {
+    const name = (e as { name?: unknown })?.name;
+    const score = typeof name === "string" ? criteriaScores[name] : undefined;
+    if (score == null || !Number.isFinite(score)) return e;
+    changed = true;
+    return { ...(e as NonNullable<ScoreEntry>), score };
+  });
+  if (!changed) return insights;
+  return { ...(insights as NonNullable<SessionScoreInsights>), criteriaEvaluations: next } as T;
 }
 
 export function usesQuestionEvaluationScore(

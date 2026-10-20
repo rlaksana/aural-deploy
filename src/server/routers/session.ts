@@ -954,4 +954,68 @@ export const sessionRouter = router({
 
       return { deleted: input.ids.length };
     }),
+
+  /** Recruiter score override: write the full adjustments object (null = clear). */
+  adjustScore: protectedProcedure
+    .input(
+      z.object({
+        sessionId: z.string(),
+        adjustments: z
+          .object({
+            overallScore: z.number().min(0).max(10).optional(),
+            criteriaScores: z.record(z.string(), z.number().min(0).max(10)).optional(),
+            note: z.string().max(2000).optional(),
+          })
+          .nullable(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { data: session } = await ctx.supabase
+        .from("sessions")
+        .select(
+          "insights, interview:interviews!inner(projectId, project:projects!inner(organizationId))",
+        )
+        .eq("id", input.sessionId)
+        .single();
+
+      const interview = (
+        session as unknown as {
+          interview?: { projectId: string; project: { organizationId: string } } | null;
+        } | null
+      )?.interview;
+      const orgId = interview?.project?.organizationId;
+      if (!orgId) throw new TRPCError({ code: "NOT_FOUND" });
+      const { data: membership } = await ctx.supabase
+        .from("organization_members")
+        .select("role")
+        .eq("workspaceId", orgId)
+        .eq("userId", ctx.user.id)
+        .single();
+      if (!membership) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Not authorized to adjust this session" });
+      }
+      const projAccess = await hasProjectAccess(ctx.supabase, interview!.projectId, ctx.user.id);
+      if (!projAccess) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Not authorized to adjust this session" });
+      }
+
+      // Clearing = empty adjustments object: the shallow-merge RPC can append/
+      // replace keys but not delete them, and {} is inert to every reader.
+      // Non-null input REPLACES the object wholesale (audit fields re-stamped).
+      const adjustments = input.adjustments
+        ? {
+            ...input.adjustments,
+            adjustedAt: new Date().toISOString(),
+            adjustedBy: ctx.user.id,
+          }
+        : {};
+      const { error } = await supabaseAdmin.rpc("merge_session_insights", {
+        p_session_id: input.sessionId,
+        p_insights: { adjustments },
+      });
+      if (error) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: error.message });
+      }
+      return { success: true };
+    }),
 });

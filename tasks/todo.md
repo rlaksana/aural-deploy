@@ -8,11 +8,11 @@ Full plan: tasks/plan.md. Gates every task: `npx tsc --noEmit` → `npm run lint
 - [x] A3. Finalize mutations (report.finalizeSessions/finalizeAll) + UI badges/buttons in reports-tab.tsx/report-view.tsx
 
 ## Checkpoint A
-- [x] Gates green (tsc+lint+390 tests); migration 016 pushed
-- [ ] Manual: finalize one candidate → /r/[token] shows only them; commit+push origin+deploy+Vercel READY
+- [x] Gates green (tsc+lint+390 tests); migration 016 pushed; commit af67c87 deployed READY
+- [ ] Manual: finalize one candidate → /r/[token] shows only them
 
 ## Phase B — Granular scoring (F4)
-- [ ] B1. Criteria weights: zod + summary prompt + weighted path in getSessionOverallScore + widen all 6 call-site selects; test tests/session-score-weights.test.ts
+- [x] B1. Criteria weights: zod + summary prompt + weighted path in getSessionOverallScore + widen all 6 call-site selects; test tests/session-score-weights.test.ts
 - [ ] B2. Score overrides: session.adjustScore mutation + applyScoreAdjustments in session-score.ts; test tests/score-adjustments.test.ts
 - [ ] B3. Override UI + "Adjusted" markers (interview-results.tsx, report-view.tsx, /r/[token]/session)
 

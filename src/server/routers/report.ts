@@ -8,6 +8,7 @@ import {
   type InterviewReport,
   type SurveyAggregate,
 } from "@/lib/interview-report";
+import { buildCriteriaWeights } from "@/lib/session-score";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { protectedProcedure, publicProcedure, router } from "../trpc";
@@ -16,6 +17,7 @@ import { verifyInterviewAccess } from "./candidate";
 type InterviewKindRow = {
   title: string;
   kind?: string;
+  assessmentCriteria?: { name: string; description: string; weight?: number }[] | null;
   questions?: { id: string; text: string; type: string; options: { correctIndices?: number[] } | null }[];
 };
 
@@ -43,7 +45,7 @@ export const reportRouter = router({
       const [{ data: interviewRow }, { data: link }] = await Promise.all([
         ctx.supabase
           .from("interviews")
-          .select("title, kind, aiAnalysis, questions(id, text, type, options)")
+          .select("title, kind, aiAnalysis, assessmentCriteria, questions(id, text, type, options)")
           .eq("id", input.interviewId)
           .order("order", { referencedTable: "questions", ascending: true })
           .single(),
@@ -64,6 +66,7 @@ export const reportRouter = router({
         row?.title ?? "Interview",
         entries,
         row?.questions,
+        buildCriteriaWeights(row?.assessmentCriteria),
       );
 
       return {
@@ -232,7 +235,7 @@ export const reportRouter = router({
 
       const { data: interviewRow } = await ctx.supabase
         .from("interviews")
-        .select("title, kind, questions(id, text, type, options)")
+        .select("title, kind, assessmentCriteria, questions(id, text, type, options)")
         .eq("id", interviewId)
         .order("order", { referencedTable: "questions", ascending: true })
         .single();
@@ -252,6 +255,7 @@ export const reportRouter = router({
         row?.title ?? "Interview",
         entries,
         row?.questions,
+        buildCriteriaWeights(row?.assessmentCriteria),
       );
 
       // Non-interview kinds share a public-safe aggregate ONLY: no row table

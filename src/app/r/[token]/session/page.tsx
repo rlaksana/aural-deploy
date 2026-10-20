@@ -1,6 +1,6 @@
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { canonicalizeInsights } from "@/lib/interview-report";
-import { getSessionOverallScore } from "@/lib/session-score";
+import { buildCriteriaWeights, getSessionOverallScore } from "@/lib/session-score";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
@@ -33,6 +33,11 @@ type SessionInsights = {
   keyInsights?: unknown;
   criteriaEvaluations?: unknown;
   questionEvaluations?: unknown;
+  adjustments?: {
+    overallScore?: number;
+    criteriaScores?: Record<string, number>;
+    note?: string;
+  };
 };
 
 function asArray(value: unknown): unknown[] {
@@ -94,7 +99,7 @@ export default async function PublicSessionReportPage({
   const { data: session } = await supabaseAdmin
     .from("sessions")
     .select(
-      "id, status, participantName, participantEmail, summary, insights, totalDurationSeconds, \"reportStatus\", interview:interviews!inner(title, kind, questions(text))",
+      "id, status, participantName, participantEmail, summary, insights, totalDurationSeconds, \"reportStatus\", interview:interviews!inner(title, kind, assessmentCriteria, questions(text))",
     )
     .eq("id", sessionId)
     .eq("interviewId", interviewId)
@@ -116,10 +121,18 @@ export default async function PublicSessionReportPage({
   }
 
   const interview = session.interview as unknown as
-    | { title: string; questions?: { text: string }[] }
+    | {
+        title: string;
+        assessmentCriteria?: { name: string; description: string; weight?: number }[] | null;
+        questions?: { text: string }[];
+      }
     | null;
   const insights = (session.insights ?? null) as SessionInsights | null;
-  const criteria = toCriteria(insights?.criteriaEvaluations);
+  // Recruiter overrides replace the AI criteria scores at display time.
+  const criteria = toCriteria(insights?.criteriaEvaluations).map((c) => ({
+    ...c,
+    score: insights?.adjustments?.criteriaScores?.[c.name] ?? c.score,
+  }));
   // Canonicalized: follow-up entries miscounted as questions never show here.
   const questions = toQuestions(
     (
@@ -131,9 +144,16 @@ export default async function PublicSessionReportPage({
     {
       questionEvaluations: questions,
       criteriaEvaluations: criteria,
+      adjustments: insights?.adjustments,
     },
     interview?.questions?.length,
+    buildCriteriaWeights(interview?.assessmentCriteria),
   );
+  const isAdjusted =
+    !!insights?.adjustments &&
+    (insights.adjustments.overallScore != null ||
+      (!!insights.adjustments.criteriaScores &&
+        Object.keys(insights.adjustments.criteriaScores).length > 0));
   // Public share link: never fall back to the email — a forwarded link must
   // not leak candidate contact details.
   const name = session.participantName || "Anonymous";
@@ -155,6 +175,14 @@ export default async function PublicSessionReportPage({
             <span className={`text-3xl font-bold ${scoreTone(overall)}`}>
               {overall.toFixed(1)}
               <span className="text-base text-muted-foreground">/10</span>
+            </span>
+          )}
+          {isAdjusted && (
+            <span
+              className="rounded border border-amber-500/50 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-amber-600"
+              title="Recruiter-adjusted score"
+            >
+              adjusted
             </span>
           )}
           <Badge
@@ -201,7 +229,17 @@ export default async function PublicSessionReportPage({
             {criteria.map((c) => (
               <div key={c.name} className="space-y-1">
                 <div className="flex items-baseline justify-between gap-4">
-                  <p className="text-sm font-medium">{c.name}</p>
+                  <p className="text-sm font-medium">
+                    {c.name}
+                    {insights?.adjustments?.criteriaScores?.[c.name] != null && (
+                      <span
+                        className="ml-2 rounded border border-amber-500/50 px-1 text-[10px] text-amber-600"
+                        title="Recruiter-adjusted score"
+                      >
+                        adjusted
+                      </span>
+                    )}
+                  </p>
                   <span className={`text-sm font-semibold ${scoreTone(c.score)}`}>
                     {c.score.toFixed(1)}
                   </span>

@@ -1,6 +1,6 @@
 import { nanoid } from "@/lib/id";
 import { INTERVIEW_TEMPLATES } from "@/lib/interview-templates";
-import { getSessionOverallScore } from "@/lib/session-score";
+import { buildCriteriaWeights, getSessionOverallScore } from "@/lib/session-score";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import {
@@ -387,7 +387,13 @@ export const interviewRouter = router({
         description: z.string().optional(),
         objective: z.string().optional(),
         assessmentCriteria: z
-          .array(z.object({ name: z.string(), description: z.string() }))
+          .array(
+            z.object({
+              name: z.string(),
+              description: z.string(),
+              weight: z.number().min(0).max(10).optional(),
+            }),
+          )
           .optional(),
         chatEnabled: z.boolean().default(true),
         voiceEnabled: z.boolean().default(false),
@@ -522,7 +528,13 @@ export const interviewRouter = router({
         description: z.string().optional(),
         objective: z.string().optional(),
         assessmentCriteria: z
-          .array(z.object({ name: z.string().min(1), description: z.string().min(1) }))
+          .array(
+            z.object({
+              name: z.string().min(1),
+              description: z.string().min(1),
+              weight: z.number().min(0).max(10).optional(),
+            }),
+          )
           .optional(),
         chatEnabled: z.boolean().default(true),
         voiceEnabled: z.boolean().default(false),
@@ -857,7 +869,13 @@ export const interviewRouter = router({
         description: z.string().optional(),
         objective: z.string().optional(),
         assessmentCriteria: z
-          .array(z.object({ name: z.string(), description: z.string() }))
+          .array(
+            z.object({
+              name: z.string(),
+              description: z.string(),
+              weight: z.number().min(0).max(10).optional(),
+            }),
+          )
           .optional(),
         chatEnabled: z.boolean().optional(),
         voiceEnabled: z.boolean().optional(),
@@ -1314,7 +1332,7 @@ export const interviewRouter = router({
       const { data: sessions } = await ctx.supabase
         .from("sessions")
         .select(
-          "id, interviewId, status, modeUsed, totalDurationSeconds, themes, createdAt, participantName, participantEmail, insights, interview:interviews(questions(id))",
+          "id, interviewId, status, modeUsed, totalDurationSeconds, themes, createdAt, participantName, participantEmail, insights, interview:interviews(questions(id), assessmentCriteria)",
         )
         .in("interviewId", interviewIds);
       const allSessions = sessions ?? [];
@@ -1459,8 +1477,18 @@ export const interviewRouter = router({
               criteriaEvaluations?: { score: number }[];
             } | null,
             (
-              s.interview as { questions?: unknown[] } | null | undefined
+              s.interview as {
+                questions?: unknown[];
+                assessmentCriteria?: { name: string; weight?: number }[] | null;
+              } | null | undefined
             )?.questions?.length,
+            buildCriteriaWeights(
+              (
+                s.interview as {
+                  assessmentCriteria?: { name: string; weight?: number }[] | null;
+                } | null | undefined
+              )?.assessmentCriteria,
+            ),
           );
           return {
             id: s.id,

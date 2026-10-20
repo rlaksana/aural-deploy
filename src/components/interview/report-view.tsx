@@ -429,8 +429,18 @@ function BodyRow({
       })}
       <TableCell>
         {row.overallScore !== null ? (
-          <span className={cn("font-semibold", scoreColor(row.overallScore))}>
-            {row.overallScore.toFixed(1)}/10
+          <span className="inline-flex items-center gap-1.5">
+            <span className={cn("font-semibold", scoreColor(row.overallScore))}>
+              {row.overallScore.toFixed(1)}/10
+            </span>
+            {row.adjusted && (
+              <span
+                className="cursor-default rounded border border-amber-500/50 px-1 text-[10px] leading-4 text-amber-600"
+                title="Recruiter-adjusted score"
+              >
+                adj
+              </span>
+            )}
           </span>
         ) : (
           <span className="text-muted-foreground">-</span>

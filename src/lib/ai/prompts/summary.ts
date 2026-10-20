@@ -57,9 +57,15 @@ export function buildSummaryPrompt(
     : "";
 
   // ── Assessment criteria section ────────────────────────────────
+  const weightLabel = (weight: unknown) => {
+    const w = typeof weight === "number" && Number.isFinite(weight) ? weight : 1;
+    return w !== 1 ? ` (weight ${w}x — contributes ${w}x as much to the overall score)` : "";
+  };
   const criteriaSection =
     assessmentCriteria && assessmentCriteria.length > 0
-      ? `\nAssessment Criteria:\n${assessmentCriteria.map((c) => `- ${c.name}: ${c.description}`).join("\n")}`
+      ? `\nAssessment Criteria:\n${assessmentCriteria
+          .map((c) => `- ${c.name}${weightLabel((c as { weight?: unknown }).weight)}: ${c.description}`)
+          .join("\n")}`
       : "";
 
   const criteriaEvalInstruction =

@@ -8,6 +8,7 @@ import {
 } from "@/lib/interview-report";
 import { AutoRefresh } from "./auto-refresh";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { buildCriteriaWeights } from "@/lib/session-score";
 import { CircleDot } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -17,6 +18,7 @@ export const dynamic = "force-dynamic";
 type InterviewKindRow = {
   title: string;
   kind?: string;
+  assessmentCriteria?: { name: string; description: string; weight?: number }[] | null;
   questions?: { id: string; text: string; type: string; options: { correctIndices?: number[] } | null }[];
 };
 
@@ -48,7 +50,7 @@ export default async function PublicReportPage({
 
   const { data: interviewRow } = await supabaseAdmin
     .from("interviews")
-    .select("title, kind, aiAnalysis, questions(id, text, type, options)")
+    .select("title, kind, aiAnalysis, assessmentCriteria, questions(id, text, type, options)")
     .eq("id", interviewId)
     .order("order", { referencedTable: "questions", ascending: true })
     .single();
@@ -70,6 +72,7 @@ export default async function PublicReportPage({
     interviewRow?.title ?? "Interview",
     entries,
     row?.questions,
+    buildCriteriaWeights(row?.assessmentCriteria),
   );
 
   let aggregate = undefined;
