@@ -38,6 +38,5 @@ Full plan: tasks/plan.md. Gates every task: `npx tsc --noEmit` → `npm run lint
 - [x] Fix: interview-templates.test.ts options assertion accepts both legacy [{label,value}] and runtime {options: string[]} shapes
 
 ## Checkpoint D
-- [x] Gates green (tsc+lint+427 tests); migration 019 pushed
-- [ ] Commit → push origin+deploy → deploy:vercel READY
+- [x] Gates green (tsc+lint+427 tests); migration 019 pushed; commit bc129fa pushed origin+deploy, Vercel READY (exit 0)
 - [ ] Manual: DISC interview → complete → dimensions render; share link FINAL
