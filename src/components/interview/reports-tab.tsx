@@ -298,7 +298,7 @@ export function ReportsTab({ interviewId }: { interviewId: string }) {
               <p className="text-xs text-muted-foreground">
                 Checks every report and rebuilds only the missing or
                 inconsistent ones — already-correct reports are kept. To force
-                a rebuild (e.g. after switching language), use a candidate's
+                a rebuild (e.g. after switching language), use a candidate’s
                 ↻ button. Keep this tab open until it finishes.
               </p>
             </div>

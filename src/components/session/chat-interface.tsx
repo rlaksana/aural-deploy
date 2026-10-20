@@ -39,12 +39,21 @@ import {
     FileText,
     Loader2,
     MessageCircle,
+    Play,
     Plus,
     Save,
+    Terminal,
+    Trash2,
     X
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useCallback, useEffect, useRef, useState } from "react";
+import {
+    canRunLanguage,
+    runCode,
+    summarizeRunForChat,
+    type RunLine,
+} from "@/lib/code-runner";
 
 interface Message {
   id: string;
@@ -267,6 +276,148 @@ export function ChatInterface({
   useEffect(() => {
     setSelectedChoiceIndices([]);
   }, [currentQ?.id]);
+
+  // ── Code runner (CODING questions) ───────────────────────────
+  const [runStatus, setRunStatus] = useState<"idle" | "running">("idle");
+  const [runLines, setRunLines] = useState<RunLine[]>([]);
+  const [runConsoleOpen, setRunConsoleOpen] = useState(false);
+  const lastRunRef = useRef<{
+    language: string;
+    ok: boolean;
+    stdout: string;
+    stderr: string;
+  } | null>(null);
+
+  const handleRunCode = useCallback(async () => {
+    if (runStatus === "running" || preview) return;
+    const snapshot = codeEditorRef.current?.getSnapshotData();
+    if (!snapshot) return;
+    let code = "";
+    let language = "javascript";
+    try {
+      const parsed = JSON.parse(snapshot) as { code: string; language: string };
+      code = parsed.code;
+      language = parsed.language;
+    } catch {
+      return;
+    }
+    if (!code.trim()) return;
+    setRunConsoleOpen(true);
+    if (!canRunLanguage(language)) {
+      setRunLines([
+        {
+          stream: "stderr",
+          line: `Run is not available for ${language} yet. Supported: JavaScript, TypeScript, Python.`,
+        },
+      ]);
+      return;
+    }
+    setRunStatus("running");
+    setRunLines([]);
+    try {
+      const result = await runCode(code, language, (line) =>
+        setRunLines((prev) => [...prev, line]),
+      );
+      if (result.timedOut) {
+        const line = { stream: "stderr" as const, line: "Execution stopped: time limit exceeded." };
+        setRunLines((prev) => [...prev, line]);
+      }
+      lastRunRef.current = summarizeRunForChat(result, language);
+    } catch (err) {
+      setRunLines([{ stream: "stderr", line: String(err) }]);
+    } finally {
+      setRunStatus("idle");
+    }
+  }, [runStatus, preview]);
+
+  const renderRunControls = () => {
+    if (!isCodingQuestion) return null;
+    const stdoutCount = runLines.filter((l) => l.stream === "stdout").length;
+    const stderrCount = runLines.length - stdoutCount;
+    return (
+      <div className="shrink-0">
+        <div className="flex items-center gap-1.5 border-t bg-zinc-900 px-2 py-1.5">
+          <button
+            onClick={handleRunCode}
+            disabled={runStatus === "running"}
+            className={cn(
+              "flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
+              runStatus === "running"
+                ? "bg-zinc-800 text-zinc-500"
+                : "bg-emerald-600 text-white hover:bg-emerald-500",
+            )}
+            title="Run code (JavaScript, TypeScript, Python)"
+          >
+            {runStatus === "running" ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              <Play className="h-3 w-3" />
+            )}
+            {runStatus === "running" ? "Running…" : "Run"}
+          </button>
+          <button
+            onClick={() => setRunConsoleOpen((open) => !open)}
+            className={cn(
+              "flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-medium transition-colors",
+              runConsoleOpen
+                ? "bg-zinc-800 text-zinc-100"
+                : "text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200",
+            )}
+          >
+            <Terminal className="h-3 w-3" />
+            Console
+            {stderrCount > 0 && (
+              <span className="rounded bg-rose-500/20 px-1 text-[10px] text-rose-400">
+                {stderrCount}
+              </span>
+            )}
+          </button>
+          <div className="flex-1" />
+          {runLines.length > 0 && (
+            <button
+              onClick={() => {
+                setRunLines([]);
+                lastRunRef.current = null;
+              }}
+              className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-zinc-200"
+              title="Clear console"
+            >
+              <Trash2 className="h-3 w-3" />
+              Clear
+            </button>
+          )}
+        </div>
+        {runConsoleOpen && (
+          <div className="code-scrollbar h-36 shrink-0 overflow-auto border-t border-zinc-800 bg-zinc-950 px-3 py-2 font-mono text-xs leading-5">
+            {runLines.length === 0 ? (
+              <span className="text-zinc-600">
+                Output appears here. console.log prints to this console; stdout
+                and errors are shared with the interviewer.
+              </span>
+            ) : (
+              runLines.map((l, i) => (
+                <div
+                  key={i}
+                  className={cn(
+                    "whitespace-pre-wrap break-words",
+                    l.stream === "stderr" ? "text-rose-400" : "text-zinc-200",
+                  )}
+                >
+                  {l.line}
+                </div>
+              ))
+            )}
+            {stdoutCount > 0 && (
+              <div className="pt-2 text-[10px] text-zinc-600">
+                {stdoutCount} output line{stdoutCount === 1 ? "" : "s"} will be shared with the interviewer.
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
+
 
   // ── Draggable split handlers ──────────────────────────────
   const handleSplitMouseDown = useCallback((e: React.PointerEvent) => {
@@ -879,6 +1030,10 @@ export function ChatInterface({
           })),
           currentQuestionIndex: questionIndex,
           manualNavigation: options?.ignoreQuestionAdvance ?? false,
+          candidateCode: isCodingQuestion
+            ? (codeEditorRef.current?.getSnapshotData() ?? undefined)
+            : undefined,
+          lastRun: isCodingQuestion ? (lastRunRef.current ?? undefined) : undefined,
         }),
       });
 
@@ -1636,6 +1791,7 @@ export function ChatInterface({
                     onDirty={handleCodeDirty}
                   />
                 </div>
+                {renderRunControls()}
               </>
             ) : (
               <div className="flex flex-1 flex-col">
@@ -1873,6 +2029,7 @@ export function ChatInterface({
                       onDirty={handleCodeDirty}
                     />
                   </div>
+                  {renderRunControls()}
                 </>
               )}
             </div>

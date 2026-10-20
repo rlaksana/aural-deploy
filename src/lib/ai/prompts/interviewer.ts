@@ -7,11 +7,36 @@ interface InterviewContext {
   interview: Tables<"interviews"> & { questions: Tables<"questions">[] };
   conversationHistory: LLMMessage[];
   currentQuestionIndex: number;
+  /** Latest candidate code + run output for the current CODING question, if any. */
+  coding?: {
+    language: string;
+    code: string;
+    stdout?: string;
+    stderr?: string;
+  } | null;
 }
 
 export function buildInterviewerPrompt(ctx: InterviewContext): LLMMessage[] {
   const { interview, conversationHistory, currentQuestionIndex } = ctx;
   const languageName = getPromptLanguageName(interview.language) ?? interview.language;
+  const coding = ctx.coding?.code?.trim() ? ctx.coding : null;
+
+  const codingBlock = coding
+    ? `
+CANDIDATE'S CURRENT CODE (language: ${coding.language}):
+${coding.code.slice(0, 20000)}
+END OF CODE
+
+LAST RUN OUTPUT:
+${
+  coding.stdout?.trim() || coding.stderr?.trim()
+    ? `${coding.stdout?.trim() ? `stdout:\n${coding.stdout.slice(0, 2000)}\n` : ""}${
+        coding.stderr?.trim() ? `stderr:\n${coding.stderr.slice(0, 2000)}\n` : ""
+      }`
+    : "The candidate has not run the code yet."
+}
+`
+    : "";
 
   const formattedQuestions = interview.questions
     .map((q, i) => {
@@ -104,7 +129,13 @@ CODING QUESTIONS:
 - Encourage them to think aloud and explain their approach as they code
 - After they finish coding, ask about their thought process, time/space complexity, and possible improvements
 - Do NOT move on until they have written code AND explained their approach
+${
+  coding
+    ? "- You can SEE the candidate's actual code and its last run output in CANDIDATE'S CURRENT CODE below — reference it concretely when probing (bugs, edge cases, complexity). You may quote small parts of it."
+    : "- The candidate's code itself is not visible to you — ask them to describe or paste their approach when probing."
+}
 
+${codingBlock}
 RESEARCH QUESTIONS:
 - For RESEARCH questions, the goal is to extract as much detailed information as possible on the topic
 - Probe deeply into every angle: ask about specifics, examples, timelines, causes, effects, alternatives, and implications

@@ -11,8 +11,45 @@ import { NextResponse } from "next/server";
 
 const log = createLogger("api/ai/chat");
 
+const CODING_CODE_MAX_CHARS = 20_000;
+const CODING_OUTPUT_MAX_CHARS = 2_000;
+
+/**
+ * Parse the client-supplied coding context (current editor snapshot +
+ * last run output) for CODING questions. Anything malformed or oversized
+ * is dropped rather than trusted.
+ */
+function parseCodingContext(
+  rawCode: unknown,
+  rawLastRun: unknown,
+): { language: string; code: string; stdout?: string; stderr?: string } | null {
+  if (typeof rawCode !== "string" || !rawCode) return null;
+  let parsed: { code?: unknown; language?: unknown };
+  try {
+    parsed = JSON.parse(rawCode);
+  } catch {
+    return null;
+  }
+  if (typeof parsed.code !== "string" || !parsed.code.trim()) return null;
+
+  const coding: { language: string; code: string; stdout?: string; stderr?: string } = {
+    language: typeof parsed.language === "string" ? parsed.language : "plaintext",
+    code: parsed.code.slice(0, CODING_CODE_MAX_CHARS),
+  };
+  if (rawLastRun && typeof rawLastRun === "object") {
+    const run = rawLastRun as Record<string, unknown>;
+    if (typeof run.stdout === "string" && run.stdout.trim()) {
+      coding.stdout = run.stdout.slice(0, CODING_OUTPUT_MAX_CHARS);
+    }
+    if (typeof run.stderr === "string" && run.stderr.trim()) {
+      coding.stderr = run.stderr.slice(0, CODING_OUTPUT_MAX_CHARS);
+    }
+  }
+  return coding;
+}
+
 export async function POST(req: Request) {
-  const { sessionId, interviewId, messages, currentQuestionIndex, manualNavigation, sessionToken } =
+  const { sessionId, interviewId, messages, currentQuestionIndex, manualNavigation, sessionToken, candidateCode, lastRun } =
     await req.json();
 
   // sessionId is required: the LLM generation must never run without a
@@ -99,6 +136,10 @@ export async function POST(req: Request) {
             interview: interview as any,
             conversationHistory,
             currentQuestionIndex: questionIndex,
+            coding:
+              ((interview.questions ?? []) as { type?: string }[])[questionIndex]?.type === "CODING"
+                ? parseCodingContext(candidateCode, lastRun)
+                : null,
           }),
           temperature: 0.7,
           maxTokens: 1024,
