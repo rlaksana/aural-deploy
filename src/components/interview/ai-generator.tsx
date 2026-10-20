@@ -282,6 +282,34 @@ const PROMPT_TEMPLATES: PromptTemplate[] = [
   },
 ];
 
+const PARSE_TEXT_GUIDE = `You are helping me prepare interview question text for Aural's "Parse Text" extractor.
+Write interview questions as plain text following these rules:
+
+1. One question per line, numbered (1. 2. 3.) or bulleted (- ).
+2. For choice questions, list the choices on the lines right below the question,
+   prefixed A. B. C. D. — they are options of that ONE question, not new questions.
+3. Make the choice type explicit in the question wording:
+   - single choice: end with "Pilih salah satu" / "Which one"
+   - multiple choice: end with "Pilih semua yang sesuai" / "Select all that apply"
+4. Optionally add a short line of context under a question (topic or what it
+   assesses) — it becomes the question's helper description.
+5. Optionally end the choices with "Answer: B" as the answer key — it is read
+   as a key, never as another question.
+6. You may add an "Assessment criteria" section at the end; each criterion
+   becomes a scoring criterion, not a question. Map criteria to question
+   numbers if useful.
+7. Plain text or Markdown only — no tables, no images.
+8. Write the questions in the language I ask for.
+
+Example output:
+1. Explain a REST API.
+2. What is the time complexity of binary search?
+A. O(1)
+B. O(log n)
+C. O(n)
+D. O(n log n)
+Answer: B`;
+
 export function AIGenerator({ projectId }: { projectId?: string } = {}) {
   const router = useRouter();
   const { toast } = useToast();
@@ -322,6 +350,7 @@ export function AIGenerator({ projectId }: { projectId?: string } = {}) {
   const [jdError, setJdError] = useState("");
   const [jdUrlInput, setJdUrlInput] = useState("");
   const [jdPopoverOpen, setJdPopoverOpen] = useState(false);
+  const [guideCopied, setGuideCopied] = useState(false);
   const jdFileRef = useRef<HTMLInputElement>(null);
   const [resumeText, setResumeText] = useState("");
   const [resumeSource, setResumeSource] = useState("");
@@ -907,7 +936,10 @@ export function AIGenerator({ projectId }: { projectId?: string } = {}) {
 
                     {/* Bottom toolbar: JD, Resume, & Parse Text buttons (right-aligned) */}
                     <TooltipProvider delayDuration={200}>
-                    <div className="flex items-center justify-end gap-1.5 px-3 pb-2">
+                    <div className="flex items-center gap-2 px-3 pb-2">
+                      <span className="mr-auto text-[11px] text-muted-foreground">
+                        Enhance with context (optional)
+                      </span>
                       {/* Parse Text button */}
                       <Popover>
                         <Tooltip>
@@ -915,7 +947,7 @@ export function AIGenerator({ projectId }: { projectId?: string } = {}) {
                             <PopoverTrigger asChild>
                               <button
                                 type="button"
-                                className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                                className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground hover:border-primary/50 hover:bg-muted/50 transition-colors"
                               >
                                 <BrainCircuit className="h-3.5 w-3.5" />
                                 Parse Text
@@ -927,19 +959,43 @@ export function AIGenerator({ projectId }: { projectId?: string } = {}) {
                           </TooltipContent>
                         </Tooltip>
                         <PopoverContent align="end" className="w-80 p-3 space-y-2">
-                          <Label className="text-xs font-semibold">Extract Questions from Raw Text</Label>
+                          <div className="flex items-center justify-between gap-2">
+                            <Label className="text-xs font-semibold">Extract Questions from Raw Text</Label>
+                            <button
+                              type="button"
+                              className="inline-flex shrink-0 items-center gap-1 rounded-md border px-2 py-1 text-[11px] font-medium text-muted-foreground hover:border-primary/40 hover:text-foreground transition-colors"
+                              onClick={async () => {
+                                try {
+                                  await navigator.clipboard.writeText(PARSE_TEXT_GUIDE);
+                                  setGuideCopied(true);
+                                  setTimeout(() => setGuideCopied(false), 1500);
+                                } catch {
+                                  toast({ title: "Could not copy — select the text manually", variant: "destructive" });
+                                }
+                              }}
+                            >
+                              {guideCopied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                              {guideCopied ? "Copied" : "Copy guide"}
+                            </button>
+                          </div>
                           <p className="text-[11px] text-muted-foreground">
                             Paste the text into the big box above first, then click below — AI reads it and builds a structured interview from it.
                           </p>
                           <div className="space-y-1 rounded-md border bg-muted/40 p-2 text-[11px] text-muted-foreground">
-                            <p className="font-medium text-foreground">Text that works well</p>
-                            <p>• Numbered or bulleted lists of questions (1. … / - …)</p>
-                            <p>• Questions with answer choices (A. … B. …, or a. … b. …)</p>
-                            <p>• Plain notes or Markdown — AI splits them into questions and detects each type (open-ended, multiple choice, coding, …)</p>
+                            <p className="font-medium text-foreground">How to prepare the text</p>
+                            <p>• One question per line, numbered (1. …) or bulleted (- …)</p>
+                            <p>• Put answer choices on the lines below the question (A. … B. …) — they belong to that one question</p>
+                            <p>• End with “Answer: B” to mark the key — it is read as a key, not a question</p>
+                            <p>• Plain text or Markdown; an “Assessment criteria” section becomes scoring criteria</p>
                             <p className="pt-1 font-medium text-foreground">Example</p>
                             <pre className="whitespace-pre-wrap font-mono text-[10px] leading-snug">{`1. Explain a REST API.
 2. What is the time complexity of binary search?
-   A. O(1)  B. O(log n)  C. O(n)  D. O(n log n)`}</pre>
+A. O(1)
+B. O(log n)
+C. O(n)
+D. O(n log n)
+Answer: B`}</pre>
+                            <p className="pt-1">Tip: click “Copy guide” above and paste it into any AI chat to have it write text in this format for you.</p>
                           </div>
                           <Button
                             size="sm"
@@ -965,10 +1021,10 @@ export function AIGenerator({ projectId }: { projectId?: string } = {}) {
                               <button
                                 type="button"
                                 className={cn(
-                                  "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-colors",
+                                  "inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium transition-colors",
                                   jdText
-                                    ? "bg-primary/10 text-primary"
-                                    : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                                    ? "border-primary/40 bg-primary/10 text-primary"
+                                    : "border-border bg-background text-foreground hover:border-primary/50 hover:bg-muted/50",
                                 )}
                               >
                                 {jdLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Briefcase className="h-3.5 w-3.5" />}
@@ -1042,10 +1098,10 @@ export function AIGenerator({ projectId }: { projectId?: string } = {}) {
                               <button
                                 type="button"
                                 className={cn(
-                                  "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-colors",
+                                  "inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium transition-colors",
                                   resumeText
-                                    ? "bg-primary/10 text-primary"
-                                    : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                                    ? "border-primary/40 bg-primary/10 text-primary"
+                                    : "border-border bg-background text-foreground hover:border-primary/50 hover:bg-muted/50",
                                 )}
                               >
                                 {resumeLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileText className="h-3.5 w-3.5" />}
