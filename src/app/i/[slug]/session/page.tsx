@@ -217,7 +217,7 @@ export default function SlugSessionPage() {
 
     return (
       <>
-        <AntiCheatingGuard enabled={antiCheatingEnabled} sessionId={sessionId!} sessionToken={sessionToken} language={interview.data.language} />
+        <AntiCheatingGuard enabled={antiCheatingEnabled} proctoring={!!interview.data.proctoringEnabled} sessionId={sessionId!} sessionToken={sessionToken} language={interview.data.language} />
         <VoiceInterface
           sessionId={sessionId!}
           interviewId={interview.data.id}
@@ -239,7 +239,7 @@ export default function SlugSessionPage() {
 
   return (
     <>
-      <AntiCheatingGuard enabled={antiCheatingEnabled} sessionId={sessionId!} sessionToken={sessionToken} />
+      <AntiCheatingGuard enabled={antiCheatingEnabled} proctoring={!!interview.data.proctoringEnabled} sessionId={sessionId!} sessionToken={sessionToken} />
       <ChatInterface
         sessionId={sessionId!}
         sessionToken={sessionToken}

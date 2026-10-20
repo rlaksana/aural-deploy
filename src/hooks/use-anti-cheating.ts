@@ -3,13 +3,49 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 export interface AntiCheatingViolation {
-  type: "page_departure" | "paste" | "multi_screen";
+  type:
+    | "page_departure"
+    | "paste"
+    | "multi_screen"
+    | "tab_switch"
+    | "focus_lost"
+    | "copy"
+    | "cut";
   timestamp: number;
   detail?: string;
 }
 
+export type ProctoringEvent = "visibility_hidden" | "blur_expired" | "copy" | "cut";
+
+/**
+ * Pure: proctoring-mode DOM event -> classified violation (or null). The
+ * granular types let the recruiter's integrity summary distinguish "checked
+ * another tab" from "window lost focus" — page_departure stays the legacy
+ * coarse signal for non-proctored sessions.
+ */
+export function mapProctoringViolation(
+  event: ProctoringEvent,
+  now: number,
+): AntiCheatingViolation | null {
+  switch (event) {
+    case "visibility_hidden":
+      return { type: "tab_switch", timestamp: now };
+    case "blur_expired":
+      return { type: "focus_lost", timestamp: now };
+    case "copy":
+      return { type: "copy", timestamp: now };
+    case "cut":
+      return { type: "cut", timestamp: now };
+    default:
+      return null;
+  }
+}
+
 interface UseAntiCheatingOptions {
   enabled: boolean;
+  /** Proctoring mode: emit granular tab_switch/focus_lost/copy/cut instead
+   *  of the coarse page_departure for those events. */
+  proctoring?: boolean;
   onViolation?: (violation: AntiCheatingViolation) => void;
 }
 
@@ -21,6 +57,7 @@ interface UseAntiCheatingResult {
 
 export function useAntiCheating({
   enabled,
+  proctoring = false,
   onViolation,
 }: UseAntiCheatingOptions): UseAntiCheatingResult {
   const [violations, setViolations] = useState<AntiCheatingViolation[]>([]);
@@ -53,6 +90,13 @@ export function useAntiCheating({
           clearTimeout(blurTimer);
           blurTimer = null;
         }
+        const proctored = proctoring
+          ? mapProctoringViolation("visibility_hidden", Date.now())
+          : null;
+        if (proctored) {
+          addViolation(proctored);
+          return;
+        }
         recordDeparture();
       }
     };
@@ -63,6 +107,13 @@ export function useAntiCheating({
         // focus returned before the timer fired (e.g. clicking the browser's
         // mic/camera permission prompt) — a transient blur, not a departure
         if (document.hasFocus()) return;
+        const proctored = proctoring
+          ? mapProctoringViolation("blur_expired", Date.now())
+          : null;
+        if (proctored) {
+          addViolation(proctored);
+          return;
+        }
         recordDeparture();
       }, 200);
     };
@@ -75,7 +126,7 @@ export function useAntiCheating({
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.removeEventListener("blur", handleBlur);
     };
-  }, [enabled, addViolation]);
+  }, [enabled, proctoring, addViolation]);
 
   useEffect(() => {
     if (!enabled) return;
@@ -104,6 +155,10 @@ export function useAntiCheating({
     const handleCopy = (e: ClipboardEvent) => {
       trackText(getSelectionText());
       trackText(e.clipboardData?.getData("text/plain"));
+      if (proctoring) {
+        const proctored = mapProctoringViolation(e.type === "cut" ? "cut" : "copy", Date.now());
+        if (proctored) addViolation(proctored);
+      }
     };
 
     const handlePaste = (e: ClipboardEvent) => {
@@ -148,7 +203,7 @@ export function useAntiCheating({
       document.removeEventListener("cut", handleCopy, true);
       document.removeEventListener("paste", handlePaste, true);
     };
-  }, [enabled, addViolation]);
+  }, [enabled, proctoring, addViolation]);
 
   useEffect(() => {
     if (!enabled) return;

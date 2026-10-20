@@ -97,6 +97,9 @@ export default function SettingsTab() {
   const [antiCheatingEnabled, setAntiCheatingEnabled] = useState<boolean>(
     interview.antiCheatingEnabled ?? false,
   );
+  const [proctoringEnabled, setProctoringEnabled] = useState<boolean>(
+    (interview as { proctoringEnabled?: boolean }).proctoringEnabled ?? false,
+  );
 
   const requireInvite = interview.requireInvite ?? true;
   const hasShareableLink = !requireInvite;
@@ -473,6 +476,20 @@ export default function SettingsTab() {
                 </p>
               </div>
             )}
+            {antiCheatingEnabled && (
+              <div className="mt-4 flex items-center justify-between rounded-lg border p-3">
+                <div>
+                  <Label>Webcam proctoring snapshots</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Asks the candidate for camera consent, then captures a webcam snapshot when a violation is detected. Snapshots appear in the report&apos;s integrity log.
+                  </p>
+                </div>
+                <Switch
+                  checked={proctoringEnabled}
+                  onCheckedChange={setProctoringEnabled}
+                />
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -496,6 +513,7 @@ export default function SettingsTab() {
                 ? Number(timeLimitMinutes)
                 : null,
               antiCheatingEnabled,
+              proctoringEnabled,
               kind,
               aiSummaryEnabled,
             })

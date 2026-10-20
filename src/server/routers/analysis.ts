@@ -82,6 +82,29 @@ export const analysisRouter = router({
         );
       }
 
+      // Proctoring violation-moment snapshots live in the anti-cheating log;
+      // resolve each to a signed URL the recruiter's integrity card can show.
+      const rawLog = (session as Record<string, unknown>).antiCheatingLog as
+        | { type: string; timestamp: number; snapshotPath?: string }[]
+        | null;
+      let proctoringSnapshots:
+        | { path: string; url: string; timestamp: number; type: string }[]
+        | null = null;
+      const logsWithSnapshots = (rawLog ?? []).filter(
+        (e) => e && typeof e.snapshotPath === "string",
+      );
+      if (logsWithSnapshots.length > 0) {
+        proctoringSnapshots = await Promise.all(
+          logsWithSnapshots.map(async (e) => ({
+            path: e.snapshotPath as string,
+            url:
+              (await resolveSignedUrl("screenshots", e.snapshotPath as string)) ?? "",
+            timestamp: e.timestamp,
+            type: e.type,
+          })),
+        );
+      }
+
       return {
         interviewTitle: interview.title,
         interviewObjective: interview.objective,
@@ -120,6 +143,7 @@ export const analysisRouter = router({
         antiCheatingLog: (session as Record<string, unknown>).antiCheatingLog as
           | { type: string; timestamp: number; detail?: string }[]
           | null,
+        proctoringSnapshots,
       };
     }),
 

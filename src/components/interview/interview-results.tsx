@@ -37,6 +37,7 @@ import {
   getSessionOverallScore,
   hasScoreAdjustments,
 } from "@/lib/session-score";
+import { summarizeLog } from "@/lib/proctoring-summary";
 import { trpc } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
 import {
@@ -1290,7 +1291,9 @@ function SessionDetail({
             })()}
 
             {/* Anti-cheating integrity log */}
-            {antiCheatingLog.length > 0 && (
+            {antiCheatingLog.length > 0 && (() => {
+              const proctoring = summarizeLog(antiCheatingLog);
+              return (
               <Card className="border-amber-200 dark:border-amber-900">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
@@ -1300,6 +1303,11 @@ function SessionDetail({
                       {antiCheatingLog.length}{" "}
                       {antiCheatingLog.length === 1 ? "event" : "events"}
                     </Badge>
+                    {proctoring.flagged && (
+                      <Badge className="bg-red-100 text-red-700 hover:bg-red-100 dark:bg-red-950/40 dark:text-red-300">
+                        Flagged
+                      </Badge>
+                    )}
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -1336,9 +1344,40 @@ function SessionDetail({
                       ));
                     })()}
                   </div>
+                  {proctoring.snapshots.length > 0 && (
+                    <div className="mt-3">
+                      <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                        Violation snapshots ({proctoring.snapshots.length})
+                      </p>
+                      <div className="grid grid-cols-4 gap-2">
+                        {proctoring.snapshots.map((snap, i) => (
+                          <a
+                            key={`${snap.snapshotPath}-${i}`}
+                            href={summary.data?.proctoringSnapshots?.find(
+                              (s) => s.path === snap.snapshotPath,
+                            )?.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            title={`${snap.type} — ${new Date(snap.timestamp).toLocaleString()}`}
+                            className="block aspect-square overflow-hidden rounded-md border border-amber-200 dark:border-amber-900"
+                          >
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={summary.data?.proctoringSnapshots?.find(
+                                (s) => s.path === snap.snapshotPath,
+                              )?.url}
+                              alt={`${snap.type} snapshot`}
+                              className="h-full w-full object-cover"
+                            />
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
-            )}
+              );
+            })()}
 
             {/* Code Snippets */}
             {(() => {

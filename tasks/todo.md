@@ -17,13 +17,14 @@ Full plan: tasks/plan.md. Gates every task: `npx tsc --noEmit` → `npm run lint
 - [ ] B3. Override UI + "Adjusted" markers (interview-results.tsx, report-view.tsx, /r/[token]/session)
 
 ## Checkpoint B
-- [ ] Gates green; manual: weighted differs from unweighted; override survives reload + XLSX; commit+push+deploy READY
+- [x] Gates green (tsc+lint+407 tests); commit f1d8e29 pushed origin+deploy, Vercel READY (exit 0)
+- [ ] Manual: weighted differs from unweighted; override survives reload + XLSX
 
 ## Phase C — Proctoring (F2)
-- [ ] C1. Migration 018: interviews."proctoringEnabled" + append_anti_cheating_log RPC (SECURITY DEFINER, service_role only) + create-path passthrough
-- [ ] C2. Consent step in interviewee-onboarding + emit tab_switch/focus_lost/copy/cut via pure mapping; test tests/anti-cheating-emission.test.ts
-- [ ] C3. reportAntiCheatingViolation → RPC; new use-proctoring-camera.ts; violation-moment snapshot with snapshotPath
-- [ ] C4. proctoring-summary.ts + Integrity card counts/flag; test tests/proctoring-summary.test.ts
+- [x] C1. Migration 018: interviews."proctoringEnabled" + append_anti_cheating_log RPC (SECURITY DEFINER, service_role only) + create-path passthrough (post-RPC update + duplicate-interview field; 006 RPC column list untouched)
+- [x] C2. Consent step rendered by AntiCheatingGuard (deviation: not in interviewee-onboarding — same gate, less invasive) + emit tab_switch/focus_lost/copy/cut via pure mapProctoringViolation; test tests/anti-cheating-emission.test.ts
+- [x] C3. reportAntiCheatingViolation → RPC + optional snapshotPath; use-proctoring-camera.ts reuses /api/session/upload; violation-moment snapshot with snapshotPath (deviation: violation-moment only, no periodic captures — storage-cheap, matches log-count UI)
+- [x] C4. proctoring-summary.ts + Flagged badge + snapshot gallery in Integrity Log; settings toggle "Webcam proctoring snapshots"; test tests/proctoring-summary.test.ts
 
 ## Checkpoint C
 - [ ] Gates green; manual: chat session with proctoring → violations + snapshot in storage; commit+push+deploy READY

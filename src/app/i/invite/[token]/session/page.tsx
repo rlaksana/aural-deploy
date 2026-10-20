@@ -129,7 +129,7 @@ export default function InviteSessionPage() {
 
     return (
       <>
-        <AntiCheatingGuard enabled={!!interview.antiCheatingEnabled} sessionId={session.id} sessionToken={sessionToken} language={interview.language} />
+        <AntiCheatingGuard enabled={!!interview.antiCheatingEnabled} proctoring={!!interview.proctoringEnabled} sessionId={session.id} sessionToken={sessionToken} language={interview.language} />
         <VoiceInterface
           sessionId={session.id}
           interviewId={interview.id}
@@ -151,7 +151,7 @@ export default function InviteSessionPage() {
 
   return (
     <>
-      <AntiCheatingGuard enabled={!!interview.antiCheatingEnabled} sessionId={session.id} sessionToken={sessionToken} />
+      <AntiCheatingGuard enabled={!!interview.antiCheatingEnabled} proctoring={!!interview.proctoringEnabled} sessionId={session.id} sessionToken={sessionToken} />
       <ChatInterface
         sessionId={session.id}
         sessionToken={sessionToken}

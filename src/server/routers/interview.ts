@@ -410,6 +410,7 @@ export const interviewRouter = router({
         llmProvider: z.string().optional(),
         llmModel: z.string().optional(),
         antiCheatingEnabled: z.boolean().default(false),
+        proctoringEnabled: z.boolean().optional(),
         kind: z.enum(INTERVIEW_KINDS).optional(),
         aiSummaryEnabled: z.boolean().optional(),
       }),
@@ -549,6 +550,7 @@ export const interviewRouter = router({
         language: z.string().default("id"),
         timeLimitMinutes: z.number().int().min(1).optional(),
         antiCheatingEnabled: z.boolean().default(false),
+        proctoringEnabled: z.boolean().optional(),
         kind: z.enum(INTERVIEW_KINDS).optional(),
         questions: z
           .array(
@@ -720,6 +722,15 @@ export const interviewRouter = router({
       const interview = (rows as { interview: unknown }).interview;
       const questions = (rows as { questions: unknown[] }).questions ?? [];
       void questions;
+
+      // proctoringEnabled rides outside the create RPC's explicit column list
+      // (006/010) — set it in a follow-up write when opted in at creation.
+      if (input.proctoringEnabled) {
+        await ctx.supabase
+          .from("interviews")
+          .update({ proctoringEnabled: true })
+          .eq("id", (interview as { id: string }).id);
+      }
 
       return interview;
     }),
@@ -895,6 +906,7 @@ export const interviewRouter = router({
         requireInvite: z.boolean().optional(),
         invitedEmails: z.array(z.string().email()).optional(),
         antiCheatingEnabled: z.boolean().optional(),
+        proctoringEnabled: z.boolean().optional(),
         kind: z.enum(INTERVIEW_KINDS).optional(),
         aiSummaryEnabled: z.boolean().optional(),
       }),
@@ -1118,6 +1130,7 @@ export const interviewRouter = router({
           requireInvite: source.requireInvite,
           invitedEmails: source.invitedEmails,
           antiCheatingEnabled: source.antiCheatingEnabled,
+          proctoringEnabled: (source as { proctoringEnabled?: boolean }).proctoringEnabled,
           kind: (source as { kind?: string }).kind,
         })
         .select()

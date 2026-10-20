@@ -2,14 +2,17 @@
 
 import type { AntiCheatingViolation } from "@/hooks/use-anti-cheating";
 import { useAntiCheating } from "@/hooks/use-anti-cheating";
+import { useProctoringCamera } from "@/hooks/use-proctoring-camera";
 import { useToast } from "@/hooks/use-toast";
 import { bt, getLanguageKey, type LangKey } from "@/lib/i18n";
 import { trpc } from "@/lib/trpc/client";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Camera } from "lucide-react";
 import { useCallback, useRef, useState } from "react";
 
 interface AntiCheatingGuardProps {
   enabled: boolean;
+  /** Proctoring mode: granular violations + consent-gated webcam snapshots. */
+  proctoring?: boolean;
   sessionId?: string;
   sessionToken?: string | null;
   language?: string;
@@ -27,19 +30,32 @@ function departureBody(lang: LangKey, count: number): string {
   }. All departures are recorded and may be reviewed. Excessive departures could affect the evaluation of your session.`;
 }
 
-export function AntiCheatingGuard({ enabled, sessionId, sessionToken, language }: AntiCheatingGuardProps) {
+export function AntiCheatingGuard({ enabled, proctoring = false, sessionId, sessionToken, language }: AntiCheatingGuardProps) {
   const lang = getLanguageKey(language);
   const { toast } = useToast();
   const [warningOpen, setWarningOpen] = useState(false);
   const [departureCount, setDepartureCount] = useState(0);
+  const [cameraConsent, setCameraConsent] = useState<"pending" | "granted" | "denied">("pending");
   const lastDepartureTs = useRef(0);
   const lastPasteToast = useRef(0);
+
+  const { setVideoEl, captureNow } = useProctoringCamera({
+    enabled: enabled && proctoring && cameraConsent === "granted" && !!sessionId,
+    sessionId: sessionId ?? "",
+    sessionToken,
+  });
 
   const reportMutation = trpc.session.reportAntiCheatingViolation.useMutation();
 
   const persistViolation = useCallback(
-    (violation: AntiCheatingViolation) => {
+    async (violation: AntiCheatingViolation) => {
       if (!sessionId) return;
+      // Proctoring: grab the webcam frame at the violation moment; a failed
+      // capture never blocks the violation from being recorded.
+      let snapshotPath: string | undefined;
+      if (proctoring) {
+        snapshotPath = (await captureNow().catch(() => null)) ?? undefined;
+      }
       reportMutation.mutate({
         sessionId,
         sessionToken: sessionToken ?? undefined,
@@ -47,10 +63,11 @@ export function AntiCheatingGuard({ enabled, sessionId, sessionToken, language }
           type: violation.type,
           timestamp: violation.timestamp,
           detail: violation.detail,
+          snapshotPath,
         },
       });
     },
-    [sessionId, sessionToken, reportMutation],
+    [sessionId, sessionToken, reportMutation, proctoring, captureNow],
   );
 
   const recordDeparture = useCallback(() => {
@@ -67,6 +84,8 @@ export function AntiCheatingGuard({ enabled, sessionId, sessionToken, language }
 
       switch (violation.type) {
         case "page_departure":
+        case "tab_switch":
+        case "focus_lost":
           recordDeparture();
           break;
 
@@ -108,12 +127,68 @@ export function AntiCheatingGuard({ enabled, sessionId, sessionToken, language }
     [toast, recordDeparture, persistViolation, lang],
   );
 
-  useAntiCheating({ enabled, onViolation: handleViolation });
+  useAntiCheating({ enabled, proctoring, onViolation: handleViolation });
 
-  if (!enabled || !warningOpen) return null;
+  if (!enabled) return null;
+
+  // Proctoring consent gate: the camera opens strictly after an explicit
+  // yes. Denying (or ignoring) disables snapshots but never blocks the
+  // interview — the guard's other detections keep running either way.
+  if (proctoring && cameraConsent === "pending") {
+    return (
+      <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm">
+        <div className="mx-4 w-full max-w-md rounded-xl border border-gray-200 bg-white p-6 shadow-2xl dark:border-gray-700 dark:bg-gray-900">
+          <div className="flex flex-col items-center text-center">
+            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-950/50">
+              <Camera className="h-7 w-6 text-blue-600 dark:text-blue-400" />
+            </div>
+            <h2 className="mt-4 text-lg font-semibold text-gray-900 dark:text-gray-100">
+              {bt(lang, {
+                en: "Webcam proctoring",
+                zh: "网络摄像头监考",
+                id: "Proctoring webcam",
+              })}
+            </h2>
+            <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+              {bt(lang, {
+                en: "With your permission, the interviewer takes a webcam snapshot when suspicious activity (tab switching, copying) is detected. Snapshots are visible only to the recruiter. You may decline — the interview continues either way.",
+                zh: "经你许可后，当检测到可疑行为（切换标签页、复制）时，系统会拍摄网络摄像头快照。快照仅招聘人员可见。你可以拒绝，面试仍会继续。",
+                id: "Dengan izinmu, snapshot webcam diambil saat aktivitas mencurigakan (pindah tab, menyalin) terdeteksi. Snapshot hanya terlihat oleh rekruter. Kamu boleh menolak — wawancara tetap berjalan.",
+              })}
+            </p>
+            <button
+              onClick={() => setCameraConsent("granted")}
+              className="mt-5 w-full rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:bg-blue-700 dark:hover:bg-blue-600"
+            >
+              {bt(lang, {
+                en: "Allow camera",
+                zh: "允许摄像头",
+                id: "Izinkan kamera",
+              })}
+            </button>
+            <button
+              onClick={() => setCameraConsent("denied")}
+              className="mt-2 w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
+            >
+              {bt(lang, {
+                en: "Continue without camera",
+                zh: "不使用摄像头继续",
+                id: "Lanjut tanpa kamera",
+              })}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm">
+    <>
+      {proctoring && cameraConsent === "granted" && (
+        <video ref={setVideoEl} muted playsInline className="hidden" />
+      )}
+      {warningOpen && (
+      <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm">
       <div className="mx-4 w-full max-w-md rounded-xl border border-red-200 bg-white p-6 shadow-2xl dark:border-red-900 dark:bg-gray-900">
         <div className="flex flex-col items-center text-center">
           <div className="flex h-14 w-14 items-center justify-center rounded-full bg-red-100 dark:bg-red-950/50">
@@ -154,6 +229,8 @@ export function AntiCheatingGuard({ enabled, sessionId, sessionToken, language }
           </button>
         </div>
       </div>
-    </div>
+      </div>
+      )}
+    </>
   );
 }

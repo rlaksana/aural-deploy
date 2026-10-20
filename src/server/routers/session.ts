@@ -695,6 +695,8 @@ export const sessionRouter = router({
           type: z.enum(["page_departure", "paste", "multi_screen", "tab_switch", "focus_lost", "copy", "cut"]),
           timestamp: z.number(),
           detail: z.string().optional(),
+          // Proctoring: optional webcam snapshot captured at the violation moment.
+          snapshotPath: z.string().optional(),
         }),
         sessionToken: z.string().optional(),
       }),
@@ -702,23 +704,15 @@ export const sessionRouter = router({
     .mutation(async ({ ctx, input }) => {
       await requireSessionAccess(ctx.supabase, ctx.user, input.sessionId, input.sessionToken);
 
-      const { data: session } = await ctx.supabase
-        .from("sessions")
-        .select("antiCheatingLog")
-        .eq("id", input.sessionId)
-        .single();
-
-      if (!session) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Session not found" });
+      // Atomic append (018): the old read-modify-write lost violations when
+      // two events landed close together.
+      const { error } = await supabaseAdmin.rpc("append_anti_cheating_log", {
+        p_session_id: input.sessionId,
+        p_entry: input.violation,
+      });
+      if (error) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: error.message });
       }
-
-      const log = Array.isArray(session.antiCheatingLog) ? session.antiCheatingLog : [];
-      log.push(input.violation);
-
-      await ctx.supabase
-        .from("sessions")
-        .update({ antiCheatingLog: log })
-        .eq("id", input.sessionId);
 
       return { success: true };
     }),
