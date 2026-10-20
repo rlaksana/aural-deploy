@@ -57,11 +57,16 @@ describe("INTERVIEW_TEMPLATES", () => {
         if (q.type !== "SINGLE_CHOICE" && q.type !== "MULTIPLE_CHOICE") {
           continue;
         }
-        assert.ok(Array.isArray(q.options), `${t.id} order ${q.order}`);
-        assert.ok(
-          (q.options as unknown[]).length > 0,
-          `${t.id} order ${q.order} options empty`,
-        );
+        // Two conventions exist: legacy [{label, value}] arrays and the
+        // runtime { options: string[], correctIndices? } shape the
+        // deterministic flow and quiz grading read.
+        const opts = q.options;
+        const count = Array.isArray(opts)
+          ? opts.length
+          : Array.isArray((opts as { options?: unknown[] } | null)?.options)
+            ? (opts as { options: unknown[] }).options.length
+            : 0;
+        assert.ok(count > 0, `${t.id} order ${q.order} options missing/empty`);
       }
     }
   });

@@ -1,5 +1,7 @@
 import { generateSessionSummary } from "@/lib/ai/session-summary";
 import { gradeQuiz } from "@/lib/quiz-grading";
+import { getPsychometricBank } from "@/lib/psychometric/banks";
+import { scorePsychometric, selectionsFromAnswers } from "@/lib/psychometric/scoring";
 import { createLogger } from "@/lib/logger";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { TRPCError } from "@trpc/server";
@@ -584,7 +586,7 @@ export const sessionRouter = router({
       const { data: session } = await ctx.supabase
         .from("sessions")
         .select(
-          "id, startedAt, interview:interviews!inner(kind, aiSummaryEnabled, questions(id, text, type, options))",
+          "id, startedAt, interview:interviews!inner(kind, aiSummaryEnabled, psychometricConfig, questions(id, text, type, options))",
         )
         .eq("id", input.id)
         .order("order", { referencedTable: "interviews.questions", ascending: true })
@@ -626,11 +628,52 @@ export const sessionRouter = router({
         | {
             kind?: string;
             aiSummaryEnabled?: boolean;
+            psychometricConfig?: { bankId?: string } | null;
             questions?: { id: string; text: string; type: string; options: { correctIndices?: number[] } | null }[];
           }
         | undefined;
       const kind = interview?.kind ?? "INTERVIEW";
       const aiSummaryEnabled = interview?.aiSummaryEnabled !== false;
+
+      // Psychometric instruments score deterministically and complete as
+      // FINAL: the objective-kind rule — nothing AI-generated to approve.
+      const psychometricBank = getPsychometricBank(interview?.psychometricConfig?.bankId);
+      if (psychometricBank) {
+        const { data: msgs } = await ctx.supabase
+          .from("messages")
+          .select("questionId, content")
+          .eq("sessionId", input.id)
+          .eq("role", "USER");
+
+        // Questions were generated from bank items in order; answer i feeds
+        // item i. Unmatched/unanswered items score 0 (never breaks scoring).
+        const selections = selectionsFromAnswers(
+          interview?.questions ?? [],
+          (msgs ?? []) as { questionId: string | null; content: string }[],
+        );
+        const result = scorePsychometric(psychometricBank, selections);
+
+        await supabaseAdmin.rpc("merge_session_insights", {
+          p_session_id: input.id,
+          p_insights: {
+            questionEvaluations: result.questionEvaluations,
+            criteriaEvaluations: result.criteriaEvaluations,
+            dimensionScores: result.dimensionScores,
+            bands: result.bands,
+            keyInsights: [],
+          },
+        });
+        await ctx.supabase
+          .from("sessions")
+          .update({
+            summary: result.summary,
+            reportStatus: "FINAL",
+            finalizedAt: now.toISOString(),
+          })
+          .eq("id", input.id);
+
+        return { success: true };
+      }
 
       // Quizzes/assessments get deterministic scores in `insights` before any
       // AI narrative. With aiSummaryEnabled the AI summary keeps these scores

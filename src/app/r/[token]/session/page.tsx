@@ -1,6 +1,7 @@
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { canonicalizeInsights } from "@/lib/interview-report";
 import { buildCriteriaWeights, getSessionOverallScore } from "@/lib/session-score";
+import { DimensionBars } from "@/components/interview/dimension-bars";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
@@ -38,6 +39,8 @@ type SessionInsights = {
     criteriaScores?: Record<string, number>;
     note?: string;
   };
+  dimensionScores?: unknown;
+  bands?: unknown;
 };
 
 function asArray(value: unknown): unknown[] {
@@ -251,6 +254,17 @@ export default async function PublicSessionReportPage({
                 )}
               </div>
             ))}
+          </CardContent>
+        </Card>
+      )}
+
+      {(insights?.dimensionScores ?? insights?.bands) != null && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Dimension Profile</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <DimensionBars scores={insights?.dimensionScores} bands={insights?.bands} />
           </CardContent>
         </Card>
       )}

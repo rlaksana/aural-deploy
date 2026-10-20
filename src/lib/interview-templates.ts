@@ -1,3 +1,6 @@
+import type { PsychometricBankId } from "./psychometric/banks";
+import { PSYCHOMETRIC_BANKS } from "./psychometric/banks";
+
 export interface TemplateQuestion {
   text: string;
   description?: string;
@@ -22,6 +25,53 @@ export interface InterviewTemplate {
   videoEnabled: boolean;
   timeLimitMinutes?: number;
   questions: TemplateQuestion[];
+  /** Psychometric presets run as deterministic ASSESSMENT sessions. */
+  kind?: "INTERVIEW" | "ASSESSMENT";
+  /** Deterministic instruments score without the LLM (no billing). */
+  aiSummaryEnabled?: boolean;
+  psychometricConfig?: { bankId: PsychometricBankId };
+}
+
+/** Build an ASSESSMENT template from a psychometric bank, items verbatim. */
+function psychometricTemplate(
+  bankId: PsychometricBankId,
+  id: string,
+  title: string,
+  description: string,
+  icon: string,
+  timeLimitMinutes?: number,
+): InterviewTemplate {
+  const bank = PSYCHOMETRIC_BANKS[bankId];
+  return {
+    id,
+    title,
+    description,
+    objective: `Administer the ${bank.name} screening instrument and produce a rule-based dimension profile for the recruiter.`,
+    icon,
+    aiTone: "PROFESSIONAL",
+    followUpDepth: "LIGHT",
+    assessmentCriteria: bank.dimensions.map((d) => ({
+      name: d.label,
+      description: d.description,
+    })),
+    chatEnabled: true,
+    voiceEnabled: false,
+    videoEnabled: false,
+    timeLimitMinutes,
+    kind: "ASSESSMENT",
+    aiSummaryEnabled: false,
+    psychometricConfig: { bankId },
+    questions: bank.items.map((item, i) => ({
+      order: i,
+      text: item.text,
+      type: "SINGLE_CHOICE" as const,
+      options: bank.keyed
+        ? { options: item.options, correctIndices: [item.correctIndex ?? 0] }
+        : { options: item.options },
+      isRequired: true,
+      probeOnShort: false,
+    })),
+  };
 }
 
 export const INTERVIEW_TEMPLATES: InterviewTemplate[] = [
@@ -388,4 +438,30 @@ export const INTERVIEW_TEMPLATES: InterviewTemplate[] = [
       { order: 4, text: "Would you recommend working here to a friend, and would you consider coming back in the future? Anything else you'd like to add?", type: "OPEN_ENDED", probeOnShort: false, isRequired: false },
     ],
   },
+
+  // ── Psychometric presets (deterministic ASSESSMENT sessions) ──────
+  psychometricTemplate(
+    "BIG_FIVE",
+    "psychometric-big-five",
+    "Psikotes: Big Five Personality",
+    "30 agreement-rated statements profiling Openness, Conscientiousness, Extraversion, Agreeableness, and Emotional Stability. Scored automatically — no AI, results final immediately.",
+    "BrainCircuit",
+    20,
+  ),
+  psychometricTemplate(
+    "DISC",
+    "psychometric-disc",
+    "Psikotes: DISC Work Style",
+    "24 statements approximating Dominance, Influence, Steadiness, and Conscientiousness. Rule-based scoring with screening bands — recruiter owns the final read.",
+    "Compass",
+    15,
+  ),
+  psychometricTemplate(
+    "REASONING",
+    "psychometric-reasoning",
+    "Psikotes: Penalaran (Numerik · Logika · Verbal)",
+    "15 keyed questions across numerical, logical, and verbal reasoning. Objective right/wrong scoring — results final immediately.",
+    "TrendingUp",
+    20,
+  ),
 ];

@@ -22,6 +22,9 @@ export type ReportRow = {
   adjusted: boolean;
   /** criteria/question label -> score (0-10) */
   criteria: Record<string, number>;
+  /** Psychometric only: dimension key -> 0-100, plus rule-based band labels. */
+  dimensionScores?: Record<string, number>;
+  bands?: Record<string, string>;
   summary: string | null;
   completedAt: string | null;
   /** Draft→finalize state; null = no session yet (invited roster row). */
@@ -42,7 +45,33 @@ type InsightsShape = {
   criteriaEvaluations?: { name?: unknown; score?: unknown }[];
   questionEvaluations?: { question?: unknown; score?: unknown }[];
   summary?: unknown;
+  dimensionScores?: Record<string, unknown>;
+  bands?: Record<string, unknown>;
 };
+
+/** Psychometric dimension profile off a session's insights, if any. */
+function extractDimensions(insights: unknown): {
+  dimensionScores?: Record<string, number>;
+  bands?: Record<string, string>;
+} {
+  if (!insights || typeof insights !== "object" || Array.isArray(insights)) {
+    return {};
+  }
+  const { dimensionScores, bands } = insights as InsightsShape;
+  if (!dimensionScores || typeof dimensionScores !== "object") return {};
+  const scores: Record<string, number> = {};
+  for (const [k, v] of Object.entries(dimensionScores)) {
+    if (isFiniteNumber(v)) scores[k] = v;
+  }
+  if (Object.keys(scores).length === 0) return {};
+  const out: Record<string, string> = {};
+  if (bands && typeof bands === "object") {
+    for (const [k, v] of Object.entries(bands)) {
+      if (typeof v === "string" && k in scores) out[k] = v;
+    }
+  }
+  return { dimensionScores: scores, bands: out };
+}
 
 type SessionMessage = {
   role: string;
@@ -214,6 +243,7 @@ export function buildReportRows(
       ),
       adjusted: hasScoreAdjustments(insights),
       criteria,
+      ...extractDimensions(insights),
       summary: extractSummary(session, insights),
       completedAt: session.completedAt ?? null,
       reportStatus: session.reportStatus ?? null,

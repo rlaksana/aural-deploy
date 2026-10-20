@@ -12,6 +12,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import type { InterviewReport, ReportRow } from "@/lib/interview-report";
+import { DimensionBars } from "@/components/interview/dimension-bars";
 import { cn } from "@/lib/utils";
 import {
   ArrowDown,
@@ -312,7 +313,7 @@ export function ReportView({
             </TableHeader>
             <TableBody>
               {viewRows.map(({ row, rank }) => (
-                <BodyRow
+                <BodyRowGroup
                   key={`${row.sessionId}-${rank}`}
                   row={row}
                   rank={row.overallScore !== null ? rank : null}
@@ -353,6 +354,28 @@ export function ReportView({
         </div>
       )}
     </div>
+  );
+}
+
+/** One report row, plus a dimension-profile row for psychometric sessions. */
+function BodyRowGroup(props: Parameters<typeof BodyRow>[0]) {
+  const { row, questionKeys, onRegenerate, onFinalize } = props;
+  const colSpan =
+    6 + questionKeys.length + (onRegenerate ? 1 : 0) + (onFinalize ? 1 : 0);
+  return (
+    <>
+      <BodyRow {...props} />
+      {row.dimensionScores && (
+        <TableRow className="hover:bg-transparent">
+          <TableCell colSpan={colSpan} className="bg-muted/30 px-4 py-3">
+            <DimensionBars
+              scores={row.dimensionScores}
+              bands={row.bands}
+            />
+          </TableCell>
+        </TableRow>
+      )}
+    </>
   );
 }
 

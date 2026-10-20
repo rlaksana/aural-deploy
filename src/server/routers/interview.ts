@@ -840,6 +840,9 @@ export const interviewRouter = router({
           voiceEnabled: template.voiceEnabled,
           videoEnabled: template.videoEnabled,
           timeLimitMinutes: template.timeLimitMinutes ?? null,
+          kind: template.kind ?? "INTERVIEW",
+          aiSummaryEnabled: template.aiSummaryEnabled ?? true,
+          psychometricConfig: template.psychometricConfig ?? null,
           projectId,
           userId: ctx.user.id,
           requireInvite: true,
@@ -907,6 +910,10 @@ export const interviewRouter = router({
         invitedEmails: z.array(z.string().email()).optional(),
         antiCheatingEnabled: z.boolean().optional(),
         proctoringEnabled: z.boolean().optional(),
+        psychometricConfig: z
+          .object({ bankId: z.string() })
+          .nullable()
+          .optional(),
         kind: z.enum(INTERVIEW_KINDS).optional(),
         aiSummaryEnabled: z.boolean().optional(),
       }),

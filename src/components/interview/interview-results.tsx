@@ -2,6 +2,7 @@
 "use client";
 
 import { CodeBlock } from "@/components/code-editor/code-block";
+import { DimensionBars } from "@/components/interview/dimension-bars";
 import { useOrg } from "@/components/org-provider";
 import { SessionRow, SessionsTable } from "@/components/session/sessions-table";
 import {
@@ -488,6 +489,8 @@ function SessionDetail({
           criteriaScores?: Record<string, number>;
           note?: string;
         };
+        dimensionScores?: Record<string, number>;
+        bands?: Record<string, string>;
         toneAnalysis?: {
           overall?: string;
           details?: string;
@@ -929,6 +932,26 @@ function SessionDetail({
                 </CardContent>
               </Card>
             )}
+
+            {/* Psychometric dimension profile (psikotes sessions only) */}
+            {!Array.isArray(insightsData) &&
+              (insightsData?.dimensionScores ??
+                insightsData?.bands) != null && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Target className="h-4 w-4" />
+                      Dimension Profile
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <DimensionBars
+                      scores={insightsData?.dimensionScores}
+                      bands={insightsData?.bands}
+                    />
+                  </CardContent>
+                </Card>
+              )}
 
             {/* Recruiter score override dialog */}
             <Dialog open={adjustOpen} onOpenChange={setAdjustOpen}>
