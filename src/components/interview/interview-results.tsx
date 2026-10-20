@@ -1342,14 +1342,18 @@ function SessionDetail({
                           v.type === "page_departure"
                             ? "Page departure"
                             : v.type === "tab_switch"
-                              ? "Page departure"
+                              ? "Tab switch"
                               : v.type === "focus_lost"
-                                ? "Page departure"
-                                : v.type === "paste"
-                                  ? "External paste blocked"
-                                  : v.type === "multi_screen"
-                                    ? "Multi-screen detected"
-                                    : v.type;
+                                ? "Focus lost"
+                                : v.type === "copy"
+                                  ? "Text copied"
+                                  : v.type === "cut"
+                                    ? "Text cut"
+                                    : v.type === "paste"
+                                      ? "External paste blocked"
+                                      : v.type === "multi_screen"
+                                        ? "Multi-screen detected"
+                                        : v.type;
                         counts[label] = (counts[label] || 0) + 1;
                       }
                       return Object.entries(counts).map(([label, count]) => (
