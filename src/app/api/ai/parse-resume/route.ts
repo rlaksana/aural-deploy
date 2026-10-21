@@ -30,15 +30,15 @@ Rules:
 - Return ONLY the JSON object, no markdown fences, no explanation`;
 
 function getClient(): { client: OpenAI; model: string } {
-  if (!process.env.MINIMAX_API_KEY) {
+  if (!process.env.AI_API_KEY) {
     throw new Error("No LLM provider configured");
   }
   return {
     client: new OpenAI({
-      apiKey: process.env.MINIMAX_API_KEY,
-      baseURL: process.env.MINIMAX_BASE_URL ?? "https://api.minimax.io/v1",
+      apiKey: process.env.AI_API_KEY,
+      baseURL: process.env.AI_BASE_URL ?? "",
     }),
-    model: "MiniMax-M3.1-Flash-Preview",
+    model: process.env.AI_MODEL ?? "minimax-m3.1",
   };
 }
 

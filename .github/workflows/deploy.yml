@@ -61,6 +61,9 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           MINIMAX_API_KEY: ${{ secrets.MINIMAX_API_KEY }}
           VOICE_RELAY_SECRET: ${{ secrets.VOICE_RELAY_SECRET }}
+          AI_BASE_URL: ${{ secrets.AI_BASE_URL }}
+          AI_MODEL: ${{ secrets.AI_MODEL }}
+          AI_API_KEY: ${{ secrets.AI_API_KEY }}
         run: |
           umask 077
 
@@ -76,7 +79,20 @@ jobs:
           VOICE_RELAY_SECRET=${VOICE_RELAY_SECRET}
           VOICE_RELAY_PORT=8766
           LOG_LEVEL=info
+          AI_BASE_URL=${AI_BASE_URL}
+          AI_MODEL=${AI_MODEL}
+          AI_API_KEY=${AI_API_KEY}
           EOF
+
+          # Route the voice relay's LLM through the shared gateway when the
+          # AI_* secrets are configured (MiniMax remains the ASR/TTS backend).
+          if [ -n "${AI_API_KEY}" ]; then
+            cat >> "${DEPLOY_DIR}/.env" <<EOF
+          RELAY_LLM_BASE_URL=${AI_BASE_URL}
+          RELAY_LLM_MODEL=${AI_MODEL:-minimax-m3.1}
+          RELAY_LLM_API_KEY=${AI_API_KEY}
+          EOF
+          fi
 
           chmod 0600 "${DEPLOY_DIR}/.env"
 

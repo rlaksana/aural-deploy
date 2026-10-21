@@ -152,9 +152,16 @@ export function ReportsTab({ interviewId }: { interviewId: string }) {
   });
 
   const generateAnalysis = trpc.report.generateAnalysis.useMutation({
-    onSuccess: () => {
+    onSuccess: (data) => {
       utils.report.get.invalidate({ interviewId });
-      toast({ title: "AI analysis generated" });
+      if (data && "queued" in data && data.queued) {
+        toast({
+          title: "Queued for the AI operating window",
+          description: "The analysis will be generated automatically after 5:00 PM (WIB).",
+        });
+      } else {
+        toast({ title: "AI analysis generated" });
+      }
     },
     onError: (err) =>
       toast({ title: "Failed to generate analysis", description: err.message, variant: "destructive" }),

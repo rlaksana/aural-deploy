@@ -1,5 +1,7 @@
 import { nanoid } from "@/lib/id";
-import { generateSurveyAnalysis } from "@/lib/ai/aggregate-analysis";
+import { aiWindowStatus } from "@/lib/ai/ai-window";
+import { aiJobDedupeKey, enqueueAiJob } from "@/lib/ai/ai-jobs";
+import { generateAndCacheSurveyAnalysis } from "@/lib/ai/aggregate-analysis";
 import {
   buildReportRows,
   buildSurveyAggregate,
@@ -86,15 +88,10 @@ export const reportRouter = router({
 
       const { data: interviewRow } = await ctx.supabase
         .from("interviews")
-        .select("title, kind, language, questions(id, text, type, options)")
+        .select("kind")
         .eq("id", input.interviewId)
-        .order("order", { referencedTable: "questions", ascending: true })
         .single();
-
-      const row = interviewRow as unknown as
-        | (InterviewKindRow & { language?: string })
-        | null;
-      const kind = row?.kind ?? "INTERVIEW";
+      const kind = (interviewRow as { kind?: string } | null)?.kind ?? "INTERVIEW";
       if (kind === "INTERVIEW") {
         throw new TRPCError({
           code: "BAD_REQUEST",
@@ -102,23 +99,19 @@ export const reportRouter = router({
         });
       }
 
-      const entries = await fetchReportEntries(ctx.supabase, input.interviewId);
-      const aggregate = buildSurveyAggregate(entries, row?.questions ?? []);
+      // Heavy batch work runs only inside the AI operating window.
+      const window = aiWindowStatus();
+      if (!window.open) {
+        await enqueueAiJob({
+          kind: "ANALYSIS",
+          userId: ctx.user.id,
+          dedupeKey: aiJobDedupeKey(["ANALYSIS", input.interviewId]),
+          payload: { interviewId: input.interviewId },
+        });
+        return { queued: true as const, nextRunAt: window.nextBoundaryAt };
+      }
 
-      const text = await generateSurveyAnalysis(
-        row?.title ?? "Untitled",
-        kind,
-        aggregate,
-        row?.language,
-      );
-
-      const aiAnalysis = { text, generatedAt: new Date().toISOString() };
-      await ctx.supabase
-        .from("interviews")
-        .update({ aiAnalysis })
-        .eq("id", input.interviewId);
-
-      return { aiAnalysis };
+      return generateAndCacheSurveyAnalysis(input.interviewId);
     }),
 
   /** Create (or replace) the single share link for this interview. */

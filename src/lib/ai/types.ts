@@ -13,6 +13,8 @@ export interface GenerationParams {
   temperature?: number;
   maxTokens?: number;
   stream?: boolean;
+  /** Cooperative hard-stop for batch jobs (AI operating window deadline). */
+  signal?: AbortSignal;
 }
 
 export interface LLMResponse {

@@ -12,6 +12,8 @@ const ENV_KEYS = [
   "KIMI_API_KEY",
   "MINIMAX_API_KEY",
   "OPENROUTER_API_KEY",
+  "AI_API_KEY",
+  "AI_MODEL",
 ] as const;
 
 function withEnv(
@@ -37,17 +39,32 @@ function withEnv(
   }
 }
 
-test("getGeneratorModelChain returns only MiniMax-M3.1-Flash-Preview regardless of other provider keys", () => {
+test("getGeneratorModelChain returns only the gateway model regardless of other provider keys", () => {
   withEnv(
     {
+      AI_API_KEY: "test-ai",
       OPENAI_API_KEY: "test-openai",
       GEMINI_API_KEY: "test-gemini",
       KIMI_API_KEY: "test-kimi",
       MINIMAX_API_KEY: "test-minimax",
+      AI_MODEL: undefined,
     },
     () => {
-      assert.deepEqual(getGeneratorModelChain(), ["MiniMax-M3.1-Flash-Preview"]);
-      assert.equal(resolveGeneratorModel(), "MiniMax-M3.1-Flash-Preview");
+      assert.deepEqual(getGeneratorModelChain(), ["minimax-m3.1"]);
+      assert.equal(resolveGeneratorModel(), "minimax-m3.1");
+    },
+  );
+});
+
+test("getGeneratorModelChain honors AI_MODEL override", () => {
+  withEnv(
+    {
+      AI_API_KEY: "test-ai",
+      AI_MODEL: "custom-gateway-model",
+    },
+    () => {
+      assert.deepEqual(getGeneratorModelChain(), ["custom-gateway-model"]);
+      assert.equal(resolveGeneratorModel(), "custom-gateway-model");
     },
   );
 });
@@ -58,29 +75,29 @@ test("getGeneratorModelChain appends OpenRouter fallback when OPENROUTER_API_KEY
       OPENAI_API_KEY: undefined,
       GEMINI_API_KEY: undefined,
       KIMI_API_KEY: undefined,
-      MINIMAX_API_KEY: "test-minimax",
+      MINIMAX_API_KEY: undefined,
+      AI_API_KEY: "test-ai",
+      AI_MODEL: undefined,
       OPENROUTER_API_KEY: "test-openrouter",
     },
     () => {
       assert.deepEqual(getGeneratorModelChain(), [
-        "MiniMax-M3.1-Flash-Preview",
+        "minimax-m3.1",
         "meta/muse-spark-1.3-contributor",
       ]);
-      assert.equal(resolveGeneratorModel(), "MiniMax-M3.1-Flash-Preview");
     },
   );
 });
 
-test("getGeneratorModelChain still requires MINIMAX_API_KEY even when other keys exist", () => {
+test("getGeneratorModelChain requires AI_API_KEY even when other keys exist", () => {
   withEnv(
     {
       OPENAI_API_KEY: "test-openai",
-      GEMINI_API_KEY: undefined,
-      KIMI_API_KEY: undefined,
-      MINIMAX_API_KEY: undefined,
+      MINIMAX_API_KEY: "test-minimax",
+      AI_API_KEY: undefined,
     },
     () => {
-      assert.throws(() => getGeneratorModelChain(), /MINIMAX_API_KEY/);
+      assert.throws(() => getGeneratorModelChain(), /AI_API_KEY/);
     },
   );
 });

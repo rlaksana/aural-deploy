@@ -1,4 +1,6 @@
 import { generateSessionSummaryCore } from "@/lib/ai/session-summary";
+import { aiWindowStatus } from "@/lib/ai/ai-window";
+import { aiJobDedupeKey, enqueueAiJob } from "@/lib/ai/ai-jobs";
 import { getAuthUser } from "@/lib/auth";
 import { createLogger } from "@/lib/logger";
 import { supabaseAdmin } from "@/lib/supabase/admin";
@@ -56,9 +58,24 @@ export async function POST(req: Request) {
       if (healthy) return NextResponse.json({ skipped: true });
     }
 
-    await generateSessionSummaryCore(sessionId, {
-      force: !!force || !skipExisting,
-    });
+    // Heavy batch work runs only inside the AI operating window; outside it
+    // the rebuild is queued (202 keeps batch callers' res.ok checks happy).
+    const forceRebuild = !!force || !skipExisting;
+    const window = aiWindowStatus();
+    if (!window.open) {
+      await enqueueAiJob({
+        kind: "SUMMARY",
+        userId: user.id,
+        dedupeKey: aiJobDedupeKey(["SUMMARY", sessionId, String(forceRebuild)]),
+        payload: { sessionId, force: forceRebuild },
+      });
+      return NextResponse.json(
+        { queued: true, nextRunAt: window.nextBoundaryAt },
+        { status: 202 },
+      );
+    }
+
+    await generateSessionSummaryCore(sessionId, { force: forceRebuild });
     return NextResponse.json({ ok: true });
   } catch (error) {
     log.error("Summary generation error:", error);

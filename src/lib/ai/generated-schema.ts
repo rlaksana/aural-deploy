@@ -95,6 +95,22 @@ export const generateRequestSchema = z.object({
   language: languageCode.default("id"),
   jobDescription: z.string().max(15_000).optional(),
   resumeText: z.string().max(15_000).optional(),
+  // Captured at enqueue time so a queued-generation executor can create the
+  // interview server-side without the client's review step.
+  projectId: z.string().optional(),
+  settings: z
+    .object({
+      chatEnabled: z.boolean().default(true),
+      voiceEnabled: z.boolean().default(false),
+      videoEnabled: z.boolean().default(false),
+      aiTone: z
+        .enum(["CASUAL", "PROFESSIONAL", "FORMAL", "FRIENDLY"])
+        .default("PROFESSIONAL"),
+      followUpDepth: z.enum(["LIGHT", "MODERATE", "DEEP"]).default("MODERATE"),
+      antiCheatingEnabled: z.boolean().default(false),
+      timeLimitMinutes: z.number().int().min(1).optional(),
+    })
+    .optional(),
 });
 
 export const refineRequestSchema = z.object({

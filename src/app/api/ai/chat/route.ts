@@ -76,8 +76,8 @@ export async function POST(req: Request) {
       );
     }
 
-    // All interviews run on MiniMax-M3.1-Flash-Preview; stored llmProvider/llmModel are ignored.
-    const provider = getProvider("minimax");
+    // All interviews run on the LiteLLM gateway model; stored llmProvider/llmModel are ignored.
+    const provider = getProvider("litellm");
 
     const conversationHistory: LLMMessage[] = (messages ?? [])
       .filter(
@@ -143,7 +143,6 @@ export async function POST(req: Request) {
           }),
           temperature: 0.7,
           maxTokens: 1024,
-          model: "MiniMax-M3.1-Flash-Preview",
         });
 
     const responseContent = detFlow?.content ?? choiceFlow?.content ?? response?.content ?? "";

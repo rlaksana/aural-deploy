@@ -21,8 +21,22 @@ const inFlight = new Map<string, Promise<void>>();
  * returns immediately when a summary already exists or one is currently being
  * generated for the same session, so multiple completion paths (voice save,
  * chat complete, safety-net) can all call it without double LLM runs.
+ *
+ * Outside the AI operating window the work is queued instead (dynamic import
+ * avoids a static cycle: ai-jobs imports generateSessionSummaryCore).
  */
-export function generateSessionSummary(sessionId: string): Promise<void> {
+export async function generateSessionSummary(sessionId: string): Promise<void> {
+  const { aiWindowStatus } = await import("./ai-window");
+  if (!aiWindowStatus().open) {
+    const { aiJobDedupeKey, enqueueAiJob } = await import("./ai-jobs");
+    await enqueueAiJob({
+      kind: "SUMMARY",
+      dedupeKey: aiJobDedupeKey(["SUMMARY", sessionId, "false"]),
+      payload: { sessionId, force: false },
+    });
+    return;
+  }
+
   const existing = inFlight.get(sessionId);
   if (existing) return existing;
 

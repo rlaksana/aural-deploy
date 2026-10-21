@@ -68,6 +68,9 @@ export const parseQuestionsResponseSchema = z.object({
 export const parseQuestionsRequestSchema = z.object({
   text: z.string().trim().min(10).max(50_000),
   language: z.string().min(2).max(8).optional(),
+  // Present when invoked from an existing interview's Parse Text dialog —
+  // enables deferred execution that appends questions server-side.
+  interviewId: z.string().optional(),
 });
 
 export type ParsedQuestionExtracted = z.infer<typeof parsedQuestionSchema>;

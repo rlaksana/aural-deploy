@@ -1,4 +1,5 @@
 import { type LLMProvider } from "./types";
+import { LiteLLMProvider } from "./providers/litellm";
 import { OpenAIProvider } from "./providers/openai";
 import { GeminiProvider } from "./providers/gemini";
 import { KimiProvider } from "./providers/kimi";
@@ -12,6 +13,9 @@ function registerProvider(provider: LLMProvider) {
   providers.set(provider.id, provider);
 }
 
+// LiteLLM registers FIRST so its model name wins the getProvider scan order
+// (e.g. AI_MODEL matching another provider's listed model must route here).
+registerProvider(new LiteLLMProvider());
 registerProvider(new OpenAIProvider());
 registerProvider(new GeminiProvider());
 registerProvider(new KimiProvider());
@@ -44,18 +48,19 @@ export function listProviders(): LLMProvider[] {
 }
 
 /**
- * Model used for post-interview report generation.
- * Report/summary paths run on Z.AI GLM-5.3-Flash (reasoning_effort low);
- * interview chat/generation stays on MiniMax-M3.1-Flash-Preview.
+ * Model used for post-interview report generation and interview question
+ * generation. All text-LLM traffic runs on the LiteLLM gateway (AI_MODEL).
  */
-export const REPORT_MODEL = "glm-5.3-flash";
+const GATEWAY_MODEL = process.env.AI_MODEL?.trim() || "minimax-m3.1";
 
-/**
- * Model used for interview question generation and refinement.
- */
-export const GENERATOR_MODEL = "MiniMax-M3.1-Flash-Preview";
+export const REPORT_MODEL = GATEWAY_MODEL;
+
+export const GENERATOR_MODEL = GATEWAY_MODEL;
 
 export const PRIMARY_GENERATOR_MODEL = GENERATOR_MODEL;
 
-/** Resilience fallback when MiniMax output fails parse/validation repeatedly. */
+/** Transport-error resilience fallback on OpenRouter. */
 export const FALLBACK_GENERATOR_MODEL = "meta/muse-spark-1.3-contributor";
+
+/** Dedicated JSON-repair model on OpenRouter (NOT the Z.AI glm-5.3-flash). */
+export const REPAIR_MODEL = "z-ai/glm-5.3-flash";

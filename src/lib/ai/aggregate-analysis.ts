@@ -1,7 +1,12 @@
 import { generateChatWithFallback } from "@/lib/ai/generator-run";
 import { REPORT_MODEL } from "@/lib/ai/registry";
 import { getPromptLanguageName } from "@/lib/ai/language-name";
-import type { SurveyAggregate } from "@/lib/interview-report";
+import { supabaseAdmin } from "@/lib/supabase/admin";
+import {
+  buildSurveyAggregate,
+  fetchReportEntries,
+  type SurveyAggregate,
+} from "@/lib/interview-report";
 
 /**
  * Cross-respondent AI analysis for non-interview kinds. One LLM call per
@@ -9,6 +14,12 @@ import type { SurveyAggregate } from "@/lib/interview-report";
  */
 
 const MAX_TEXT_CHARS_PER_QUESTION = 2000;
+
+type InterviewKindRow = {
+  title: string;
+  kind?: string;
+  questions?: { id: string; text: string; type: string; options: { correctIndices?: number[] } | null }[];
+};
 
 function renderAggregate(aggregate: SurveyAggregate): string {
   const lines: string[] = [`Respondents: ${aggregate.respondentCount}`, ""];
@@ -78,4 +89,45 @@ export async function generateSurveyAnalysis(
   });
 
   return response.content.trim();
+}
+
+/**
+ * Full pipeline shared by the tRPC procedure and the deferred-job executor:
+ * aggregate → one LLM call → cache into interviews.aiAnalysis.
+ */
+export async function generateAndCacheSurveyAnalysis(
+  interviewId: string,
+): Promise<{ aiAnalysis: { text: string; generatedAt: string } }> {
+  const { data: interviewRow } = await supabaseAdmin
+    .from("interviews")
+    .select("title, kind, language, questions(id, text, type, options)")
+    .eq("id", interviewId)
+    .order("order", { referencedTable: "questions", ascending: true })
+    .single();
+
+  const row = interviewRow as unknown as
+    | (InterviewKindRow & { language?: string })
+    | null;
+  const kind = row?.kind ?? "INTERVIEW";
+  if (kind === "INTERVIEW") {
+    throw new Error("AI analysis is only available for survey/quiz/form kinds");
+  }
+
+  const entries = await fetchReportEntries(supabaseAdmin, interviewId);
+  const aggregate = buildSurveyAggregate(entries, row?.questions ?? []);
+
+  const text = await generateSurveyAnalysis(
+    row?.title ?? "Untitled",
+    kind,
+    aggregate,
+    row?.language,
+  );
+
+  const aiAnalysis = { text, generatedAt: new Date().toISOString() };
+  await supabaseAdmin
+    .from("interviews")
+    .update({ aiAnalysis })
+    .eq("id", interviewId);
+
+  return { aiAnalysis };
 }

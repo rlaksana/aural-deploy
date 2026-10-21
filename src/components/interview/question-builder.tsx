@@ -690,7 +690,7 @@ function ParseTextDialog({
       const response = await fetch("/api/ai/parse-questions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text }),
+        body: JSON.stringify({ text, interviewId }),
       });
 
       if (!response.ok) {
@@ -716,6 +716,10 @@ function ParseTextDialog({
           const payload = JSON.parse(line.slice(6));
           if (payload.type === "content" && payload.text) {
             setStreamedText((prev) => prev + payload.text);
+          } else if (payload.type === "queued") {
+            const err = new Error("AI task queued");
+            err.name = "AiQueuedError";
+            throw err;
           } else if (payload.type === "done") {
             parsed = payload.data;
           } else if (payload.type === "error") {
@@ -766,10 +770,18 @@ function ParseTextDialog({
       });
       handleClose(false);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Could not extract questions";
-      toast({ title: "Extraction failed", description: message, variant: "destructive" });
-      setExtracting(false);
-      setPhase("idle");
+      if (err instanceof Error && err.name === "AiQueuedError") {
+        toast({
+          title: "Queued for the AI operating window",
+          description: "Questions will be extracted automatically after 5:00 PM (WIB) and added to this interview.",
+        });
+        handleClose(false);
+      } else {
+        const message = err instanceof Error ? err.message : "Could not extract questions";
+        toast({ title: "Extraction failed", description: message, variant: "destructive" });
+        setExtracting(false);
+        setPhase("idle");
+      }
     }
   };
 

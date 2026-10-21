@@ -424,6 +424,11 @@ export function AIGenerator({ projectId }: { projectId?: string } = {}) {
           if (payload.text) {
             setContentText((prev) => prev + payload.text);
           }
+        } else if (payload.type === "queued") {
+          const err = new Error("AI task queued");
+          err.name = "AiQueuedError";
+          (err as Error & { nextRunAt?: string }).nextRunAt = payload.nextRunAt;
+          throw err;
         } else if (payload.type === "done") {
           result = payload.data as GeneratedInterview;
         } else if (payload.type === "error") {
@@ -543,6 +548,11 @@ export function AIGenerator({ projectId }: { projectId?: string } = {}) {
           if (payload.type === "content") {
             setStreamPhase("writing");
             if (payload.text) setContentText((prev) => prev + payload.text);
+          } else if (payload.type === "queued") {
+            const err = new Error("AI task queued");
+            err.name = "AiQueuedError";
+            (err as Error & { nextRunAt?: string }).nextRunAt = payload.nextRunAt;
+            throw err;
           } else if (payload.type === "done") {
             parsedData = payload.data;
           } else if (payload.type === "error") {
@@ -582,11 +592,18 @@ export function AIGenerator({ projectId }: { projectId?: string } = {}) {
 
       toast({ title: `Successfully extracted ${parsedData.questions.length} questions!` });
     } catch (err) {
-      toast({
-        title: "Extraction failed",
-        description: err instanceof Error ? err.message : "Could not extract questions from text",
-        variant: "destructive",
-      });
+      if (err instanceof Error && err.name === "AiQueuedError") {
+        toast({
+          title: "Queued for the AI operating window",
+          description: "The extraction will run automatically after 5:00 PM (WIB).",
+        });
+      } else {
+        toast({
+          title: "Extraction failed",
+          description: err instanceof Error ? err.message : "Could not extract questions from text",
+          variant: "destructive",
+        });
+      }
     } finally {
       setParsingText(false);
       setGenerating(false);
@@ -618,6 +635,15 @@ export function AIGenerator({ projectId }: { projectId?: string } = {}) {
           language: LANGUAGES.find((l) => l.value === language)?.value ?? language,
           organizationId: currentOrg?.id,
           projectId,
+          settings: {
+            chatEnabled,
+            voiceEnabled,
+            videoEnabled,
+            aiTone,
+            followUpDepth,
+            antiCheatingEnabled,
+            timeLimitMinutes: Number(duration) || undefined,
+          },
           ...(jdText && { jobDescription: jdText }),
           ...(resumeText && { resumeText }),
         }),
@@ -638,8 +664,15 @@ export function AIGenerator({ projectId }: { projectId?: string } = {}) {
           ? { ...q.starterCode, language: q.starterCode.language.toLowerCase() }
           : undefined,
       })));
-    } catch {
-      toast({ title: "Generation failed", description: "Please try again or create the interview manually.", variant: "destructive" });
+    } catch (err) {
+      if (err instanceof Error && err.name === "AiQueuedError") {
+        toast({
+          title: "Queued for the AI operating window",
+          description: "The interview will be generated automatically after 5:00 PM (WIB). Check back later.",
+        });
+      } else {
+        toast({ title: "Generation failed", description: "Please try again or create the interview manually.", variant: "destructive" });
+      }
     } finally {
       setGenerating(false);
       setStreamPhase("idle");
@@ -701,8 +734,15 @@ export function AIGenerator({ projectId }: { projectId?: string } = {}) {
       setEditingIndex(null);
       setEditingCriterionIndex(null);
       toast({ title: "Interview refined based on your feedback!" });
-    } catch {
-      toast({ title: "Refinement failed", description: "Please try again.", variant: "destructive" });
+    } catch (err) {
+      if (err instanceof Error && err.name === "AiQueuedError") {
+        toast({
+          title: "Queued for the AI operating window",
+          description: "The refinement will run automatically after 5:00 PM (WIB). Check back later.",
+        });
+      } else {
+        toast({ title: "Refinement failed", description: "Please try again.", variant: "destructive" });
+      }
     } finally {
       setRefining(false);
       setStreamPhase("idle");

@@ -2,24 +2,12 @@ import { getAuthUser } from "@/lib/auth";
 import { createLogger } from "@/lib/logger";
 import { resolveGeneratorModel, streamGeneratorWithFallback } from "@/lib/ai/generator-run";
 import { generatedInterviewSchema, generateRequestSchema } from "@/lib/ai/generated-schema";
+import { repairStructured } from "@/lib/ai/repair";
+import { aiWindowStatus } from "@/lib/ai/ai-window";
+import { aiJobDedupeKey, enqueueAiJob } from "@/lib/ai/ai-jobs";
 import { checkAiRateLimit } from "@/lib/api-rate-limit-ai";
 
 const log = createLogger("api/ai/generate");
-
-function parseJsonSafe(raw: string): unknown {
-  const jsonMatch = raw.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) throw new Error("Failed to parse AI response as JSON");
-  try {
-    return JSON.parse(jsonMatch[0]);
-  } catch {
-    let repaired = jsonMatch[0].replace(/,\s*$/, "");
-    const opens = (repaired.match(/\[/g) || []).length - (repaired.match(/\]/g) || []).length;
-    const braces = (repaired.match(/\{/g) || []).length - (repaired.match(/\}/g) || []).length;
-    for (let i = 0; i < opens; i++) repaired += "]";
-    for (let i = 0; i < braces; i++) repaired += "}";
-    return JSON.parse(repaired);
-  }
-}
 
 export async function POST(req: Request) {
   const user = await getAuthUser();
@@ -39,6 +27,36 @@ export async function POST(req: Request) {
     );
   }
   const { description, durationMinutes, language, jobDescription, resumeText } = parsedBody.data;
+
+  // Heavy batch generation runs only inside the AI operating window
+  // (17:00–07:00 WIB); outside it the request is queued for the cron runner.
+  const window = aiWindowStatus();
+  if (!window.open) {
+    await enqueueAiJob({
+      kind: "GENERATE_INTERVIEW",
+      userId: user.id,
+      dedupeKey: aiJobDedupeKey([
+        "GENERATE_INTERVIEW",
+        user.id,
+        description,
+        durationMinutes ?? "",
+        language ?? "",
+        jobDescription ?? "",
+        resumeText ?? "",
+      ]),
+      payload: { request: parsedBody.data },
+    });
+    return new Response(
+      `data: ${JSON.stringify({ type: "queued", nextRunAt: window.nextBoundaryAt })}\n\n`,
+      {
+        headers: {
+          "Content-Type": "text/event-stream",
+          "Cache-Control": "no-cache",
+          Connection: "keep-alive",
+        },
+      },
+    );
+  }
 
   const messages = (await import("@/lib/ai/prompts/generator")).buildGeneratorPrompt(
     description,
@@ -70,8 +88,6 @@ export async function POST(req: Request) {
         closed = true;
         try { controller.close(); } catch { /* already closed */ }
       };
-
-      const MAX_RETRIES = 2;
 
       const collectLlmContent = async (streamToClient: boolean) => {
         let inThink = false;
@@ -117,37 +133,12 @@ export async function POST(req: Request) {
       };
 
       try {
-        let generated: unknown = null;
-        let lastError: unknown;
-
-        for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-          try {
-            const fullContent = await collectLlmContent(attempt === 0);
-            const raw = parseJsonSafe(fullContent);
-            const validated = generatedInterviewSchema.safeParse(raw);
-            if (!validated.success) {
-              throw new Error(
-                `Model output failed validation: ${validated.error.issues
-                  .slice(0, 3)
-                  .map((i) => i.message)
-                  .join("; ")}`,
-              );
-            }
-            generated = validated.data;
-            break;
-          } catch (error) {
-            lastError = error;
-            if (attempt < MAX_RETRIES) {
-              log.warn(`Generation attempt ${attempt + 1} failed (${error instanceof Error ? error.message : "unknown"}), retrying...`);
-              enqueue(sse({ type: "status", message: `Output was malformed, retrying (${attempt + 2}/${MAX_RETRIES + 1})…` }));
-            }
-          }
-        }
-
-        if (!generated) {
-          throw lastError ?? new Error("Failed to parse AI response after retries");
-        }
-
+        const fullContent = await collectLlmContent(true);
+        const generated = await repairStructured({
+          raw: fullContent,
+          schema: generatedInterviewSchema,
+          label: "generate",
+        });
         enqueue(sse({ type: "done", data: generated }));
       } catch (error) {
         log.error("Interview generation error:", error);
