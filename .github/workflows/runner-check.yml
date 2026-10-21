@@ -1,0 +1,73 @@
+name: Audit - Gitea Runner Runtime
+
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  runtime-audit:
+    name: Runner Runtime Audit
+    runs-on: self-hosted
+    timeout-minutes: 5
+
+    steps:
+      - name: Inspect OS and architecture
+        run: |
+          echo "=== OS ==="
+          cat /etc/os-release
+
+          echo "=== Kernel ==="
+          uname -a
+
+          echo "=== Architecture ==="
+          uname -m
+
+      - name: Inspect Node.js runtime
+        run: |
+          echo "=== Node executable ==="
+          command -v node
+
+          echo "=== Node version ==="
+          node --version
+
+          echo "=== Node process versions ==="
+          node -p 'JSON.stringify(process.versions, null, 2)'
+
+          echo "=== ReadableStream ==="
+          node -p 'typeof ReadableStream'
+
+      - name: Inspect runtime environment
+        run: |
+          echo "=== PATH ==="
+          echo "$PATH"
+
+          echo "=== HOME ==="
+          echo "$HOME"
+
+          echo "=== Shell ==="
+          echo "$SHELL"
+
+          echo "=== User ==="
+          id
+
+      - name: Inspect Git and essential commands
+        run: |
+          git --version
+          curl --version
+          tar --version
+          gzip --version
+
+      - name: Inspect memory and filesystem
+        run: |
+          grep -E '^(MemTotal|MemAvailable|SwapTotal|SwapFree):' /proc/meminfo
+          df -h
+          df -i
+
+      - name: Inspect Docker runtime
+        run: |
+          docker --version
+          docker info
+
+      - name: Runtime audit result
+        run: echo "Runner runtime audit completed."
