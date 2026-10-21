@@ -3,13 +3,16 @@ import { runDueAiJobs } from "@/lib/ai/ai-jobs";
 
 const log = createLogger("api/cron/ai-jobs");
 
-// In-window generations take minutes; the runner is additionally budgeted to
-// 240s internally (see runDueAiJobs).
-export const maxDuration = 300;
+// Hobby plan caps serverless functions at 60s. Production drains this queue
+// through the long-running VPS deployment (pinged by the GitHub Actions
+// ai-jobs-cron workflow), where this cap does not apply; on Vercel the runner
+// is simply budget-limited (see runDueAiJobs) and unfinished jobs requeue.
+export const maxDuration = 60;
 
 /**
- * Vercel cron entry (GET, Authorization: Bearer CRON_SECRET) + manual trigger
- * (POST). Drains the ai_jobs queue while the 17:00–07:00 WIB window is open.
+ * Authed queue-drain endpoint (Authorization: Bearer CRON_SECRET; GET for
+ * manual checks, POST for the GitHub Actions cron). Drains ai_jobs while the
+ * 17:00–07:00 WIB window is open.
  */
 async function handle(req: Request) {
   const secret = process.env.CRON_SECRET;

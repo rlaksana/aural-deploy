@@ -1,0 +1,33 @@
+name: AI jobs cron
+
+# Drains the ai_jobs queue by pinging the long-running VPS deployment (the
+# Vercel Hobby plan caps serverless functions at 60s, which is too short for
+# multi-minute generations). Window: 17:00–07:00 WIB = 10:00–00:00 UTC.
+on:
+  schedule:
+    # Drain, every 5 minutes while the window is open (17:00–23:55 WIB).
+    - cron: "*/5 10-23 * * *"
+    # Sweep at 07:05 WIB: reclaims jobs left RUNNING by a crashed invocation.
+    - cron: "5 0 * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: ai-jobs-cron
+  cancel-in-progress: false
+
+jobs:
+  drain:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger AI job runner
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          set -o pipefail
+          curl -sS --fail-with-body --max-time 570 -X POST \
+            -H "Authorization: Bearer ${CRON_SECRET}" \
+            -H "Content-Type: application/json" \
+            -d '{}' \
+            https://aural.andalhr.com/api/cron/ai-jobs
