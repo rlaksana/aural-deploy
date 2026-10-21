@@ -139,6 +139,35 @@ test("recovery keeps earlier array items from a cut-off array", async () => {
   assert.equal(calls.length, 0);
 });
 
+test("invalid escape sequence is doubled deterministically, content preserved", async () => {
+  const noteSchema = z.object({ name: z.string(), note: z.string() });
+  const { calls, generate } = spyGenerate([]);
+  // Raw contains a literal backslash + M inside the string — an illegal JSON escape.
+  const result = await repairStructured({
+    raw: '{"name":"Budi","note":"AGESFUEL\\Memperlakukan"}',
+    schema: noteSchema,
+    label: "t",
+    generate,
+  });
+  assert.equal(result.note, "AGESFUEL\\Memperlakukan");
+  assert.equal(calls.length, 0);
+});
+
+test("truncated raw with an invalid escape recovers with ZERO repair calls", async () => {
+  const { calls, generate } = spyGenerate([]);
+  // Mirrors a real gateway failure: valid escape-free content up to a stray
+  // \M mid-array, then the output is cut off mid-element.
+  const result = await repairStructured({
+    raw: '{"items":[{"name":"ok"},{"name":"AGESFUEL\\Memper',
+    schema: z.object({ items: z.array(z.object({ name: z.string() })).min(1) }),
+    label: "t",
+    generate,
+  });
+  // The truncated last item keeps its own surviving fragment; nothing is invented.
+  assert.deepEqual(result, { items: [{ name: "ok" }, { name: "AGESFUEL\\Memper" }] });
+  assert.equal(calls.length, 0);
+});
+
  test("REPAIR_MODEL is the OpenRouter slug, not the Z.AI look-alike", () => {
   assert.equal(REPAIR_MODEL, "z-ai/glm-5.3-flash");
   assert.notEqual(REPAIR_MODEL, "glm-5.3-flash");

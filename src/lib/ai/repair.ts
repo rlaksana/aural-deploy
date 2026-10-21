@@ -24,7 +24,7 @@ const repairGenerateDefault: RepairGenerate = (messages) =>
     messages,
     model: REPAIR_MODEL,
     temperature: 0,
-    maxTokens: 8192,
+    maxTokens: 16384,
   });
 
 function buildRepairMessages(
@@ -119,7 +119,11 @@ export function recoverTruncated<T>(raw: string, schema: ZodType<T>): T | null {
   const start = raw.indexOf("{");
   if (start < 0) return null;
   const body = raw.slice(start);
-  for (let cut = body.length; cut > 0; cut -= 64) {
+  // Exhaustive 1-char descending scan: a fixed step skips valid cut points —
+  // a real gateway truncation landed between two 64-char samples and was lost.
+  // O(n²) worst case, but bounded by one model output and only reached when
+  // the raw JSON is unparseable.
+  for (let cut = body.length; cut > 0; cut--) {
     const candidate = autoCloseJson(body.slice(0, cut));
     if (!candidate) continue;
     let parsed: unknown;
@@ -134,19 +138,35 @@ export function recoverTruncated<T>(raw: string, schema: ZodType<T>): T | null {
   return null;
 }
 
-/** Close an unterminated JSON prefix: finish strings, strip dangling debris, close brackets. */
+/** Close an unterminated JSON prefix: fix invalid escapes, finish strings,
+ * strip dangling debris, close brackets. Never invents content. */
 export function autoCloseJson(prefix: string): string | null {
   const stack: string[] = [];
   let inString = false;
-  let escaped = false;
-  for (const ch of prefix) {
-    if (escaped) {
-      escaped = false;
-      continue;
-    }
+  let out = "";
+  let i = 0;
+  while (i < prefix.length) {
+    const ch = prefix[i]!;
     if (inString) {
-      if (ch === "\\") escaped = true;
-      else if (ch === '"') inString = false;
+      if (ch === "\\") {
+        const next = prefix[i + 1];
+        if (next === undefined) {
+          i++; // lone trailing backslash at the cut — drop it, the string gets closed below
+        } else if (/^["\\/bfnrt]$/.test(next)) {
+          out += ch + next;
+          i += 2;
+        } else if (next === "u" && /^[0-9a-fA-F]{4}$/.test(prefix.slice(i + 2, i + 6))) {
+          out += prefix.slice(i, i + 6);
+          i += 6;
+        } else {
+          out += "\\\\"; // invalid escape (e.g. \M) — double the backslash, keep the bytes
+          i += 1;
+        }
+        continue;
+      }
+      if (ch === '"') inString = false;
+      out += ch;
+      i++;
       continue;
     }
     if (ch === '"') inString = true;
@@ -155,9 +175,10 @@ export function autoCloseJson(prefix: string): string | null {
     else if (ch === "}" || ch === "]") {
       if (stack.pop() !== ch) return null; // mismatched — not closeable as-is
     }
+    out += ch;
+    i++;
   }
 
-  let out = prefix;
   if (inString) out += '"';
   // Strip dangling structural debris: trailing commas/colons and a key left
   // without its value ("key": <EOF>).
