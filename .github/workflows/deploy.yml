@@ -1,0 +1,138 @@
+
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+env:
+  DEPLOY_DIR: /opt/aural
+  APP_DOMAIN: aural.andalhr.com
+
+jobs:
+  deploy:
+    name: Build and deploy to production
+    # The runner registered against this repository carries the default
+    # labels only (self-hosted, Linux, X64). Adding a custom label would
+    # require re-registering the runner, so the job matches on the
+    # defaults that are actually present.
+    runs-on: [self-hosted, linux, x64]
+    environment: Production
+    timeout-minutes: 60
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Validate required secrets
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          MINIMAX_API_KEY: ${{ secrets.MINIMAX_API_KEY }}
+          VOICE_RELAY_SECRET: ${{ secrets.VOICE_RELAY_SECRET }}
+        run: |
+          : "${SUPABASE_URL:?Missing SUPABASE_URL}"
+          : "${SUPABASE_ANON_KEY:?Missing SUPABASE_ANON_KEY}"
+          : "${SUPABASE_SERVICE_ROLE_KEY:?Missing SUPABASE_SERVICE_ROLE_KEY}"
+          : "${MINIMAX_API_KEY:?Missing MINIMAX_API_KEY}"
+          : "${VOICE_RELAY_SECRET:?Missing VOICE_RELAY_SECRET}"
+
+      - name: Prepare deployment directory
+        run: |
+          install -d -m 0750 "${DEPLOY_DIR}"
+
+      - name: Write runtime environment
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          MINIMAX_API_KEY: ${{ secrets.MINIMAX_API_KEY }}
+          VOICE_RELAY_SECRET: ${{ secrets.VOICE_RELAY_SECRET }}
+        run: |
+          umask 077
+
+          cat > "${DEPLOY_DIR}/.env" <<EOF
+          SUPABASE_URL=${SUPABASE_URL}
+          SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
+          SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+          NEXT_PUBLIC_SUPABASE_URL=${SUPABASE_URL}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
+          NEXT_PUBLIC_APP_URL=https://${APP_DOMAIN}
+          NEXT_PUBLIC_VOICE_RELAY_URL=wss://${APP_DOMAIN}/ws/voice
+          MINIMAX_API_KEY=${MINIMAX_API_KEY}
+          VOICE_RELAY_SECRET=${VOICE_RELAY_SECRET}
+          VOICE_RELAY_PORT=8766
+          LOG_LEVEL=info
+          EOF
+
+          chmod 0600 "${DEPLOY_DIR}/.env"
+
+      - name: Sync application source
+        run: |
+          rsync -a --delete \
+            --exclude='/.git/' \
+            --exclude='/.env' \
+            --exclude='/node_modules/' \
+            --exclude='/.next/' \
+            ./ "${DEPLOY_DIR}/"
+
+      - name: Validate Compose configuration
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          NEXT_PUBLIC_APP_URL: https://aural.andalhr.com
+        run: |
+          cd "${DEPLOY_DIR}"
+          docker compose -f docker-compose.yml -f docker-compose.production.yml config --quiet
+
+      - name: Build application image
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          NEXT_PUBLIC_APP_URL: https://aural.andalhr.com
+        run: |
+          cd "${DEPLOY_DIR}"
+          docker compose -f docker-compose.yml -f docker-compose.production.yml build web
+
+      - name: Deploy stack
+        run: |
+          cd "${DEPLOY_DIR}"
+          docker compose -f docker-compose.yml -f docker-compose.production.yml up -d --remove-orphans
+          docker compose -f docker-compose.yml -f docker-compose.production.yml ps
+
+      - name: Verify web health
+        run: |
+          cd "${DEPLOY_DIR}"
+          COMPOSE="docker compose -f docker-compose.yml -f docker-compose.production.yml"
+
+          for attempt in {1..30}; do
+            if ${COMPOSE} exec -T web node -e \
+              "fetch('http://127.0.0.1:3000/').then(r => process.exit(r.status >= 200 && r.status < 400 ? 0 : 1)).catch(() => process.exit(1))"
+            then
+              echo "Web endpoint responded successfully."
+              ${COMPOSE} logs voice-relay --tail 20
+              exit 0
+            fi
+
+            if [[ "${attempt}" -eq 30 ]]; then
+              echo "::error::Web endpoint did not become healthy."
+              ${COMPOSE} ps
+              ${COMPOSE} logs web --tail 50
+              exit 1
+            fi
+
+            sleep 5
+          done

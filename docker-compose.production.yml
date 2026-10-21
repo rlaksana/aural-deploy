@@ -1,0 +1,26 @@
+# Production overlay for the ingress-nginx endpoint on the cluster
+# management host.
+#
+# The base compose file keeps the stack internal: `web` and `voice-relay`
+# only declare `expose`, and Caddy terminates TLS on the host itself. In
+# this deployment TLS and routing live in ingress-nginx, so Caddy is
+# scaled to zero and the two application ports are published so the
+# ingress controller can reach them.
+#
+# The published ports carry no host address on purpose. The host is reached
+# through the cluster endpoint, and pinning an address here would put
+# infrastructure-specific addressing into a tracked file. Set
+# AURAL_BIND_ADDRESS in the runtime environment to restrict the bind.
+services:
+  web:
+    ports: !override
+      - "${AURAL_BIND_ADDRESS:-0.0.0.0}:3001:3000"
+
+  voice-relay:
+    ports: !override
+      - "${AURAL_BIND_ADDRESS:-0.0.0.0}:8766:8766"
+
+  caddy:
+    ports: !reset
+    deploy:
+      replicas: 0
