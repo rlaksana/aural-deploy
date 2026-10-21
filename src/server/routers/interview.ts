@@ -749,9 +749,9 @@ export const interviewRouter = router({
     )
     .mutation(async ({ ctx, input }) => {
       let template: (typeof INTERVIEW_TEMPLATES)[number];
-      // Built-in template content is English; saved templates keep the
+      // Built-in template content is Indonesian; saved templates keep the
       // language of the interview they were snapshotted from.
-      let language = "en";
+      let language = "id";
 
       if (input.customTemplateId) {
         const { data: row } = await ctx.supabase
