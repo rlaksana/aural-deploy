@@ -1,7 +1,7 @@
 import { getAuthUser } from "@/lib/auth";
 import { createLogger } from "@/lib/logger";
 import { resolveGeneratorModel, streamGeneratorWithFallback } from "@/lib/ai/generator-run";
-import { generatedInterviewSchema, generateRequestSchema } from "@/lib/ai/generated-schema";
+import { generatedInterviewSchema, generateRequestSchema, GENERATED_INTERVIEW_SHAPE_HINT } from "@/lib/ai/generated-schema";
 import { repairStructured } from "@/lib/ai/repair";
 import { aiWindowStatus } from "@/lib/ai/ai-window";
 import { aiJobDedupeKey, enqueueAiJob } from "@/lib/ai/ai-jobs";
@@ -95,7 +95,7 @@ export async function POST(req: Request) {
         for await (const chunk of streamGeneratorWithFallback({
           messages,
           temperature: 0.7,
-          maxTokens: 8192,
+          maxTokens: 16384,
           model: resolveGeneratorModel(),
         })) {
           let remaining = chunk;
@@ -138,6 +138,7 @@ export async function POST(req: Request) {
           raw: fullContent,
           schema: generatedInterviewSchema,
           label: "generate",
+          shapeHint: GENERATED_INTERVIEW_SHAPE_HINT,
         });
         enqueue(sse({ type: "done", data: generated }));
       } catch (error) {

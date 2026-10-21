@@ -15,6 +15,10 @@ export class OpenRouterProvider implements LLMProvider {
     this.client = new OpenAI({
       apiKey: process.env.OPENROUTER_API_KEY ?? "",
       baseURL: process.env.OPENROUTER_BASE_URL ?? "https://openrouter.ai/api/v1",
+      // Upstream occasionally drops sockets mid-response ("terminated");
+      // retry harder than the SDK default and fail loudly past this.
+      timeout: 180_000,
+      maxRetries: 3,
     });
   }
 

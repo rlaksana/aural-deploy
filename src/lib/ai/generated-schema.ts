@@ -80,10 +80,21 @@ export const generatedInterviewSchema = z.object({
   assessmentCriteria: z.array(assessmentCriterionSchema).min(1).max(10),
   estimatedDurationMinutes: positiveInt,
   questions: z.array(generatedQuestionSchema).min(1).max(25),
-  recommendedSettings: z.object({
-    aiName: z.string().min(1).max(40),
-  }),
+  recommendedSettings: z
+    .object({
+      aiName: z.string().min(1).max(40),
+    })
+    // Cosmetic label only — a repaired/truncated output that omits it falls
+    // back to the product default instead of failing validation.
+    .default({ aiName: "Aural" }),
 });
+
+/**
+ * Compact required-shape description handed to the repair model so it can
+ * complete structurally missing fields (schema-conforming defaults) instead
+ * of returning output that fails validation again.
+ */
+export const GENERATED_INTERVIEW_SHAPE_HINT = `Required top-level fields: "title" (string), "description" (string), "objective" (string), "assessmentCriteria" (array of 1-10 objects {name: string, description: string}), "estimatedDurationMinutes" (positive integer), "questions" (array of 1-25 objects), "recommendedSettings" ({aiName: string}) — use a minimal value like {"aiName":"Aural"} if absent from the raw output. Each question object: {"text": string (required), "type": "OPEN_ENDED"|"SINGLE_CHOICE"|"MULTIPLE_CHOICE"|"CODING"|"WHITEBOARD"|"RESEARCH" (required), "description": string|null, "options": {options: string[] (min 2), allowMultiple: boolean}|null, "starterCode": {language: string, code: string}|null, "timeLimitSeconds": number|null, "isRequired": boolean}. CODING questions require starterCode; SINGLE_CHOICE/MULTIPLE_CHOICE require options.`;
 
 export type GeneratedInterviewValidated = z.infer<typeof generatedInterviewSchema>;
 export type GeneratedQuestionValidated = z.infer<typeof generatedQuestionSchema>;

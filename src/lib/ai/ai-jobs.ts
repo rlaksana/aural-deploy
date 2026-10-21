@@ -5,8 +5,8 @@ import { supabaseAdmin } from "@/lib/supabase/admin";
 import { aiWindowStatus } from "./ai-window";
 import { generateChatWithFallback, resolveGeneratorModel } from "./generator-run";
 import { repairStructured } from "./repair";
-import { generatedInterviewSchema } from "./generated-schema";
-import { parseQuestionsResponseSchema, type parseQuestionsRequestSchema } from "./parse-questions-schema";
+import { generatedInterviewSchema, GENERATED_INTERVIEW_SHAPE_HINT } from "./generated-schema";
+import { parseQuestionsResponseSchema, PARSE_QUESTIONS_SHAPE_HINT, type parseQuestionsRequestSchema } from "./parse-questions-schema";
 import type { z } from "zod";
 import type { generateRequestSchema, refineRequestSchema } from "./generated-schema";
 import { buildGeneratorPrompt, buildImprovePrompt } from "./prompts/generator";
@@ -92,7 +92,7 @@ async function executeAiJob(
       const response = await generateChatWithFallback({
         messages,
         temperature: 0.7,
-        maxTokens: 8192,
+        maxTokens: 16384,
         model: resolveGeneratorModel(),
         signal,
       });
@@ -100,6 +100,7 @@ async function executeAiJob(
         raw: response.content,
         schema: generatedInterviewSchema,
         label: "queued-generate",
+        shapeHint: GENERATED_INTERVIEW_SHAPE_HINT,
       });
       const settings = request.settings;
       const caller = interviewRouter.createCaller(jobCallerCtx(userId));
@@ -143,7 +144,7 @@ async function executeAiJob(
       const response = await generateChatWithFallback({
         messages,
         temperature: 0.7,
-        maxTokens: 8192,
+        maxTokens: 16384,
         model: resolveGeneratorModel(),
         signal,
       });
@@ -151,6 +152,7 @@ async function executeAiJob(
         raw: response.content,
         schema: generatedInterviewSchema,
         label: "queued-refine",
+        shapeHint: GENERATED_INTERVIEW_SHAPE_HINT,
       });
       // Stored for one-click loading back into the generator draft.
       return { generated: refined };
@@ -165,7 +167,7 @@ async function executeAiJob(
       const response = await generateChatWithFallback({
         messages: buildParseQuestionsMessages(request.text, request.language),
         temperature: 0.2,
-        maxTokens: 8192,
+        maxTokens: 16384,
         model: resolveGeneratorModel(),
         signal,
       });
@@ -173,6 +175,7 @@ async function executeAiJob(
         raw: response.content,
         schema: parseQuestionsResponseSchema,
         label: "queued-parse-questions",
+        shapeHint: PARSE_QUESTIONS_SHAPE_HINT,
       });
       const { data: existingRows } = await supabaseAdmin
         .from("questions")

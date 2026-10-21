@@ -45,8 +45,8 @@ test("markdown-fenced JSON is fixed deterministically, no repair call", async ()
   assert.equal(calls.length, 0);
 });
 
-test("unparseable raw goes to the repair model with the ORIGINAL raw", async () => {
-  const raw = '{"name":"Budi"'; // unterminated brace — extractJson cannot close it
+test("unparseable non-JSON raw goes to the repair model with the ORIGINAL raw", async () => {
+  const raw = "Sorry, I cannot produce JSON for this request."; // no object at all
   const { calls, generate } = spyGenerate(['{"name":"Budi"}']);
   const result = await repairStructured({ raw, schema, label: "t", generate });
   assert.deepEqual(result, { name: "Budi" });
@@ -72,24 +72,74 @@ test("schema failure goes to the repair model with validation issues", async () 
   );
 });
 
-test("failed repair throws AiRepairError after exactly ONE repair call", async () => {
-  const { calls, generate } = spyGenerate(["not json at all"]);
+test("first repair attempt fails, second succeeds — exactly 2 calls", async () => {
+  const { calls, generate } = spyGenerate(["not json at all", '{"name":"Budi"}']);
+  const result = await repairStructured({ raw: '{"name":123}', schema, label: "t", generate });
+  assert.deepEqual(result, { name: "Budi" });
+  assert.equal(calls.length, 2);
+  // The second attempt must see the first attempt's output.
+  const secondUser = calls[1]!.map((m) => (typeof m.content === "string" ? m.content : "")).join("\n");
+  assert.ok(secondUser.includes("not json at all"), "attempt 2 must include attempt 1's output");
+});
+
+test("failed repair throws AiRepairError after at most TWO repair calls", async () => {
+  const { calls, generate } = spyGenerate(["not json at all", "still not json"]);
   await assert.rejects(
     repairStructured({ raw: '{"name":123}', schema, label: "t", generate }),
     AiRepairError,
   );
-  assert.equal(calls.length, 1, "never a second repair attempt");
+  assert.equal(calls.length, 2, "never a third repair attempt");
 });
 
 test("repair output that still fails validation throws AiRepairError", async () => {
-  const { generate } = spyGenerate(['{"name":456}']);
+  const { generate } = spyGenerate(['{"name":456}', '{"name":789}']);
   await assert.rejects(
     repairStructured({ raw: '{"name":123}', schema, label: "t", generate }),
     /failed validation/,
   );
 });
 
-test("REPAIR_MODEL is the OpenRouter slug, not the Z.AI look-alike", () => {
+
+test("truncated JSON recovers deterministically with ZERO repair calls", async () => {
+  const { calls, generate } = spyGenerate([]);
+  const result = await repairStructured({
+    raw: '{"name":"Budi","note":"partial strin',
+    schema,
+    label: "t",
+    generate,
+  });
+  assert.deepEqual(result, { name: "Budi" });
+  assert.equal(calls.length, 0, "truncation must not reach the repair model");
+});
+
+test("dangling key with colon is dropped during truncation recovery", async () => {
+  const { calls, generate } = spyGenerate([]);
+  const result = await repairStructured({
+    raw: '{"name":"Budi","next":',
+    schema,
+    label: "t",
+    generate,
+  });
+  assert.deepEqual(result, { name: "Budi" });
+  assert.equal(calls.length, 0);
+});
+
+test("recovery keeps earlier array items from a cut-off array", async () => {
+  const listSchema = z.object({ items: z.array(z.object({ name: z.string() })).min(1) });
+  const { calls, generate } = spyGenerate([]);
+  const result = await repairStructured({
+    raw: '{"items":[{"name":"a"},{"name":"b"},{"name":"c',
+    schema: listSchema,
+    label: "t",
+    generate,
+  });
+  // The cut-off last item is completed from its own fragment; earlier items
+  // survive untouched and the repair model is never called.
+  assert.deepEqual(result, { items: [{ name: "a" }, { name: "b" }, { name: "c" }] });
+  assert.equal(calls.length, 0);
+});
+
+ test("REPAIR_MODEL is the OpenRouter slug, not the Z.AI look-alike", () => {
   assert.equal(REPAIR_MODEL, "z-ai/glm-5.3-flash");
   assert.notEqual(REPAIR_MODEL, "glm-5.3-flash");
 });

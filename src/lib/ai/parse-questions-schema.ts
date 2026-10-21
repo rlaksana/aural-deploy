@@ -65,6 +65,9 @@ export const parseQuestionsResponseSchema = z.object({
   criteria: z.array(parsedCriterionSchema).max(10).optional(),
 });
 
+/** Required-shape description for the repair model (see repair.ts). */
+export const PARSE_QUESTIONS_SHAPE_HINT = `Required field: "questions" (array of 1-100 objects, each {"text": string (required), "type": "OPEN_ENDED"|"SINGLE_CHOICE"|"MULTIPLE_CHOICE"|"CODING"|"WHITEBOARD"|"RESEARCH", "description"?: string, "options"?: {options: string[] (min 2), allowMultiple?: boolean}|null, "starterCode"?: {language: string, code: string}|null, "isRequired"?: boolean}). Optional: "title" (string), "description" (string), "criteria" (array of {name: string, description: string}).`;
+
 export const parseQuestionsRequestSchema = z.object({
   text: z.string().trim().min(10).max(50_000),
   language: z.string().min(2).max(8).optional(),

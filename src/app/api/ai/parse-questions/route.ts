@@ -1,7 +1,7 @@
 import { getAuthUser } from "@/lib/auth";
 import { createLogger } from "@/lib/logger";
 import { resolveGeneratorModel, streamGeneratorWithFallback } from "@/lib/ai/generator-run";
-import { parseQuestionsRequestSchema, parseQuestionsResponseSchema } from "@/lib/ai/parse-questions-schema";
+import { parseQuestionsRequestSchema, parseQuestionsResponseSchema, PARSE_QUESTIONS_SHAPE_HINT } from "@/lib/ai/parse-questions-schema";
 import { buildParseQuestionsMessages } from "@/lib/ai/prompts/parse-questions";
 import { repairStructured } from "@/lib/ai/repair";
 import { aiWindowStatus } from "@/lib/ai/ai-window";
@@ -94,7 +94,7 @@ export async function POST(req: Request) {
         for await (const chunk of streamGeneratorWithFallback({
           messages,
           temperature: 0.2,
-          maxTokens: 8192,
+          maxTokens: 16384,
           model: resolveGeneratorModel(),
         })) {
           let remaining = chunk;
@@ -134,6 +134,7 @@ export async function POST(req: Request) {
           raw: fullContent,
           schema: parseQuestionsResponseSchema,
           label: "parse-questions",
+          shapeHint: PARSE_QUESTIONS_SHAPE_HINT,
         });
         enqueue(sse({ type: "done", data: extracted }));
       } catch (error) {

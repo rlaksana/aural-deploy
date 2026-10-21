@@ -159,7 +159,7 @@ export async function generateSessionSummaryCore(
       response = await generateChatWithFallback({
         messages,
         temperature: 0.3,
-        maxTokens: 8192,
+        maxTokens: 16384,
         model: REPORT_MODEL,
       });
     } catch (err) {
@@ -188,7 +188,7 @@ export async function generateSessionSummaryCore(
         response = await generateChatWithFallback({
           messages: fallbackMessages,
           temperature: 0.3,
-          maxTokens: 8192,
+          maxTokens: 16384,
           model: REPORT_MODEL,
         });
       } else {
