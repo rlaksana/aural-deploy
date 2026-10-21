@@ -52,6 +52,10 @@
   </b>
   &nbsp;&nbsp;&nbsp;
   <b>
+    <a href="/demo">Step-by-Step Product Tour &rarr;</a>
+  </b>
+  &nbsp;&nbsp;&nbsp;
+  <b>
     <a href="#self-hosted">Self-Host Guide &darr;</a>
   </b>
 </p>

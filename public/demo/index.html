@@ -1,0 +1,355 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Demo Lengkap Aural</title>
+<meta name="description" content="Tur screenshot step-by-step seluruh alur produk Aural — platform wawancara AI dengan mode Chat, Voice, dan Video." />
+<style>
+  :root {
+    --bg: #f8fafc; --card: #ffffff; --ink: #0f172a; --muted: #475569;
+    --line: #e2e8f0; --accent: #4f46e5; --accent-soft: #eef2ff;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #0b1120; --card: #111827; --ink: #e5e7eb; --muted: #9ca3af; --line: #1f2937; --accent: #818cf8; --accent-soft: #1e1b4b; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  header { background: var(--accent-soft); border-bottom: 1px solid var(--line); padding: 48px 24px 40px; }
+  .wrap { max-width: 960px; margin: 0 auto; }
+  header h1 { margin: 0 0 8px; font-size: 30px; letter-spacing: -0.02em; }
+  header p { margin: 0 0 16px; color: var(--muted); max-width: 720px; }
+  header .cta { display: inline-block; background: var(--accent); color: #fff; text-decoration: none; padding: 10px 18px; border-radius: 10px; font-weight: 600; font-size: 15px; }
+  nav.toc { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px 20px; margin: 24px auto 0; }
+  nav.toc b { display: block; margin-bottom: 6px; font-size: 14px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+  nav.toc ol { margin: 0; padding-left: 20px; columns: 2; column-gap: 32px; }
+  nav.toc a { color: var(--accent); text-decoration: none; }
+  main { padding: 8px 24px 64px; }
+  section { margin-top: 48px; }
+  section > h2 { font-size: 22px; letter-spacing: -0.01em; border-bottom: 2px solid var(--accent); display: inline-block; padding-bottom: 4px; margin: 0 0 8px; }
+  section > p.lead { color: var(--muted); margin: 0 0 20px; }
+  figure.step { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; margin: 0 0 24px; }
+  figure.step figcaption b { display: block; font-size: 17px; margin-bottom: 4px; }
+  figure.step figcaption b .no { color: var(--accent); margin-right: 8px; font-variant-numeric: tabular-nums; }
+  figure.step figcaption p { margin: 0 0 12px; color: var(--muted); font-size: 15px; }
+  figure.step img { width: 100%; height: auto; border: 1px solid var(--line); border-radius: 8px; display: block; background: var(--bg); }
+  footer { border-top: 1px solid var(--line); color: var(--muted); padding: 24px; text-align: center; font-size: 14px; }
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <h1>Demo Lengkap Aural</h1>
+    <p>Tur step-by-step seluruh alur produk Aural — platform wawancara berbasis AI (Chat, Voice, Video): dari pembuatan interview oleh rekruter, pelaksanaan wawancara oleh kandidat, sampai penilaian dan analitik. Bagian dashboard memakai antarmuka English; seluruh alur kandidat dan konten tampil dalam Bahasa Indonesia.</p>
+    <a class="cta" href="/">Coba Aural</a>
+    <nav class="toc">
+      <b>Bagian</b>
+      <ol>
+        <li><a href="#a">Publik &amp; Autentikasi</a></li>
+        <li><a href="#b">Dashboard Rekruter</a></li>
+        <li><a href="#c">Alur Kandidat (Walk-in)</a></li>
+        <li><a href="#d">Hasil &amp; Analitik</a></li>
+        <li><a href="#e">Mode Latihan</a></li>
+        <li><a href="#f">Pengaturan &amp; Akun</a></li>
+      </ol>
+    </nav>
+  </div>
+</header>
+<main>
+<div class="wrap">
+
+<section id="a">
+  <h2>A. Publik &amp; Autentikasi</h2>
+  <p class="lead">Halaman publik dan pintu masuk aplikasi.</p>
+
+  <figure class="step" id="s01">
+    <figcaption><b><span class="no">01</span>Halaman Awal</b>
+    <p>Pintu masuk aplikasi: pengunjung baru diarahkan ke registrasi untuk mulai membangun wawancara AI.</p></figcaption>
+    <img src="../images/demo/01-landing.webp" alt="Halaman awal Aural" loading="lazy" />
+  </figure>
+
+  <figure class="step" id="s02">
+    <figcaption><b><span class="no">02</span>Registrasi</b>
+    <p>Pendaftaran akun baru — email, kata sandi, dan organisasi awal.</p></figcaption>
+    <img src="../images/demo/02-register.webp" alt="Halaman registrasi" loading="lazy" />
+  </figure>
+
+  <figure class="step" id="s03">
+    <figcaption><b><span class="no">03</span>Masuk</b>
+    <p>Halaman login untuk akun yang sudah terdaftar.</p></figcaption>
+    <img src="../images/demo/03-login.webp" alt="Halaman login" loading="lazy" />
+  </figure>
+</section>
+
+<section id="b">
+  <h2>B. Dashboard Rekruter</h2>
+  <p class="lead">Semua yang dilihat dan dikelola rekruter: organisasi, proyek, interview, kandidat, dan bank soal.</p>
+
+  <figure class="step" id="s04">
+    <figcaption><b><span class="no">04</span>Dashboard</b>
+    <p>Ringkasan aktivitas: interview aktif, kandidat, dan statistik terbaru.</p></figcaption>
+    <img src="../images/demo/04-dashboard.webp" alt="Dashboard" loading="lazy" />
+  </figure>
+
+  <figure class="step" id="s05">
+    <figcaption><b><span class="no">05</span>Daftar Organisasi</b>
+    <p>Organisasi menampung proyek, anggota, dan pengaturan bersama.</p></figcaption>
+    <img src="../images/demo/05-org-list.webp" alt="Daftar organisasi" loading="lazy" />
+  </figure>
+
+  <figure class="step" id="s06">
+    <figcaption><b><span class="no">06</span>Buat Organisasi</b>
+    <p>Formulir pembuatan organisasi baru.</p></figcaption>
+    <img src="../images/demo/06-org-new.webp" alt="Buat organisasi baru" loading="lazy" />
+  </figure>
+
+  <figure class="step" id="s07">
+    <figcaption><b><span class="no">07</span>Anggota Organisasi</b>
+    <p>Kelola anggota dan peran mereka di dalam organisasi.</p></figcaption>
+    <img src="../images/demo/07-org-members.webp" alt="Anggota organisasi" loading="lazy" />
+  </figure>
+
+  <figure class="step" id="s08">
+    <figcaption><b><span class="no">08</span>Pengaturan Organisasi</b>
+    <p>Identitas dan preferensi tingkat organisasi.</p></figcaption>
+    <img src="../images/demo/08-org-settings.webp" alt="Pengaturan organisasi" loading="lazy" />
+  </figure>
+
+  <figure class="step" id="s09">
+    <figcaption><b><span class="no">09</span>Daftar Proyek</b>
+    <p>Proyek adalah wadah interview dan kandidat per posisi atau kebutuhan.</p></figcaption>
+    <img src="../images/demo/09-projects.webp" alt="Daftar proyek" loading="lazy" />
+  </figure>
+
+  <figure class="step" id="s10">
+    <figcaption><b><span class="no">10</span>Detail Proyek</b>
+    <p>Isi satu proyek: interview, kandidat, dan aktivitasnya.</p></figcaption>
+    <img src="../images/demo/10-project-detail.webp" alt="Detail proyek" loading="lazy" />
+  </figure>
+
+  <figure class="step" id="s11">
+    <figcaption><b><span class="no">11</span>Daftar Interview</b>
+    <p>Semua interview dalam proyek — plus galeri template siap pakai (Screening Teknis, Wawancara Perilaku, Psikotes, dan lainnya).</p></figcaption>
+    <img src="../images/demo/11-interviews.webp" alt="Daftar interview" loading="lazy" />
+  </figure>
+
+  <figure class="step" id="s12">
+    <figcaption><b><span class="no">12</span>Buat Interview — AI Generator</b>
+    <p>Hasilkan interview lengkap dari job description, teks bebas, atau resume — pertanyaan dan kriteria penilaian terbentuk otomatis.</p></figcaption>
+    <img src="../images/demo/12-interview-new-ai.webp" alt="AI generator interview" loading="lazy" />
+  </figure>
+
+  <figure class="step" id="s13">
+    <figcaption><b><span class="no">13</span>Buat Interview — Manual</b>
+    <p>Susun interview sendiri: judul, tujuan, pertanyaan, dan kriteria penilaian.</p></figcaption>
+    <img src="../images/demo/13-interview-new-manual.webp" alt="Buat interview manual" loading="lazy" />
+  </figure>
+
+  <figure class="step" id="s14">
+    <figcaption><b><span class="no">14</span>Editor Interview — Konten</b>
+    <p>Ubah pertanyaan, bobot kriteria, dan materi interview kapan saja.</p></figcaption>
+    <img src="../images/demo/14-interview-editor-content.webp" alt="Editor konten interview" loading="lazy" />
+  </figure>
+
+  <figure class="step" id="s15">
+    <figcaption><b><span class="no">15</span>Editor Interview — Sesi</b>
+    <p>Kelola sesi: undang kandidat, pantau status, dan atur jadwal.</p></figcaption>
+    <img src="../images/demo/15-interview-editor-sessions.webp" alt="Editor sesi interview" loading="lazy" />
+  </figure>
+
+  <figure class="step" id="s16">
+    <figcaption><b><span class="no">16</span>Editor Interview — Pengaturan</b>
+    <p>Mode chat/voice/video, waktu pengerjaan, tone AI, kedalaman follow-up, dan anti-cheating.</p></figcaption>
+    <img src="../images/demo/16-interview-editor-settings.webp" alt="Pengaturan interview" loading="lazy" />
+  </figure>
+
+  <figure class="step" id="s17">
+    <figcaption><b><span class="no">17</span>Editor Interview — Laporan</b>
+    <p>Ringkasan laporan seluruh sesi interview ini.</p></figcaption>
+    <img src="../images/demo/17-interview-editor-reports.webp" alt="Laporan interview" loading="lazy" />
+  </figure>
+
+  <figure class="step" id="s18">
+    <figcaption><b><span class="no">18</span>Persiapan Interview</b>
+    <p>Mode persiapan: rekruter mencoba dan menyempurnakan interview sebelum dibagikan.</p></figcaption>
+    <img src="../images/demo/18-interview-prep.webp" alt="Persiapan interview" loading="lazy" />
+  </figure>
+
+  <figure class="step" id="s19">
+    <figcaption><b><span class="no">19</span>Daftar Kandidat</b>
+    <p>Semua kandidat proyek beserta status dan progres wawancaranya.</p></figcaption>
+    <img src="../images/demo/19-candidates.webp" alt="Daftar kandidat" loading="lazy" />
+  </figure>
+
+  <figure class="step" id="s20">
+    <figcaption><b><span class="no">20</span>Import Kandidat — Excel</b>
+    <p>Masukkan banyak kandidat sekaligus dari spreadsheet.</p></figcaption>
+    <img src="../images/demo/20-candidates-import-excel.webp" alt="Import kandidat Excel" loading="lazy" />
+  </figure>
+
+  <figure class="step" id="s21">
+    <figcaption><b><span class="no">21</span>Import Kandidat — Resume</b>
+    <p>Unggah CV/resume; data kandidat diekstrak otomatis oleh AI.</p></figcaption>
+    <img src="../images/demo/21-candidates-import-resume.webp" alt="Import kandidat resume" loading="lazy" />
+  </figure>
+
+  <figure class="step" id="s22">
+    <figcaption><b><span class="no">22</span>Bank Pertanyaan</b>
+    <p>Pustaka pertanyaan yang bisa dipakai ulang lintas interview.</p></figcaption>
+    <img src="../images/demo/22-question-library.webp" alt="Bank pertanyaan" loading="lazy" />
+  </figure>
+
+  <figure class="step" id="s23">
+    <figcaption><b><span class="no">23</span>Answer Bank</b>
+    <p>Kumpulan jawaban referensi untuk menilai kualitas jawaban kandidat.</p></figcaption>
+    <img src="../images/demo/23-answer-bank.webp" alt="Answer bank" loading="lazy" />
+  </figure>
+
+  <figure class="step" id="s24">
+    <figcaption><b><span class="no">24</span>Penggunaan &amp; Kuota</b>
+    <p>Pemakaian API dan kuota per periode.</p></figcaption>
+    <img src="../images/demo/24-usage.webp" alt="Penggunaan" loading="lazy" />
+  </figure>
+</section>
+
+<section id="c">
+  <h2>C. Alur Kandidat (Walk-in)</h2>
+  <p class="lead">Pengalaman kandidat dari tautan undangan sampai wawancara selesai — seluruhnya Bahasa Indonesia.</p>
+
+  <figure class="step" id="s25">
+    <figcaption><b><span class="no">25</span>Halaman Undangan</b>
+    <p>Kandidat membuka tautan undangan: nama interview, durasi, dan tombol mulai.</p></figcaption>
+    <img src="../images/demo/25-candidate-landing.webp" alt="Halaman undangan kandidat" loading="lazy" />
+  </figure>
+
+  <figure class="step" id="s26">
+    <figcaption><b><span class="no">26</span>Identitas Kandidat</b>
+    <p>Isi nama dan email sebelum masuk ke wawancara.</p></figcaption>
+    <img src="../images/demo/26-candidate-form.webp" alt="Form identitas kandidat" loading="lazy" />
+  </figure>
+
+  <figure class="step" id="s27">
+    <figcaption><b><span class="no">27</span>Pemberitahuan Integritas</b>
+    <p>Aturan wawancara: larangan berpindah tab, salin jawaban, dan bantuan eksternal.</p></figcaption>
+    <img src="../images/demo/27-candidate-integrity.webp" alt="Pemberitahuan integritas" loading="lazy" />
+  </figure>
+
+  <figure class="step" id="s28">
+    <figcaption><b><span class="no">28</span>Mode Wawancara</b>
+    <p>Undangan ini menggunakan obrolan teks, sehingga sesi langsung dimulai tanpa uji kamera. Interview ber-mode voice/video menampilkan pemeriksaan kamera &amp; mikrofon di langkah ini.</p></figcaption>
+    <img src="../images/demo/27-candidate-integrity.webp" alt="Pemberitahuan mode wawancara" loading="lazy" />
+  </figure>
+
+  <figure class="step" id="s29">
+    <figcaption><b><span class="no">29</span>Wawancara Chat</b>
+    <p>AI interviewer menggali jawaban dengan follow-up adaptif, dalam Bahasa Indonesia.</p></figcaption>
+    <img src="../images/demo/29-candidate-chat.webp" alt="Wawancara chat dengan AI" loading="lazy" />
+  </figure>
+
+  <figure class="step" id="s30">
+    <figcaption><b><span class="no">30</span>Soal Coding — Code Editor</b>
+    <p>Soal coding dikerjakan langsung di editor dalam browser: jalankan kode, lihat hasil.</p></figcaption>
+    <img src="../images/demo/30-candidate-code.webp" alt="Editor kode di wawancara" loading="lazy" />
+  </figure>
+
+  <figure class="step" id="s31">
+    <figcaption><b><span class="no">31</span>Soal Whiteboard</b>
+    <p>Pertanyaan desain/sketsa dijawab di kanvas whiteboard.</p></figcaption>
+    <img src="../images/demo/31-candidate-whiteboard.webp" alt="Whiteboard wawancara" loading="lazy" />
+  </figure>
+
+  <figure class="step" id="s32">
+    <figcaption><b><span class="no">32</span>Alat Sesi</b>
+    <p>Selama wawancara, kandidat dapat membuka code editor dan whiteboard kapan saja dari toolbar sesi; mode voice tersedia untuk interview yang dikonfigurasi demikian.</p></figcaption>
+    <img src="../images/demo/30-candidate-code.webp" alt="Alat sesi wawancara" loading="lazy" />
+  </figure>
+</section>
+
+<section id="d">
+  <h2>D. Hasil &amp; Analitik</h2>
+  <p class="lead">Setelah kandidat selesai, penilaian terbentuk otomatis.</p>
+
+  <figure class="step" id="s33">
+    <figcaption><b><span class="no">33</span>Hasil Interview</b>
+    <p>Skor per kriteria untuk semua kandidat — termasuk profil psikometrik.</p></figcaption>
+    <img src="../images/demo/33-results.webp" alt="Hasil interview" loading="lazy" />
+  </figure>
+
+  <figure class="step" id="s34">
+    <figcaption><b><span class="no">34</span>Laporan Sesi</b>
+    <p>Laporan per kandidat: transkrip, evaluasi tiap pertanyaan, dan ringkasan AI.</p></figcaption>
+    <img src="../images/demo/34-session-report.webp" alt="Laporan sesi" loading="lazy" />
+  </figure>
+
+  <figure class="step" id="s35">
+    <figcaption><b><span class="no">35</span>Log Integritas</b>
+    <p>Catatan otomatis pelanggaran: pindah tab, kehilangan fokus, salin/tempel.</p></figcaption>
+    <img src="../images/demo/35-integrity-log.webp" alt="Log integritas" loading="lazy" />
+  </figure>
+</section>
+
+<section id="e">
+  <h2>E. Mode Latihan</h2>
+  <p class="lead">Kandidat bisa berlatih wawancara dengan AI dan menerima umpan balik.</p>
+
+  <figure class="step" id="s36">
+    <figcaption><b><span class="no">36</span>Dashboard Latihan</b>
+    <p>Pilih paket latihan dan pantau riwayat sesi.</p></figcaption>
+    <img src="../images/demo/36-practices.webp" alt="Dashboard latihan" loading="lazy" />
+  </figure>
+
+  <figure class="step" id="s37">
+    <figcaption><b><span class="no">37</span>Sesi Latihan</b>
+    <p>Wawancara latihan berjalan sama seperti wawancara sungguhan.</p></figcaption>
+    <img src="../images/demo/37-practice-session.webp" alt="Sesi latihan" loading="lazy" />
+  </figure>
+
+  <figure class="step" id="s38">
+    <figcaption><b><span class="no">38</span>Umpan Balik Latihan</b>
+    <p>Umpan balik terstruktur: kekuatan, kelemahan, dan saran perbaikan.</p></figcaption>
+    <img src="../images/demo/38-practice-feedback.webp" alt="Umpan balik latihan" loading="lazy" />
+  </figure>
+</section>
+
+<section id="f">
+  <h2>F. Pengaturan &amp; Akun</h2>
+  <p class="lead">Konfigurasi workspace dan akun.</p>
+
+  <figure class="step" id="s39">
+    <figcaption><b><span class="no">39</span>Pengaturan</b>
+    <p>Preferensi aplikasi dan profil.</p></figcaption>
+    <img src="../images/demo/39-settings.webp" alt="Pengaturan" loading="lazy" />
+  </figure>
+
+  <figure class="step" id="s40">
+    <figcaption><b><span class="no">40</span>Anggota</b>
+    <p>Undang dan kelola anggota workspace.</p></figcaption>
+    <img src="../images/demo/40-settings-members.webp" alt="Pengaturan anggota" loading="lazy" />
+  </figure>
+
+  <figure class="step" id="s41">
+    <figcaption><b><span class="no">41</span>API Keys</b>
+    <p>Kunci API untuk integrasi REST (public API v1).</p></figcaption>
+    <img src="../images/demo/41-settings-api-keys.webp" alt="API keys" loading="lazy" />
+  </figure>
+
+  <figure class="step" id="s42">
+    <figcaption><b><span class="no">42</span>Akun</b>
+    <p>Profil, ganti kata sandi, dan hapus akun.</p></figcaption>
+    <img src="../images/demo/42-account.webp" alt="Halaman akun" loading="lazy" />
+  </figure>
+
+  <figure class="step" id="s43">
+    <figcaption><b><span class="no">43</span>Dokumentasi</b>
+    <p>Dokumentasi produk tersedia langsung di dalam aplikasi.</p></figcaption>
+    <img src="../images/demo/43-docs.webp" alt="Dokumentasi" loading="lazy" />
+  </figure>
+</section>
+
+</div>
+</main>
+<footer>
+  <div class="wrap">Aural — platform wawancara AI open-source · <a href="/">aural-deploy.vercel.app</a></div>
+</footer>
+</body>
+</html>

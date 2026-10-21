@@ -49,6 +49,8 @@
 <p align="center">
   <b><a href="https://aural-ai.com">体验云服务 &rarr;</a></b>
   &nbsp;&nbsp;&nbsp;
+  <b><a href="/demo">产品分步导览 &rarr;</a></b>
+  &nbsp;&nbsp;&nbsp;
   <b><a href="#自托管">自托管指南 &darr;</a></b>
 </p>
 
