@@ -1,9 +1,11 @@
 
 name: Deploy
 
+# workflow_dispatch only: no self-hosted runner is registered against this
+# repository, so a push trigger just parked every run as pending noise.
+# Register a runner on the VPS and re-add the push trigger to restore
+# git-triggered docker deploys.
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 permissions:

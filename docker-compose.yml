@@ -13,6 +13,29 @@ services:
     expose:
       - "3000"
 
+  ai-drain:
+    # Drains the ai_jobs queue by calling the app's own cron endpoint on the
+    # compose network every 5 minutes. Deliberately local: Cloudflare blocks
+    # GitHub Actions runner IPs and Vercel Hobby caps functions at 60s, so
+    # neither can reach this long-running executor reliably.
+    image: aural-app
+    command:
+      - sh
+      - -c
+      - |
+        if [ -z "$${CRON_SECRET}" ]; then
+          echo "CRON_SECRET is not set - refusing to start" >&2
+          exit 1
+        fi
+        while true; do
+          node -e "fetch('http://web:3000/api/cron/ai-jobs',{method:'POST',headers:{authorization:'Bearer '+process.env.CRON_SECRET}}).then(r=>{console.log(new Date().toISOString(),'ai-drain',r.status)}).catch(e=>console.error(new Date().toISOString(),'ai-drain',e.message))" || true
+          sleep 300
+        done
+    env_file: .env
+    restart: unless-stopped
+    depends_on:
+      - web
+
   voice-relay:
     image: aural-app
     command: ["npx", "tsx", "server/voice-relay.ts"]
