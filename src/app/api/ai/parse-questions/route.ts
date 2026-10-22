@@ -4,8 +4,6 @@ import { resolveGeneratorModel, streamGeneratorWithFallback } from "@/lib/ai/gen
 import { parseQuestionsRequestSchema, parseQuestionsResponseSchema, PARSE_QUESTIONS_SHAPE_HINT } from "@/lib/ai/parse-questions-schema";
 import { buildParseQuestionsMessages } from "@/lib/ai/prompts/parse-questions";
 import { repairStructured } from "@/lib/ai/repair";
-import { aiWindowStatus } from "@/lib/ai/ai-window";
-import { aiJobDedupeKey, enqueueAiJob } from "@/lib/ai/ai-jobs";
 import { checkAiRateLimit } from "@/lib/api-rate-limit-ai";
 
 const log = createLogger("api/ai/parse-questions");
@@ -34,34 +32,7 @@ export async function POST(req: Request) {
     );
   }
 
-  const { text, language, interviewId } = parsedBody.data;
-
-  // Outside the AI operating window, parsing is only queueable when it is
-  // bound to a saved interview; an unsaved dialog draft lives only in client
-  // memory, so there is nowhere to apply the result later — fail explicitly.
-  const window = aiWindowStatus();
-  if (!window.open) {
-    if (!interviewId) {
-      return new Response(
-        `data: ${JSON.stringify({
-          type: "error",
-          message:
-            "AI parsing runs between 5:00 PM and 7:00 AM (WIB). Save the interview first, then retry the extraction.",
-        })}\n\n`,
-        { headers: SSE_HEADERS },
-      );
-    }
-    await enqueueAiJob({
-      kind: "PARSE_QUESTIONS",
-      userId: user.id,
-      dedupeKey: aiJobDedupeKey(["PARSE_QUESTIONS", interviewId, text.slice(0, 500)]),
-      payload: { request: parsedBody.data },
-    });
-    return new Response(
-      `data: ${JSON.stringify({ type: "queued", nextRunAt: window.nextBoundaryAt })}\n\n`,
-      { headers: SSE_HEADERS },
-    );
-  }
+  const { text, language } = parsedBody.data;
 
   const messages = buildParseQuestionsMessages(text, language);
 

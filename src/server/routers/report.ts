@@ -1,6 +1,4 @@
 import { nanoid } from "@/lib/id";
-import { aiWindowStatus } from "@/lib/ai/ai-window";
-import { aiJobDedupeKey, enqueueAiJob } from "@/lib/ai/ai-jobs";
 import { generateAndCacheSurveyAnalysis } from "@/lib/ai/aggregate-analysis";
 import {
   buildReportRows,
@@ -97,18 +95,6 @@ export const reportRouter = router({
           code: "BAD_REQUEST",
           message: "AI analysis is only available for survey/quiz/form kinds",
         });
-      }
-
-      // Heavy batch work runs only inside the AI operating window.
-      const window = aiWindowStatus();
-      if (!window.open) {
-        await enqueueAiJob({
-          kind: "ANALYSIS",
-          userId: ctx.user.id,
-          dedupeKey: aiJobDedupeKey(["ANALYSIS", input.interviewId]),
-          payload: { interviewId: input.interviewId },
-        });
-        return { queued: true as const, nextRunAt: window.nextBoundaryAt };
       }
 
       return generateAndCacheSurveyAnalysis(input.interviewId);

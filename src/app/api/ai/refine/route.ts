@@ -3,8 +3,6 @@ import { createLogger } from "@/lib/logger";
 import { resolveGeneratorModel, streamGeneratorWithFallback } from "@/lib/ai/generator-run";
 import { generatedInterviewSchema, refineRequestSchema, GENERATED_INTERVIEW_SHAPE_HINT } from "@/lib/ai/generated-schema";
 import { repairStructured } from "@/lib/ai/repair";
-import { aiWindowStatus } from "@/lib/ai/ai-window";
-import { aiJobDedupeKey, enqueueAiJob } from "@/lib/ai/ai-jobs";
 import { checkAiRateLimit } from "@/lib/api-rate-limit-ai";
 
 const log = createLogger("api/ai/refine");
@@ -27,36 +25,6 @@ export async function POST(req: Request) {
     );
   }
   const { interview, feedback, language, jobDescription, resumeText } = parsedBody.data;
-
-  // Heavy batch refinement runs only inside the AI operating window; outside
-  // it the request is queued — the refined draft lands in job.result.
-  const window = aiWindowStatus();
-  if (!window.open) {
-    await enqueueAiJob({
-      kind: "REFINE",
-      userId: user.id,
-      dedupeKey: aiJobDedupeKey([
-        "REFINE",
-        user.id,
-        interview.title,
-        feedback,
-        language ?? "",
-        jobDescription ?? "",
-        resumeText ?? "",
-      ]),
-      payload: { request: parsedBody.data },
-    });
-    return new Response(
-      `data: ${JSON.stringify({ type: "queued", nextRunAt: window.nextBoundaryAt })}\n\n`,
-      {
-        headers: {
-          "Content-Type": "text/event-stream",
-          "Cache-Control": "no-cache",
-          Connection: "keep-alive",
-        },
-      },
-    );
-  }
 
   const messages = (await import("@/lib/ai/prompts/generator")).buildImprovePrompt(
     interview,
