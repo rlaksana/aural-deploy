@@ -96,7 +96,13 @@ export class LiteLLMProvider implements LLMProvider {
         max_tokens: params.maxTokens ?? 2048,
         stream: true,
       },
-      { signal: params.signal },
+      {
+        signal: params.signal,
+        // Healthy streams deliver headers in ~1s (measured); a hung upstream
+        // delivers nothing — fail over in 60s instead of burning the full
+        // 240s client timeout before the model fallback engages.
+        timeout: 60_000,
+      },
     );
 
     for await (const chunk of stream) {
