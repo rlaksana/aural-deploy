@@ -23,6 +23,10 @@ export class LiteLLMProvider implements LLMProvider {
     this.client = new OpenAI({
       apiKey: process.env.AI_API_KEY ?? "",
       baseURL: process.env.AI_BASE_URL ?? "",
+      // A hung gateway stream must fail over to the fallback model in minutes,
+      // not after the SDK's 10-minute default (seen 2026-10-22: generate hung
+      // 10 min before fallback ran — the fallback itself finished in 67s).
+      timeout: 120_000,
     });
   }
 
