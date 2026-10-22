@@ -48,14 +48,18 @@ export function listProviders(): LLMProvider[] {
 }
 
 /**
- * Model used for post-interview report generation and interview question
- * generation. All text-LLM traffic runs on the LiteLLM gateway (AI_MODEL).
+ * Primary text-LLM for the report/generator pipelines: Z.AI GLM Coding Plan
+ * glm-5.3-flash (since 2026-10-22; measured 52s vs MiniMax 147s on a
+ * generator-sized request). Do NOT set AI_MODEL to this value — the LiteLLM
+ * provider registers first and would capture the routing.
+ * The LiteLLM gateway (AI_MODEL) remains the transport for the
+ * live-interviewer chat route.
  */
-const GATEWAY_MODEL = process.env.AI_MODEL?.trim() || "minimax-m3.1";
+export const PRIMARY_TEXT_MODEL = "glm-5.3-flash";
 
-export const REPORT_MODEL = GATEWAY_MODEL;
+export const REPORT_MODEL = PRIMARY_TEXT_MODEL;
 
-export const GENERATOR_MODEL = GATEWAY_MODEL;
+export const GENERATOR_MODEL = PRIMARY_TEXT_MODEL;
 
 export const PRIMARY_GENERATOR_MODEL = GENERATOR_MODEL;
 

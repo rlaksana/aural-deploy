@@ -14,12 +14,10 @@ const log = createLogger("ai/generator-run");
  * OPENROUTER_API_KEY is configured.
  */
 export function getGeneratorModelChain(): string[] {
-  if (!process.env.AI_API_KEY?.trim()) {
-    throw new Error("No generator LLM configured. Set AI_API_KEY (LiteLLM gateway).");
+  if (!process.env.ZAI_API_KEY?.trim()) {
+    throw new Error("No generator LLM configured. Set ZAI_API_KEY (Z.AI Coding Plan).");
   }
-  // Read AI_MODEL lazily so test env sandwiches and runtime overrides apply
-  // after module load.
-  const chain = [process.env.AI_MODEL?.trim() || PRIMARY_GENERATOR_MODEL];
+  const chain = [PRIMARY_GENERATOR_MODEL];
   if (process.env.OPENROUTER_API_KEY?.trim()) {
     chain.push(FALLBACK_GENERATOR_MODEL);
   }
@@ -71,7 +69,7 @@ export async function* streamGeneratorWithFallback(
 export async function generateChatWithFallback(
   params: GenerationParams & { model?: string },
 ): Promise<LLMResponse> {
-  const primary = params.model ?? (process.env.AI_MODEL?.trim() || PRIMARY_GENERATOR_MODEL);
+  const primary = params.model ?? PRIMARY_GENERATOR_MODEL;
   const models = [
     primary,
     ...getGeneratorModelChain().filter((model) => model !== primary),

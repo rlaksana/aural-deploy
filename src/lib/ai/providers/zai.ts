@@ -25,6 +25,9 @@ export class ZaiProvider implements LLMProvider {
     this.client = new OpenAI({
       apiKey: process.env.ZAI_API_KEY ?? "",
       baseURL: process.env.ZAI_BASE_URL ?? "https://api.z.ai/api/coding/paas/v4",
+      // Fail over in minutes, not after the SDK's 10-minute default; 240s
+      // covers the measured worst healthy generation (52s) with headroom.
+      timeout: 240_000,
     });
   }
 
@@ -42,8 +45,8 @@ export class ZaiProvider implements LLMProvider {
       messages: this.toOpenAIMessages(params.messages),
       temperature: params.temperature ?? 0.7,
       max_tokens: params.maxTokens ?? 2048,
-      // GLM-5.3-Flash thinks by default; cap the depth for structured output.
-      ...({ thinking: { type: "enabled" }, reasoning_effort: "low" }),
+      // GLM-5.3-Flash always thinks; effort high per product decision.
+      ...({ thinking: { type: "enabled" }, reasoning_effort: "high" }),
     });
 
     const choice = response.choices[0];
@@ -68,8 +71,13 @@ export class ZaiProvider implements LLMProvider {
       messages: this.toOpenAIMessages(params.messages),
       temperature: params.temperature ?? 0.7,
       max_tokens: params.maxTokens ?? 2048,
-      ...({ thinking: { type: "enabled" }, reasoning_effort: "low" }),
+      ...({ thinking: { type: "enabled" }, reasoning_effort: "high" }),
       stream: true,
+    }, {
+      signal: params.signal,
+      // Healthy streams deliver headers in ~1s; a hung upstream fails over
+      // in 60s instead of burning the 240s client timeout.
+      timeout: 60_000,
     });
 
     for await (const chunk of stream) {

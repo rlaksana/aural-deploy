@@ -14,6 +14,7 @@ const ENV_KEYS = [
   "OPENROUTER_API_KEY",
   "AI_API_KEY",
   "AI_MODEL",
+  "ZAI_API_KEY",
 ] as const;
 
 function withEnv(
@@ -39,32 +40,34 @@ function withEnv(
   }
 }
 
-test("getGeneratorModelChain returns only the gateway model regardless of other provider keys", () => {
+test("getGeneratorModelChain returns only the GLM primary regardless of other provider keys", () => {
   withEnv(
     {
+      ZAI_API_KEY: "test-zai",
       AI_API_KEY: "test-ai",
       OPENAI_API_KEY: "test-openai",
       GEMINI_API_KEY: "test-gemini",
       KIMI_API_KEY: "test-kimi",
       MINIMAX_API_KEY: "test-minimax",
-      AI_MODEL: undefined,
+      OPENROUTER_API_KEY: undefined,
     },
     () => {
-      assert.deepEqual(getGeneratorModelChain(), ["minimax-m3.1"]);
-      assert.equal(resolveGeneratorModel(), "minimax-m3.1");
+      assert.deepEqual(getGeneratorModelChain(), ["glm-5.3-flash"]);
+      assert.equal(resolveGeneratorModel(), "glm-5.3-flash");
     },
   );
 });
 
-test("getGeneratorModelChain honors AI_MODEL override", () => {
+test("getGeneratorModelChain ignores AI_MODEL override (gateway is not the generator primary)", () => {
   withEnv(
     {
+      ZAI_API_KEY: "test-zai",
       AI_API_KEY: "test-ai",
       AI_MODEL: "custom-gateway-model",
     },
     () => {
-      assert.deepEqual(getGeneratorModelChain(), ["custom-gateway-model"]);
-      assert.equal(resolveGeneratorModel(), "custom-gateway-model");
+      assert.deepEqual(getGeneratorModelChain(), ["glm-5.3-flash"]);
+      assert.equal(resolveGeneratorModel(), "glm-5.3-flash");
     },
   );
 });
@@ -76,28 +79,30 @@ test("getGeneratorModelChain appends OpenRouter fallback when OPENROUTER_API_KEY
       GEMINI_API_KEY: undefined,
       KIMI_API_KEY: undefined,
       MINIMAX_API_KEY: undefined,
-      AI_API_KEY: "test-ai",
+      AI_API_KEY: undefined,
       AI_MODEL: undefined,
       OPENROUTER_API_KEY: "test-openrouter",
+      ZAI_API_KEY: "test-zai",
     },
     () => {
       assert.deepEqual(getGeneratorModelChain(), [
-        "minimax-m3.1",
+        "glm-5.3-flash",
         "meta/muse-spark-1.3-contributor",
       ]);
     },
   );
 });
 
-test("getGeneratorModelChain requires AI_API_KEY even when other keys exist", () => {
+test("getGeneratorModelChain requires ZAI_API_KEY even when other keys exist", () => {
   withEnv(
     {
       OPENAI_API_KEY: "test-openai",
       MINIMAX_API_KEY: "test-minimax",
-      AI_API_KEY: undefined,
+      AI_API_KEY: "test-ai",
+      ZAI_API_KEY: undefined,
     },
     () => {
-      assert.throws(() => getGeneratorModelChain(), /AI_API_KEY/);
+      assert.throws(() => getGeneratorModelChain(), /ZAI_API_KEY/);
     },
   );
 });
