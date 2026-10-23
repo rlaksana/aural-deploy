@@ -36,7 +36,7 @@ export class OpenRouterProvider implements LLMProvider {
       messages: this.toOpenAIMessages(params.messages),
       temperature: params.temperature ?? 0.7,
       max_tokens: params.maxTokens ?? 2048,
-    });
+    }, { signal: params.signal });
 
     const choice = response.choices[0];
     return {
@@ -61,7 +61,7 @@ export class OpenRouterProvider implements LLMProvider {
       temperature: params.temperature ?? 0.7,
       max_tokens: params.maxTokens ?? 2048,
       stream: true,
-    });
+    }, { signal: params.signal });
 
     for await (const chunk of stream) {
       const content = chunk.choices[0]?.delta?.content;

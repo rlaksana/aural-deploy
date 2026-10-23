@@ -11,6 +11,7 @@ import { apiKeyRouter } from "./apikey";
 import { userRouter } from "./user";
 import { webhookRouter } from "./webhook";
 import { candidateRouter } from "./candidate";
+import { positionRouter } from "./position";
 import { customTemplateRouter } from "./custom-template";
 import { answerBankRouter } from "./answer-bank";
 import { prepRouter } from "./prep";
@@ -30,6 +31,7 @@ export const appRouter = router({
   webhook: webhookRouter,
   user: userRouter,
   candidate: candidateRouter,
+  position: positionRouter,
   customTemplate: customTemplateRouter,
   prep: prepRouter,
   answerBank: answerBankRouter,

@@ -22,6 +22,7 @@ import {
     ArrowUpRight,
     BookMarked,
     BrainCircuit,
+    Briefcase,
     ChevronUp,
     FolderKanban,
     Gauge,
@@ -205,6 +206,7 @@ export function Sidebar({
   const projectNavigation = [
     { name: t("sidebar.dashboard"), href: "/dashboard", icon: LayoutDashboard },
     { name: t("sidebar.interviews"), href: "/interviews", icon: MessageSquare },
+    { name: t("sidebar.positions"), href: "/positions", icon: Briefcase },
     { name: t("sidebar.practices"), href: "/practices", icon: BrainCircuit },
     { name: t("sidebar.sessions"), href: "/candidates", icon: PlayCircle },
     { name: t("sidebar.questions"), href: "/questions", icon: HelpCircle },

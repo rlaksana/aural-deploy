@@ -47,6 +47,8 @@ export class ZaiProvider implements LLMProvider {
       max_tokens: params.maxTokens ?? 2048,
       // GLM-5.3-Flash always thinks; effort high per product decision.
       ...({ thinking: { type: "enabled" }, reasoning_effort: "high" }),
+    }, {
+      signal: params.signal,
     });
 
     const choice = response.choices[0];

@@ -1,5 +1,6 @@
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { canonicalizeInsights } from "@/lib/interview-report";
+import type { CandidateAnalysis } from "@/lib/ai/candidate-analysis-schema";
 import { buildCriteriaWeights } from "@/lib/session-score";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
@@ -144,6 +145,9 @@ export const analysisRouter = router({
           | { type: string; timestamp: number; detail?: string }[]
           | null,
         proctoringSnapshots,
+        resumeText: session.resumeText as string | null,
+        resumeFileName: session.resumeFileName as string | null,
+        candidateAnalysis: (session.candidateAnalysis as CandidateAnalysis | null) ?? null,
       };
     }),
 

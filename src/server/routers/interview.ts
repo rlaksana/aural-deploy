@@ -13,6 +13,7 @@ import {
   publicProcedure,
   router,
 } from "../trpc";
+import { resolvePositionPrefill } from "./position";
 
 export const INTERVIEW_KINDS = [
   "INTERVIEW",
@@ -413,6 +414,8 @@ export const interviewRouter = router({
         proctoringEnabled: z.boolean().optional(),
         kind: z.enum(INTERVIEW_KINDS).optional(),
         aiSummaryEnabled: z.boolean().optional(),
+        jobPositionId: z.string().optional(),
+        jobDescription: z.string().optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -497,6 +500,12 @@ export const interviewRouter = router({
       );
       assertMinRole(effectiveRole, "MEMBER");
 
+      const positionPrefill = await resolvePositionPrefill(
+        ctx.supabase,
+        ctx.user.id,
+        input.jobPositionId,
+        input.jobDescription,
+      );
 
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { projectId: _pid, ...rest } = input;
@@ -507,6 +516,7 @@ export const interviewRouter = router({
           projectId,
           userId: ctx.user.id,
           requireInvite: true,
+          ...positionPrefill,
         })
         .select()
         .single();
@@ -552,6 +562,8 @@ export const interviewRouter = router({
         antiCheatingEnabled: z.boolean().default(false),
         proctoringEnabled: z.boolean().optional(),
         kind: z.enum(INTERVIEW_KINDS).optional(),
+        jobPositionId: z.string().optional(),
+        jobDescription: z.string().optional(),
         questions: z
           .array(
             z.object({
@@ -685,11 +697,18 @@ export const interviewRouter = router({
       }
 
       // 4. Atomic insert via RPC.
+      const positionPrefill = await resolvePositionPrefill(
+        ctx.supabase,
+        ctx.user.id,
+        input.jobPositionId,
+        input.jobDescription,
+      );
       const interviewPayload = {
         ...input,
         projectId,
         userId: ctx.user.id,
         requireInvite: true,
+        ...positionPrefill,
       };
       const questionPayload = input.questions.map((q, i) => ({
         ...q,
@@ -742,6 +761,7 @@ export const interviewRouter = router({
           templateId: z.string().optional(),
           customTemplateId: z.string().optional(),
           projectId: z.string().optional(),
+          jobPositionId: z.string().optional(),
         })
         .refine((v) => !!v.templateId !== !!v.customTemplateId, {
           message: "Pass exactly one of templateId or customTemplateId",
@@ -826,6 +846,12 @@ export const interviewRouter = router({
       );
       assertMinRole(effectiveRole, "MEMBER");
 
+      const positionPrefill = await resolvePositionPrefill(
+        ctx.supabase,
+        ctx.user.id,
+        input.jobPositionId,
+      );
+
       const { data: interview, error } = await ctx.supabase
         .from("interviews")
         .insert({
@@ -843,6 +869,8 @@ export const interviewRouter = router({
           kind: template.kind ?? "INTERVIEW",
           aiSummaryEnabled: template.aiSummaryEnabled ?? true,
           psychometricConfig: template.psychometricConfig ?? null,
+          jobPositionId: positionPrefill.jobPositionId,
+          jobDescription: positionPrefill.jobDescription,
           projectId,
           userId: ctx.user.id,
           requireInvite: true,

@@ -327,7 +327,7 @@ def reverse(head):
     pass
 \`\`\``;
 
-export function AIGenerator({ projectId }: { projectId?: string } = {}) {
+export function AIGenerator({ projectId, jobPositionId }: { projectId?: string; jobPositionId?: string } = {}) {
   const router = useRouter();
   const { toast } = useToast();
   const { currentOrg } = useOrg();
@@ -395,6 +395,10 @@ export function AIGenerator({ projectId }: { projectId?: string } = {}) {
   }, [contentText]);
 
   const createWithQuestionsMutation = trpc.interview.createWithQuestions.useMutation();
+  const positionDetail = trpc.position.get.useQuery(
+    { id: jobPositionId! },
+    { enabled: !!jobPositionId },
+  );
 
   /** Consume an SSE stream from generate/refine and return parsed data. */
   const consumeStream = async (response: Response): Promise<GeneratedInterview> => {
@@ -756,6 +760,8 @@ export function AIGenerator({ projectId }: { projectId?: string } = {}) {
     try {
       const interview = await createWithQuestionsMutation.mutateAsync({
         projectId,
+        jobPositionId,
+        jobDescription: jdText || undefined,
         title: result.title,
         description: result.description,
         objective: result.objective,
@@ -879,6 +885,12 @@ export function AIGenerator({ projectId }: { projectId?: string } = {}) {
 
   return (
     <div className="space-y-6">
+      {jobPositionId && (
+        <Badge variant="secondary" className="w-fit gap-1.5 px-3 py-1.5">
+          <Briefcase className="h-3 w-3" />
+          Position: {positionDetail.data?.position.title ?? "..."}
+        </Badge>
+      )}
       {/* Generator input */}
       <Card>
         <CardHeader>

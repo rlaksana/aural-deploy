@@ -2,6 +2,7 @@
 "use client";
 
 import { CodeBlock } from "@/components/code-editor/code-block";
+import { CandidateAnalysisPanel } from "@/components/interview/candidate-analysis-panel";
 import { DimensionBars } from "@/components/interview/dimension-bars";
 import { useOrg } from "@/components/org-provider";
 import { SessionRow, SessionsTable } from "@/components/session/sessions-table";
@@ -835,6 +836,18 @@ function SessionDetail({
                 </CardContent>
               </Card>
             )}
+
+            {/* Candidate Analysis (position JD × resume × interview) */}
+            {summary.data?.status === "COMPLETED" &&
+              questionEvaluations.length > 0 && (
+                <CandidateAnalysisPanel
+                  sessionId={sessionId}
+                  resumeText={summary.data.resumeText}
+                  resumeFileName={summary.data.resumeFileName}
+                  candidateAnalysis={summary.data.candidateAnalysis}
+                  onSaved={() => summary.refetch()}
+                />
+              )}
 
             {/* Per-Question Evaluations */}
             {questionEvaluations.length > 0 && (

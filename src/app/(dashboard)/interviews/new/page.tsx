@@ -3,6 +3,7 @@
 import { useAppLocale } from "@/components/app-locale-provider";
 import { AIGenerator } from "@/components/interview/ai-generator";
 import { useProject } from "@/components/project-provider";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -27,6 +28,7 @@ import { useToast } from "@/hooks/use-toast";
 import { AI_TONES, FOLLOW_UP_DEPTHS, LANGUAGES } from "@/lib/constants";
 import { trpc } from "@/lib/trpc/client";
 import {
+  Briefcase,
   Loader2,
   MessageSquare,
   Mic,
@@ -45,6 +47,11 @@ export default function NewInterviewPage() {
   const { currentProject } = useProject();
   const projectId =
     searchParams.get("projectId") ?? currentProject?.id ?? undefined;
+  const jobPositionId = searchParams.get("jobPositionId") ?? undefined;
+  const positionDetail = trpc.position.get.useQuery(
+    { id: jobPositionId! },
+    { enabled: !!jobPositionId },
+  );
   const { toast } = useToast();
   const isZh = locale === "zh";
   const [title, setTitle] = useState("");
@@ -84,6 +91,7 @@ export default function NewInterviewPage() {
     try {
       await createMutation.mutateAsync({
         projectId,
+        jobPositionId,
         title,
         description,
         objective,
@@ -114,6 +122,14 @@ export default function NewInterviewPage() {
         </p>
       </div>
 
+      {jobPositionId && (
+        <Badge variant="secondary" className="w-fit gap-1.5 px-3 py-1.5">
+          <Briefcase className="h-3 w-3" />
+          {isZh ? "职位" : "Position"}:{" "}
+          {positionDetail.data?.position.title ?? "..."}
+        </Badge>
+      )}
+
       <Tabs defaultValue="ai" className="space-y-6">
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="ai" className="gap-2">
@@ -127,7 +143,7 @@ export default function NewInterviewPage() {
         </TabsList>
 
         <TabsContent value="ai">
-          <AIGenerator projectId={projectId} />
+          <AIGenerator projectId={projectId} jobPositionId={jobPositionId} />
         </TabsContent>
 
         <TabsContent value="manual">

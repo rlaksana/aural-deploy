@@ -3,7 +3,7 @@
 import { useAppLocale } from "@/components/app-locale-provider";
 import { useState, useCallback, useMemo } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { trpc } from "@/lib/trpc/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -208,6 +208,12 @@ export default function InterviewsPage() {
   const utils = trpc.useUtils();
   const { currentProject } = useProject();
   const projectId = currentProject?.id;
+  const searchParams = useSearchParams();
+  const jobPositionId = searchParams.get("jobPositionId") ?? undefined;
+  const positionDetail = trpc.position.get.useQuery(
+    { id: jobPositionId! },
+    { enabled: !!jobPositionId },
+  );
   const interviews = trpc.interview.list.useQuery(
     { limit: 100, projectId: projectId ?? undefined },
     { enabled: !!projectId },
@@ -252,9 +258,10 @@ export default function InterviewsPage() {
       createFromTemplate.mutate({
         templateId: template.id,
         projectId: projectId ?? undefined,
+        jobPositionId,
       });
     },
-    [creatingTemplateId, createFromTemplate, projectId],
+    [creatingTemplateId, createFromTemplate, projectId, jobPositionId],
   );
 
   const TIME_RANGE_OPTIONS = [
@@ -365,9 +372,10 @@ export default function InterviewsPage() {
       createFromTemplate.mutate({
         customTemplateId: tpl.id,
         projectId: projectId ?? undefined,
+        jobPositionId,
       });
     },
-    [creatingTemplateId, createFromTemplate, projectId],
+    [creatingTemplateId, createFromTemplate, projectId, jobPositionId],
   );
 
   const deleteManyMutation = trpc.interview.deleteMany.useMutation({
@@ -945,6 +953,15 @@ export default function InterviewsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Position chip — template-created interviews inherit the position */}
+      {jobPositionId && (
+        <Badge variant="secondary" className="w-fit gap-1.5 px-3 py-1.5">
+          <Briefcase className="h-3 w-3" />
+          {locale === "zh" ? "职位" : "Position"}:{" "}
+          {positionDetail.data?.position.title ?? "..."}
+        </Badge>
+      )}
 
       {/* Template browser — also reachable when interviews already exist */}
       {!interviews.isLoading && (

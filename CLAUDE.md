@@ -36,7 +36,7 @@ node --import tsx --test tests/generated-schema.test.ts
 
 ### Local Environment
 `.env.local` (gitignored) is the canonical local env and must always contain the full set:
-`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_ANON_KEY`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `NEXT_PUBLIC_APP_URL`, `AI_BASE_URL`, `AI_MODEL`, `AI_API_KEY`, `CRON_SECRET`, `MINIMAX_API_KEY` (voice-only), `OPENROUTER_API_KEY` (repair model + transport fallback).
+`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_ANON_KEY`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `NEXT_PUBLIC_APP_URL`, `AI_BASE_URL`, `AI_MODEL`, `AI_API_KEY`, `CRON_SECRET`, `MINIMAX_API_KEY` (voice-only), `OPENROUTER_API_KEY` (repair model + transport fallback). Optional: `RESEND_API_KEY` + `RESEND_FROM` (position-invite email via Resend; unset = copyable-link fallback, `src/lib/email.ts`).
 
 - Ops/one-off scripts run with `node --env-file=.env.local --import tsx <script.ts>` — no env injection on the command line.
 - Recovery when vars go missing: `npx vercel env pull <tmpfile> --environment=production --yes` returns 4 values as `[SENSITIVE]` placeholders (`DATABASE_URL`, `MINIMAX_BASE_URL`, `OPENROUTER_API_KEY`, `SUPABASE_SERVICE_ROLE_KEY`) — keep the real lines, drop `VERCEL_*`/`NX_*`/`TURBO_*` noise, then restore `OPENROUTER_API_KEY` and `SUPABASE_SERVICE_ROLE_KEY` (`npx supabase projects api-keys --project-ref <ref> --reveal --output json`, entry with `name: "service_role"`). `MINIMAX_BASE_URL` and `DATABASE_URL` have code/CLI defaults and can be omitted. Never commit or print the values.

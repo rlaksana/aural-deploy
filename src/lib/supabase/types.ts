@@ -134,6 +134,7 @@ export type Database = {
           parsedResume: Json | null;
           companyName: string | null;
           roleTitle: string | null;
+          jobPositionId: string | null;
           createdAt: string;
           updatedAt: string;
         };
@@ -169,6 +170,7 @@ export type Database = {
           parsedResume?: Json | null;
           companyName?: string | null;
           roleTitle?: string | null;
+          jobPositionId?: string | null;
           createdAt?: string;
           updatedAt?: string;
         };
@@ -204,8 +206,93 @@ export type Database = {
           parsedResume?: Json | null;
           companyName?: string | null;
           roleTitle?: string | null;
+          jobPositionId?: string | null;
           createdAt?: string;
           updatedAt?: string;
+        };
+        Relationships: [];
+      };
+      job_positions: {
+        Row: {
+          id: string;
+          title: string;
+          jobDescription: string | null;
+          userId: string;
+          projectId: string;
+          createdAt: string;
+          updatedAt: string;
+        };
+        Insert: {
+          id?: string;
+          title: string;
+          jobDescription?: string | null;
+          userId: string;
+          projectId: string;
+          createdAt?: string;
+          updatedAt?: string;
+        };
+        Update: {
+          id?: string;
+          title?: string;
+          jobDescription?: string | null;
+          userId?: string;
+          projectId?: string;
+          createdAt?: string;
+          updatedAt?: string;
+        };
+        Relationships: [];
+      };
+      position_candidates: {
+        Row: {
+          id: string;
+          jobPositionId: string;
+          name: string;
+          email: string | null;
+          resumeText: string | null;
+          resumeFileName: string | null;
+          createdAt: string;
+          updatedAt: string;
+        };
+        Insert: {
+          id?: string;
+          jobPositionId: string;
+          name: string;
+          email?: string | null;
+          resumeText?: string | null;
+          resumeFileName?: string | null;
+          createdAt?: string;
+          updatedAt?: string;
+        };
+        Update: {
+          id?: string;
+          jobPositionId?: string;
+          name?: string;
+          email?: string | null;
+          resumeText?: string | null;
+          resumeFileName?: string | null;
+          createdAt?: string;
+          updatedAt?: string;
+        };
+        Relationships: [];
+      };
+      position_candidate_interviews: {
+        Row: {
+          positionCandidateId: string;
+          interviewId: string;
+          candidateId: string | null;
+          createdAt: string;
+        };
+        Insert: {
+          positionCandidateId: string;
+          interviewId: string;
+          candidateId?: string | null;
+          createdAt?: string;
+        };
+        Update: {
+          positionCandidateId?: string;
+          interviewId?: string;
+          candidateId?: string | null;
+          createdAt?: string;
         };
         Relationships: [];
       };
@@ -301,6 +388,9 @@ export type Database = {
           audioRecordingUrl: string | null;
           audioDuration: number | null;
           screenshots: Json | null;
+          resumeText: string | null;
+          resumeFileName: string | null;
+          candidateAnalysis: Json | null;
           createdAt: string;
           updatedAt: string;
         };
@@ -326,6 +416,9 @@ export type Database = {
           audioRecordingUrl?: string | null;
           audioDuration?: number | null;
           screenshots?: Json | null;
+          resumeText?: string | null;
+          resumeFileName?: string | null;
+          candidateAnalysis?: Json | null;
           createdAt?: string;
           updatedAt?: string;
         };
@@ -351,6 +444,9 @@ export type Database = {
           audioRecordingUrl?: string | null;
           audioDuration?: number | null;
           screenshots?: Json | null;
+          resumeText?: string | null;
+          resumeFileName?: string | null;
+          candidateAnalysis?: Json | null;
           createdAt?: string;
           updatedAt?: string;
         };
