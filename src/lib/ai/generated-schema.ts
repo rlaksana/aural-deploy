@@ -137,10 +137,14 @@ export const refineRequestSchema = z.object({
         z.object({
           text: z.string(),
           type: z.string(),
+          // Pass through so the refine LLM can preserve existing answer keys
+          // and rubrics instead of regenerating them blind.
+          expectedAnswer: z.string().nullable().optional(),
           options: z
               .object({
                 options: z.array(z.string()),
                 allowMultiple: z.boolean().optional(),
+                correctIndices: z.array(z.number().int()).optional(),
               })
               .nullable()
               .optional(),

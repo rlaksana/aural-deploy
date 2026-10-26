@@ -131,6 +131,56 @@ test("refineRequestSchema requires at least one question", () => {
   assert.equal(result.success, false);
 });
 
+test("refineRequestSchema preserves answer keys and rubrics", () => {
+  const result = refineRequestSchema.safeParse({
+    interview: {
+      title: "Payroll",
+      questions: [
+        {
+          text: "Pick the mandatory runs",
+          type: "MULTIPLE_CHOICE",
+          expectedAnswer: "A and C are mandatory.",
+          options: { options: ["A", "B", "C"], correctIndices: [0, 2] },
+        },
+        {
+          text: "Explain REST",
+          type: "OPEN_ENDED",
+          expectedAnswer: "Statelessness, resources, uniform interface.",
+        },
+      ],
+    },
+    feedback: "add one more question",
+  });
+  assert.equal(result.success, true);
+  if (result.success) {
+    assert.equal(result.data.interview.questions[0].expectedAnswer, "A and C are mandatory.");
+    assert.deepEqual(result.data.interview.questions[0].options?.correctIndices, [0, 2]);
+    assert.equal(result.data.interview.questions[1].expectedAnswer, "Statelessness, resources, uniform interface.");
+  }
+});
+
+test("buildImprovePrompt surfaces existing answer keys and rubrics", () => {
+  const messages = buildImprovePrompt(
+    {
+      title: "Payroll",
+      questions: [
+        {
+          text: "Pick the mandatory runs",
+          type: "MULTIPLE_CHOICE",
+          expectedAnswer: "A and C are mandatory.",
+          options: { options: ["A", "B", "C"], correctIndices: [0, 2] },
+        },
+      ],
+    },
+    "add one more question",
+  );
+  const system = messages[0].content as string;
+  const user = messages[1].content as string;
+  assert.match(user, /Current expectedAnswer\/rubric: A and C are mandatory\./);
+  assert.match(user, /Current answer key \(zero-based option indexes\): 0, 2/);
+  assert.match(system, /Preserve each question's existing "expectedAnswer"/);
+});
+
 test("buildImprovePrompt preserves language instruction when language is non-en", () => {
   const messages = buildImprovePrompt(
     {

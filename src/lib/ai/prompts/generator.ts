@@ -103,7 +103,12 @@ export function buildImprovePrompt(
     description?: string | null;
     objective?: string | null;
     assessmentCriteria?: { name: string; description: string }[];
-    questions: { text: string; type: string }[];
+    questions: {
+    text: string;
+    type: string;
+    expectedAnswer?: string | null;
+    options?: { options: string[]; correctIndices?: number[] } | null;
+  }[];
   },
   feedback: string,
   language?: string,
@@ -111,7 +116,13 @@ export function buildImprovePrompt(
   resumeText?: string,
 ): LLMMessage[] {
   const questionsText = currentInterview.questions
-    .map((q, i) => `${i + 1}. [${q.type}] ${q.text}`)
+    .map((q, i) => {
+      let line = `${i + 1}. [${q.type}] ${q.text}`;
+      if (q.expectedAnswer) line += `\n   Current expectedAnswer/rubric: ${q.expectedAnswer}`;
+      if (q.options?.correctIndices?.length)
+        line += `\n   Current answer key (zero-based option indexes): ${q.options.correctIndices.join(", ")}`;
+      return line;
+    })
     .join("\n");
 
   const criteriaText = currentInterview.assessmentCriteria?.length
@@ -163,7 +174,8 @@ OUTPUT VALID JSON ONLY (no markdown, no explanation):
 IMPORTANT: Each question MUST have a "text" field with the question content.
 IMPORTANT: Always include 3-6 assessment criteria.
 IMPORTANT: Always include a "description" field with a 1-2 sentence summary.
-IMPORTANT: For SINGLE_CHOICE and MULTIPLE_CHOICE questions, ALWAYS include "options" with 2-6 clear choices.`,
+IMPORTANT: For SINGLE_CHOICE and MULTIPLE_CHOICE questions, ALWAYS include "options" with 2-6 clear choices.
+IMPORTANT: Preserve each question's existing "expectedAnswer" and options "correctIndices" (listed above) unless the feedback explicitly asks to change them or the question itself changes — never drop or invent answer keys silently.`,
     },
     {
       role: "user",
