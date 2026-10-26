@@ -16,6 +16,21 @@ interface AntiCheatingGuardProps {
   sessionId?: string;
   sessionToken?: string | null;
   language?: string;
+  /** Departure-type entries already persisted for this session, so a page reload does not reset the warning counter. */
+  initialDepartureCount?: number;
+}
+
+/** Departure-type entries in a session's persisted anti-cheating log. */
+export function countDepartures(log: unknown): number {
+  if (!Array.isArray(log)) return 0;
+  return log.filter(
+    (v): v is { type: string } =>
+      !!v &&
+      typeof v === "object" &&
+      ["page_departure", "tab_switch", "focus_lost"].includes(
+        (v as { type?: string }).type ?? "",
+      ),
+  ).length;
 }
 
 function departureBody(lang: LangKey, count: number): string {
@@ -30,11 +45,11 @@ function departureBody(lang: LangKey, count: number): string {
   }. All departures are recorded and may be reviewed. Excessive departures could affect the evaluation of your session.`;
 }
 
-export function AntiCheatingGuard({ enabled, proctoring = false, sessionId, sessionToken, language }: AntiCheatingGuardProps) {
+export function AntiCheatingGuard({ enabled, proctoring = false, sessionId, sessionToken, language, initialDepartureCount }: AntiCheatingGuardProps) {
   const lang = getLanguageKey(language);
   const { toast } = useToast();
   const [warningOpen, setWarningOpen] = useState(false);
-  const [departureCount, setDepartureCount] = useState(0);
+  const [departureCount, setDepartureCount] = useState(initialDepartureCount ?? 0);
   const [cameraConsent, setCameraConsent] = useState<"pending" | "granted" | "denied">("pending");
   const lastDepartureTs = useRef(0);
   const lastPasteToast = useRef(0);

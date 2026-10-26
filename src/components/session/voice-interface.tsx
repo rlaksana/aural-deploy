@@ -2,6 +2,7 @@
 
 import { CodeBlock } from "@/components/code-editor/code-block";
 import { bt, getLanguageKey, type BiText, type LangKey } from "@/lib/i18n";
+import { remainingSecondsFromAnchor } from "@/lib/session-timer";
 import {
     CodeEditorCanvas,
     type CodeEditorCanvasRef,
@@ -378,7 +379,7 @@ interface VoiceInterfaceProps {
   questionCount: number;
   interviewContext: InterviewContext;
   durationMinutes?: number;
-  initialMessages?: Array<{ id: string; role: string; content: string }>;
+  initialMessages?: Array<{ id: string; role: string; content: string; timestamp?: string }>;
   initialDrawings?: Array<{ id: string; label: string; snapshotData: string }>;
   chatEnabled?: boolean;
   onComplete?: (reason?: SessionEndReasonInput) => void;
@@ -486,7 +487,6 @@ export function VoiceInterface({
   // ── Countdown timer state ────────────────────────────────────────
   const [remainingSeconds, setRemainingSeconds] = useState<number | null>(null);
   const timerExpiredRef = useRef(false);
-  const timerStartedRef = useRef(false);
 
   // ── Multiple drawings state ───────────────────────────────────
   interface Drawing {
@@ -795,12 +795,17 @@ export function VoiceInterface({
     }
   }, [videoMode, voice.isListening]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Countdown timer (starts when voice connects) ────────────────
+  // ── Countdown timer (starts when voice connects; refresh resumes it) ──
   useEffect(() => {
-    if (!voice.isConnected || timerStartedRef.current || !durationMinutes) return;
-    timerStartedRef.current = true;
-    setRemainingSeconds(durationMinutes * 60);
-  }, [voice.isConnected, durationMinutes]);
+    if (remainingSeconds !== null || !voice.isConnected || !durationMinutes) return;
+    // Resume anchors at the first spoken answer so a refresh continues the
+    // countdown; a fresh session starts the full duration at connect.
+    const firstUser = initialMessages?.find((m) => m.role === "USER");
+    const startedAt = firstUser?.timestamp ? new Date(firstUser.timestamp).getTime() : NaN;
+    setRemainingSeconds(
+      remainingSecondsFromAnchor(Number.isNaN(startedAt) ? null : startedAt, durationMinutes),
+    );
+  }, [voice.isConnected, durationMinutes, remainingSeconds, initialMessages]);
 
   useEffect(() => {
     if (remainingSeconds === null || remainingSeconds <= 0) return;

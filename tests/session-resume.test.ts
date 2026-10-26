@@ -36,8 +36,8 @@ test("stored turns come back as both voice and chat transcripts", () => {
 
   assert.equal(resume.isResuming, true);
   assert.deepEqual(resume.voiceMessages, [
-    { id: "m1", role: "ASSISTANT", content: "Tell me about yourself." },
-    { id: "m2", role: "USER", content: "I led the platform team." },
+    { id: "m1", role: "ASSISTANT", content: "Tell me about yourself.", timestamp: "2026-07-26T10:00:00.000Z" },
+    { id: "m2", role: "USER", content: "I led the platform team.", timestamp: "2026-07-26T10:00:00.000Z" },
   ]);
   assert.deepEqual(
     resume.chatMessages.map((m) => [m.id, m.role, m.content]),

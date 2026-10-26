@@ -2,7 +2,7 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { AntiCheatingGuard } from "@/components/session/anti-cheating-banner";
+import { AntiCheatingGuard, countDepartures } from "@/components/session/anti-cheating-banner";
 import { IntervieweeOnboarding, PreviewWrapper } from "@/components/session/interviewee-onboarding";
 import { IntervieweeTourOverlay } from "@/components/session/interviewee-tour-overlay";
 import { IntervieweeTourProvider } from "@/components/session/interviewee-tour-provider";
@@ -138,6 +138,9 @@ export default function SlugSessionPage() {
 
   const showPreviewTour = isPreview && !previewTourDone && useVoice;
   const antiCheatingEnabled = !isPreview && !!interview.data.antiCheatingEnabled;
+  // A refresh must not reset the departure warning counter — the count lives
+  // on the session row, so seed the guard from the persisted log.
+  const initialDepartureCount = countDepartures(session.data.antiCheatingLog);
 
   // Show mock tour interface before loading the real session
   if (showPreviewTour) {
@@ -217,7 +220,7 @@ export default function SlugSessionPage() {
 
     return (
       <>
-        <AntiCheatingGuard enabled={antiCheatingEnabled} proctoring={!!interview.data.proctoringEnabled} sessionId={sessionId!} sessionToken={sessionToken} language={interview.data.language} />
+        <AntiCheatingGuard enabled={antiCheatingEnabled} proctoring={!!interview.data.proctoringEnabled} sessionId={sessionId!} sessionToken={sessionToken} language={interview.data.language} initialDepartureCount={initialDepartureCount} />
         <VoiceInterface
           sessionId={sessionId!}
           interviewId={interview.data.id}
@@ -239,7 +242,7 @@ export default function SlugSessionPage() {
 
   return (
     <>
-      <AntiCheatingGuard enabled={antiCheatingEnabled} proctoring={!!interview.data.proctoringEnabled} sessionId={sessionId!} sessionToken={sessionToken} />
+      <AntiCheatingGuard enabled={antiCheatingEnabled} proctoring={!!interview.data.proctoringEnabled} sessionId={sessionId!} sessionToken={sessionToken} initialDepartureCount={initialDepartureCount} />
       <ChatInterface
         sessionId={sessionId!}
         sessionToken={sessionToken}

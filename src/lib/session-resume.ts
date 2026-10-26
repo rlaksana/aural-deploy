@@ -21,6 +21,8 @@ export interface ResumeVoiceMessage {
   id: string;
   role: string;
   content: string;
+  /** Kept so the countdown can resume from the first answer after a refresh. */
+  timestamp: string;
 }
 
 export interface ResumeChatMessage {
@@ -116,6 +118,7 @@ export function buildSessionResumeState(input: {
         id: message.id,
         role: message.role,
         content: message.content,
+        timestamp: String(message.timestamp ?? ""),
       });
     }
   }

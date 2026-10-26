@@ -2,7 +2,7 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { AntiCheatingGuard } from "@/components/session/anti-cheating-banner";
+import { AntiCheatingGuard, countDepartures } from "@/components/session/anti-cheating-banner";
 import { IntervieweeOnboarding } from "@/components/session/interviewee-onboarding";
 import { PreparingScreen } from "@/components/session/preparing-screen";
 import {
@@ -107,6 +107,9 @@ export default function InviteSessionPage() {
   });
 
   const useVoice = interview.voiceEnabled;
+  // A refresh must not reset the departure warning counter — the count lives
+  // on the session row, so seed the guard from the persisted log.
+  const initialDepartureCount = countDepartures(session.antiCheatingLog);
 
   if (useVoice) {
     const interviewContext = {
@@ -129,7 +132,7 @@ export default function InviteSessionPage() {
 
     return (
       <>
-        <AntiCheatingGuard enabled={!!interview.antiCheatingEnabled} proctoring={!!interview.proctoringEnabled} sessionId={session.id} sessionToken={sessionToken} language={interview.language} />
+        <AntiCheatingGuard enabled={!!interview.antiCheatingEnabled} proctoring={!!interview.proctoringEnabled} sessionId={session.id} sessionToken={sessionToken} language={interview.language} initialDepartureCount={initialDepartureCount} />
         <VoiceInterface
           sessionId={session.id}
           interviewId={interview.id}
@@ -151,7 +154,7 @@ export default function InviteSessionPage() {
 
   return (
     <>
-      <AntiCheatingGuard enabled={!!interview.antiCheatingEnabled} proctoring={!!interview.proctoringEnabled} sessionId={session.id} sessionToken={sessionToken} />
+      <AntiCheatingGuard enabled={!!interview.antiCheatingEnabled} proctoring={!!interview.proctoringEnabled} sessionId={session.id} sessionToken={sessionToken} initialDepartureCount={initialDepartureCount} />
       <ChatInterface
         sessionId={session.id}
         sessionToken={sessionToken}

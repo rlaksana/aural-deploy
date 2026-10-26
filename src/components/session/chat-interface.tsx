@@ -3,6 +3,7 @@
 import { CodeBlock } from "@/components/code-editor/code-block";
 import { getKindNoun, isDeterministicKind } from "@/lib/deterministic-flow";
 import { bt, getLanguageKey } from "@/lib/i18n";
+import { remainingSecondsFromAnchor } from "@/lib/session-timer";
 import {
     CodeEditorCanvas,
     type CodeEditorCanvasRef,
@@ -145,22 +146,21 @@ export function ChatInterface({
   const codeEditorRef = useRef<CodeEditorCanvasRef>(null);
   const aiAbortRef = useRef<AbortController | null>(null);
 
-  // ── Countdown timer (starts after first user message) ───────────
+  // ── Countdown timer (starts at the first answer; refresh resumes it) ──
   const [remainingSeconds, setRemainingSeconds] = useState<number | null>(null);
   const timerExpiredRef = useRef(false);
-  const timerStartedRef = useRef(false);
-  const initialUserMessageCount = useRef(
-    initialMessages?.filter((m) => m.role === "USER").length ?? 0,
-  );
 
   useEffect(() => {
-    if (timerStartedRef.current || !durationMinutes) return;
-    const userMessageCount = messages.filter((m) => m.role === "USER").length;
-    if (userMessageCount > initialUserMessageCount.current) {
-      timerStartedRef.current = true;
-      setRemainingSeconds(durationMinutes * 60);
-    }
-  }, [messages, durationMinutes]);
+    if (remainingSeconds !== null || !durationMinutes) return;
+    const firstUser = messages.find((m) => m.role === "USER");
+    if (!firstUser) return;
+    // Anchor at the first answer's timestamp so a refresh resumes the
+    // countdown instead of restarting from the full duration.
+    const startedAt = new Date(firstUser.timestamp).getTime();
+    setRemainingSeconds(
+      remainingSecondsFromAnchor(Number.isNaN(startedAt) ? null : startedAt, durationMinutes),
+    );
+  }, [messages, durationMinutes, remainingSeconds]);
 
   useEffect(() => {
     if (remainingSeconds === null || remainingSeconds <= 0) return;
