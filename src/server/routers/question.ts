@@ -6,6 +6,7 @@ import { getOrgMembership, assertMinRole, hasProjectAccess, filterAccessibleProj
 const questionInput = z.object({
   text: z.string().min(1),
   description: z.string().nullable().optional(),
+  expectedAnswer: z.string().nullable().optional(),
   type: z.enum([
     "OPEN_ENDED",
     "SINGLE_CHOICE",

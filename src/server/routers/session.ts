@@ -1,5 +1,5 @@
 import { generateSessionSummary } from "@/lib/ai/session-summary";
-import { gradeQuiz } from "@/lib/quiz-grading";
+import { gradeQuiz, stripAnswerKey } from "@/lib/quiz-grading";
 import { getPsychometricBank } from "@/lib/psychometric/banks";
 import { scorePsychometric, selectionsFromAnswers } from "@/lib/psychometric/scoring";
 import { createLogger } from "@/lib/logger";
@@ -133,7 +133,15 @@ export const sessionRouter = router({
 
       const session = sessionJson as { id: string; accessToken?: string | null };
 
-      return { sessionId: session.id, sessionToken: session.accessToken ?? null, interview };
+      // Candidate payloads never carry the answer key.
+      return {
+        sessionId: session.id,
+        sessionToken: session.accessToken ?? null,
+        interview: {
+          ...interview,
+          questions: ((interview.questions ?? []) as Parameters<typeof stripAnswerKey>[0][]).map(stripAnswerKey),
+        },
+      };
     }),
 
   createPreview: protectedProcedure
@@ -254,6 +262,8 @@ export const sessionRouter = router({
       if (!interview) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Interview is no longer available" });
       }
+      // Candidate payloads never carry the answer key (covers both returns below).
+      interview.questions = ((interview.questions ?? []) as Parameters<typeof stripAnswerKey>[0][]).map(stripAnswerKey);
 
       // If session already exists, return it
       if (candidate.sessionId) {
@@ -324,7 +334,14 @@ export const sessionRouter = router({
         input.sessionToken,
       );
 
-      return session;
+      // Candidate payloads never carry the answer key.
+      return {
+        ...session,
+        interview: {
+          ...session.interview,
+          questions: (((session.interview as { questions?: unknown[] }).questions ?? []) as Parameters<typeof stripAnswerKey>[0][]).map(stripAnswerKey),
+        },
+      };
     }),
 
   sendMessage: publicProcedure
@@ -677,8 +694,10 @@ export const sessionRouter = router({
 
       // Quizzes/assessments get deterministic scores in `insights` before any
       // AI narrative. With aiSummaryEnabled the AI summary keeps these scores
-      // (see session-summary) and adds the written report on top.
-      if (kind === "QUIZ" || kind === "ASSESSMENT") {
+      // (see session-summary) and adds the written report on top. Runs for
+      // every kind — gradeQuiz skips questions without an answer key, so
+      // interview-kind questions fall through to the AI summary unchanged.
+      {
         const { data: msgs } = await ctx.supabase
           .from("messages")
           .select("questionId, content")

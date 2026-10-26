@@ -228,3 +228,27 @@ test("structural bounds: question count, question order, language default", () =
   assert.equal(gen.success, true);
   if (gen.success) assert.equal(gen.data.language, "id");
 });
+
+test("answer key fields survive generation parsing", () => {
+  const result = parseQuestion({
+    order: 1,
+    text: "Pick the correct process",
+    type: "MULTIPLE_CHOICE",
+    expectedAnswer: "Options A and C are the two mandatory payroll runs.",
+    options: { options: ["A", "B", "C"], allowMultiple: true, correctIndices: [0, 2] },
+  });
+  assert.equal(result.success, true);
+  if (result.success) {
+    assert.equal(result.data.questions[0].expectedAnswer, "Options A and C are the two mandatory payroll runs.");
+    assert.deepEqual(result.data.questions[0].options?.correctIndices, [0, 2]);
+  }
+  // OPEN_ENDED carries expectedAnswer without options.
+  const open = parseQuestion({
+    order: 2,
+    text: "Explain REST",
+    type: "OPEN_ENDED",
+    expectedAnswer: "Statelessness, resources, uniform interface.",
+  });
+  assert.equal(open.success, true);
+  if (open.success) assert.equal(open.data.questions[0].expectedAnswer, "Statelessness, resources, uniform interface.");
+});

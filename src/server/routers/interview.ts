@@ -578,10 +578,12 @@ export const interviewRouter = router({
                 "SHORT_TEXT",
               ]),
               description: z.string().nullable().optional(),
+              expectedAnswer: z.string().nullable().optional(),
               options: z
                 .object({
                   options: z.array(z.string().min(1)).min(2).max(6),
                   allowMultiple: z.boolean().optional(),
+                  correctIndices: z.array(z.number().int()).optional(),
                 })
                 .nullable()
                 .optional(),
@@ -1124,6 +1126,7 @@ export const interviewRouter = router({
         order: number;
         text: string;
         description: string | null;
+        expectedAnswer: string | null;
         type: string;
         options: unknown;
         starterCode: unknown;
@@ -1185,6 +1188,7 @@ export const interviewRouter = router({
             order: q.order,
             text: q.text,
             description: q.description,
+            expectedAnswer: q.expectedAnswer,
             type: q.type,
             options: q.options,
             starterCode: q.starterCode,

@@ -17,6 +17,7 @@ const generatedQuestionSchema = z
     order: positiveInt.optional(),
     text: z.string().min(1),
     description: z.string().nullable().optional(),
+    expectedAnswer: z.string().nullable().optional(),
     type: z.enum(QUESTION_TYPES),
     timeLimitSeconds: z.number().int().nullable().optional(),
     isRequired: z.boolean().optional().default(true),
@@ -24,6 +25,7 @@ const generatedQuestionSchema = z
       .object({
         options: z.array(z.string().min(1)).min(2).max(6),
         allowMultiple: z.boolean().optional(),
+        correctIndices: z.array(z.number().int()).optional(),
       })
       .nullable()
       .optional(),
@@ -94,7 +96,7 @@ export const generatedInterviewSchema = z.object({
  * complete structurally missing fields (schema-conforming defaults) instead
  * of returning output that fails validation again.
  */
-export const GENERATED_INTERVIEW_SHAPE_HINT = `Required top-level fields: "title" (string), "description" (string), "objective" (string), "assessmentCriteria" (array of 1-10 objects {name: string, description: string}), "estimatedDurationMinutes" (positive integer), "questions" (array of 1-25 objects), "recommendedSettings" ({aiName: string}) — use a minimal value like {"aiName":"Aural"} if absent from the raw output. Each question object: {"text": string (required), "type": "OPEN_ENDED"|"SINGLE_CHOICE"|"MULTIPLE_CHOICE"|"CODING"|"WHITEBOARD"|"RESEARCH" (required), "description": string|null, "options": {options: string[] (min 2), allowMultiple: boolean}|null, "starterCode": {language: string, code: string}|null, "timeLimitSeconds": number|null, "isRequired": boolean}. CODING questions require starterCode; SINGLE_CHOICE/MULTIPLE_CHOICE require options.`;
+export const GENERATED_INTERVIEW_SHAPE_HINT = `Required top-level fields: "title" (string), "description" (string), "objective" (string), "assessmentCriteria" (array of 1-10 objects {name: string, description: string}), "estimatedDurationMinutes" (positive integer), "questions" (array of 1-25 objects), "recommendedSettings" ({aiName: string}) — use a minimal value like {"aiName":"Aural"} if absent from the raw output. Each question object: {"text": string (required), "type": "OPEN_ENDED"|"SINGLE_CHOICE"|"MULTIPLE_CHOICE"|"CODING"|"WHITEBOARD"|"RESEARCH" (required), "description": string|null, "expectedAnswer": string|null, "options": {options: string[] (min 2), allowMultiple: boolean, correctIndices: number[]}|null, "starterCode": {language: string, code: string}|null, "timeLimitSeconds": number|null, "isRequired": boolean}. CODING questions require starterCode; SINGLE_CHOICE/MULTIPLE_CHOICE require options.`;
 
 export type GeneratedInterviewValidated = z.infer<typeof generatedInterviewSchema>;
 export type GeneratedQuestionValidated = z.infer<typeof generatedQuestionSchema>;

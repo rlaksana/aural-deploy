@@ -43,7 +43,8 @@ GUIDELINES:
 - End with a substantive behavioral or scenario question that probes a real competency — NEVER end with a fluff "anything else" or "do you have questions" closing — those waste the final interview slot
 - Avoid generic motivation/biographical questions ("why do you want to join", "tell me about yourself") when the JD provides enough specificity for concrete competency probes — only use generic warm-ups if no JD was provided
 - Use OPEN_ENDED for free-text/verbal responses, SINGLE_CHOICE when the participant must pick exactly one option, MULTIPLE_CHOICE when multiple selections are allowed, CODING for programming/algorithm questions, and RESEARCH when the goal is to extract as much detailed information as possible on a topic
-- For SINGLE_CHOICE and MULTIPLE_CHOICE questions, ALWAYS provide 2-6 clear option strings in the "options" field
+- For SINGLE_CHOICE and MULTIPLE_CHOICE questions, ALWAYS provide 2-6 clear option strings in the "options" field and propose the answer key as "correctIndices" (zero-based option indexes)
+- For every question, also provide "expectedAnswer": for choice questions a short note on why the keyed options are correct; for open-ended/coding/research questions a concise model answer or grading rubric the evaluator can score against
 - For CODING questions, set "options" to null. Write a clear problem statement in the question text. Include a "starterCode" object with "language" and "code" fields containing a code template for the participant.
 - Suggest time limits where appropriate
 - Assessment criteria should be specific dimensions the participant will be evaluated on (e.g. "Communication Skills", "Problem Solving Ability", "Cultural Fit")
@@ -70,9 +71,10 @@ OUTPUT VALID JSON ONLY (no markdown, no explanation):
       "text": "string",
       "type": "OPEN_ENDED" | "SINGLE_CHOICE" | "MULTIPLE_CHOICE" | "CODING" | "WHITEBOARD" | "RESEARCH",
       "description": "string (helper text for the question)",
+      "expectedAnswer": "string | null (grading rubric / model answer, never shown to candidates)",
       "timeLimitSeconds": number | null,
       "isRequired": true,
-      "options": { "options": ["string", "string", ...], "allowMultiple": false } | null,
+      "options": { "options": ["string", "string", ...], "allowMultiple": false, "correctIndices": [0] } | null,
       "starterCode": { "language": "string", "code": "string" } | null
     }
   ],
@@ -146,9 +148,10 @@ OUTPUT VALID JSON ONLY (no markdown, no explanation):
       "text": "string",
       "type": "OPEN_ENDED" | "SINGLE_CHOICE" | "MULTIPLE_CHOICE" | "CODING" | "WHITEBOARD" | "RESEARCH",
       "description": "string (helper text for the question)",
+      "expectedAnswer": "string | null (grading rubric / model answer, never shown to candidates)",
       "timeLimitSeconds": number | null,
       "isRequired": true,
-      "options": { "options": ["string", "string", ...], "allowMultiple": false } | null,
+      "options": { "options": ["string", "string", ...], "allowMultiple": false, "correctIndices": [0] } | null,
       "starterCode": { "language": "string", "code": "string" } | null
     }
   ],

@@ -37,7 +37,7 @@ When the text contains a question followed by a list of lettered choices, those 
 - Bullet lists starting with "* A.", "* B.", "* a.", "* b.", "- A.", "- a.", "A.", "a."
 - Numbered lists "1.", "2.", "3."
 - Lines beginning with letters followed by a period and a space
-- A "Correct:" or "Answer:" line after the options marks the answer key — IGNORE it (do not extract as a question)
+- A "Correct:" or "Answer:" line after the options is the answer key — do NOT extract it as a question. Map it to "options.correctIndices" (zero-based option indexes; letters A/B/C → 0/1/2) for choice questions, or to "expectedAnswer" for prose/model answers
 
 If the question ends with "Pilih pernyataan yang tepat" / "Pilih semua yang sesuai" / "Which of the following" / "Select all that apply" → use MULTIPLE_CHOICE and set "allowMultiple": true.
 If the question ends with "Pilih salah satu" / "Which one" / "Select one" → use SINGLE_CHOICE and set "allowMultiple": false.
@@ -62,6 +62,7 @@ CORRECT OUTPUT (one question with options):
   "questions": [{
     "text": "Sebuah perusahaan akan mengganti proses HR...",
     "type": "MULTIPLE_CHOICE",
+    "expectedAnswer": null,
     "options": {
       "options": [
         "Struktur organisasi...",
@@ -69,7 +70,8 @@ CORRECT OUTPUT (one question with options):
         "Overtime yang tercatat...",
         "PPh 21..."
       ],
-      "allowMultiple": true
+      "allowMultiple": true,
+      "correctIndices": [0, 2]
     }
   }]
 }
@@ -88,7 +90,8 @@ OUTPUT FORMAT (JSON only, no markdown wrappers):
       "text": "string (the question prompt)",
       "type": "OPEN_ENDED" | "SINGLE_CHOICE" | "MULTIPLE_CHOICE" | "CODING" | "WHITEBOARD" | "RESEARCH",
       "description": "string (optional background/evaluation criteria)",
-      "options": { "options": ["Option A text", "Option B text"], "allowMultiple": false } | null,
+      "expectedAnswer": "string | null (model answer / answer key for prose questions)",
+      "options": { "options": ["Option A text", "Option B text"], "allowMultiple": false, "correctIndices": [0] } | null,
       "starterCode": { "language": "string", "code": "string" } | null
     }
   ],

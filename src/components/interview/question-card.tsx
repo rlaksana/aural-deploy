@@ -139,6 +139,7 @@ export interface QuestionCardData {
   text: string;
   type: string;
   description?: string | null;
+  expectedAnswer?: string | null;
   isRequired: boolean;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   options?: { options: string[]; allowMultiple?: boolean } | any;
@@ -197,10 +198,9 @@ export function QuestionCard({
     structuredClone(data),
   );
   const typeOptions = availableQuestionTypes(kind);
-  // Answer-key checkboxes only make sense for graded kinds.
+  // Keyed choice questions grade deterministically in every interview kind.
   const showCorrectAnswers =
-    (kind === "QUIZ" || kind === "ASSESSMENT") &&
-    (local.type === "SINGLE_CHOICE" || local.type === "MULTIPLE_CHOICE");
+    local.type === "SINGLE_CHOICE" || local.type === "MULTIPLE_CHOICE";
 
   // Re-clone from parent when entering edit mode
   useEffect(() => {
@@ -530,6 +530,23 @@ export function QuestionCard({
                   </div>
                 </div>
               )}
+
+              {/* Expected answer / grading rubric — never shown to candidates; the AI evaluator grades against it */}
+              <div className="space-y-1">
+                <Label className="text-xs">Expected answer / grading rubric (optional)</Label>
+                <Textarea
+                  value={local.expectedAnswer ?? ""}
+                  onChange={(e) =>
+                    update({ expectedAnswer: e.target.value || undefined })
+                  }
+                  placeholder={
+                    showCorrectAnswers
+                      ? "Optional — why is the correct answer correct? Used by the AI evaluator as the grading guide."
+                      : "Model answer or grading guide the AI evaluator will use to score responses..."
+                  }
+                  rows={3}
+                />
+              </div>
 
               {/* Required toggle */}
               <div className="flex items-center gap-2">

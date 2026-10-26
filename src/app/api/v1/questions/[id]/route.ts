@@ -146,7 +146,10 @@ export async function PATCH(
     return apiError("INTERNAL_ERROR", error.message, 500);
   }
 
-  return Response.json({ data: updated });
+  // expectedAnswer is the evaluator's grading rubric, not part of the public contract.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { expectedAnswer: _dropped, ...question } = updated as Record<string, unknown>;
+  return Response.json({ data: question });
 }
 
 export async function DELETE(

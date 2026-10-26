@@ -60,9 +60,11 @@ export interface GeneratedQuestion {
   text: string;
   type: "OPEN_ENDED" | "SINGLE_CHOICE" | "MULTIPLE_CHOICE" | "CODING" | "WHITEBOARD" | "RESEARCH";
   description?: string;
+  /** Grading rubric / model answer for the AI evaluator — never shown to candidates. */
+  expectedAnswer?: string | null;
   timeLimitSeconds?: number;
   isRequired: boolean;
-  options?: { options: string[]; allowMultiple?: boolean };
+  options?: { options: string[]; allowMultiple?: boolean; correctIndices?: number[] };
   /** Starter code template for CODING questions. */
   starterCode?: { language: string; code: string };
 }

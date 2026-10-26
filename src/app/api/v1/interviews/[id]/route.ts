@@ -36,6 +36,11 @@ export async function GET(
   const copy = { ...(interview as Record<string, unknown>) };
   const sessions = copy.sessions as { id: string }[] | null | undefined;
   delete copy.sessions;
+  // Partner payload: expectedAnswer is the evaluator's grading rubric, not part of the public contract.
+  copy.questions = ((copy.questions ?? []) as Record<string, unknown>[]).map(
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    ({ expectedAnswer: _dropped, ...q }) => q,
+  );
 
   return Response.json({
     data: {

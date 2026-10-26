@@ -92,3 +92,43 @@ test("non-interview kinds get the analyst framing, not interviewer grading", () 
   assert.match(system, /response analyst/);
   assert.match(system, /not a job interview/);
 });
+
+test("expected answer/rubric appears only for questions that have one", () => {
+  const withRubric = buildSummaryPrompt(
+    "T",
+    [{ role: "user", content: "answer" }],
+    null,
+    null,
+    [
+      { text: "Explain REST.", order: 1, type: "OPEN_ENDED", expectedAnswer: "Mention statelessness and resources." },
+      { text: "Name a framework.", order: 2, type: "SHORT_TEXT" },
+    ],
+    "en",
+    null,
+    null,
+  );
+  const system = String(withRubric[0].content);
+  assert.match(system, /Expected answer\/rubric: Mention statelessness and resources\./);
+  // Grading instruction present alongside the rubric.
+  assert.match(system, /grade the response against it as the authoritative grading guide/);
+  // The question WITHOUT a rubric must not get an empty rubric line
+  // ("Expected answer/rubric:" with colon — the bare quoted form also
+  // appears once inside the grading instruction).
+  const q2Index = system.indexOf("Name a framework.");
+  assert.equal(system.indexOf("Expected answer/rubric:", q2Index), -1);
+
+  // No rubrics anywhere → no rubric lines and no grading instruction.
+  const without = buildSummaryPrompt(
+    "T",
+    [{ role: "user", content: "answer" }],
+    null,
+    null,
+    [{ text: "Explain REST.", order: 1, type: "OPEN_ENDED" }],
+    "en",
+    null,
+    null,
+  );
+  const bare = String(without[0].content);
+  assert.doesNotMatch(bare, /Expected answer\/rubric/);
+  assert.doesNotMatch(bare, /authoritative grading guide/);
+});

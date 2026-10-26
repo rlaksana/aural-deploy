@@ -306,6 +306,7 @@ export type Database = {
           type: Database["public"]["Enums"]["QuestionType"];
           options: Json | null;
           starterCode: Json | null;
+          expectedAnswer: string | null;
           validationRules: Json | null;
           followUpPrompts: Json | null;
           probeOnShort: boolean;
@@ -328,6 +329,7 @@ export type Database = {
           type: Database["public"]["Enums"]["QuestionType"];
           options?: Json | null;
           starterCode?: Json | null;
+          expectedAnswer?: string | null;
           validationRules?: Json | null;
           followUpPrompts?: Json | null;
           probeOnShort?: boolean;
@@ -350,6 +352,7 @@ export type Database = {
           type?: Database["public"]["Enums"]["QuestionType"];
           options?: Json | null;
           starterCode?: Json | null;
+          expectedAnswer?: string | null;
           validationRules?: Json | null;
           followUpPrompts?: Json | null;
           probeOnShort?: boolean;

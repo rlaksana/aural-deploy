@@ -144,7 +144,11 @@ export async function GET(
     return apiError("INTERNAL_ERROR", error.message, 500);
   }
 
-  return Response.json({ data: data ?? [] });
+  // expectedAnswer is the evaluator's grading rubric, not part of the public contract.
+  return Response.json({
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    data: ((data ?? []) as Record<string, unknown>[]).map(({ expectedAnswer: _dropped, ...q }) => q),
+  });
 }
 
 export async function POST(
@@ -216,5 +220,9 @@ export async function POST(
     return apiError("INTERNAL_ERROR", error.message, 500);
   }
 
-  return Response.json({ data: created ?? [] });
+  // expectedAnswer is the evaluator's grading rubric, not part of the public contract.
+  return Response.json({
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    data: ((created ?? []) as Record<string, unknown>[]).map(({ expectedAnswer: _dropped, ...q }) => q),
+  });
 }

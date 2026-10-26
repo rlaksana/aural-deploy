@@ -779,6 +779,7 @@ export function AIGenerator({ projectId, jobPositionId }: { projectId?: string; 
           text: q.text,
           type: q.type,
           description: q.description ?? null,
+          expectedAnswer: q.expectedAnswer ?? null,
           options: q.options ?? null,
           starterCode: q.type === "CODING" ? q.starterCode ?? null : null,
           timeLimitSeconds: q.timeLimitSeconds ?? null,

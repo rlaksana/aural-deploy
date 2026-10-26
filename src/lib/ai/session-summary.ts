@@ -73,7 +73,7 @@ export async function generateSessionSummaryCore(
   const { data: interviewSession } = await supabaseAdmin
     .from("sessions")
     .select(
-      `summary, insights, interview:interviews!inner(title, objective, language, kind, assessmentCriteria, questions(text, order, type)), messages(*)`,
+      `summary, insights, interview:interviews!inner(title, objective, language, kind, assessmentCriteria, questions(text, order, type, expectedAnswer)), messages(*)`,
     )
     .eq("id", sessionId)
     .order("order", { referencedTable: "interviews.questions", ascending: true })
@@ -94,7 +94,7 @@ export async function generateSessionSummaryCore(
       language: string;
       kind?: string;
       assessmentCriteria: { name: string; description: string }[] | null;
-      questions: { text: string; order: number; type?: string }[];
+      questions: { text: string; order: number; type?: string; expectedAnswer?: string | null }[];
     };
 
     const msgs = (interviewSession.messages ?? []) as {

@@ -13,6 +13,26 @@ export type QuizQuestion = {
   options?: { options?: string[]; correctIndices?: number[] } | null;
 };
 
+/**
+ * Strip the answer key from a question row for candidate-facing payloads:
+ * drops expectedAnswer and rebuilds options without correctIndices, keeping
+ * the option labels the chat UI renders.
+ */
+export function stripAnswerKey(q: {
+  options?: { options?: string[]; allowMultiple?: boolean; correctIndices?: number[] } | null;
+  expectedAnswer?: string | null;
+  [key: string]: unknown;
+}): { options: { options?: string[]; allowMultiple?: boolean } | null; [key: string]: unknown } {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { expectedAnswer: _ignored, ...rest } = q;
+  return {
+    ...rest,
+    options: q.options
+      ? { options: q.options.options ?? [], allowMultiple: q.options.allowMultiple }
+      : null,
+  };
+}
+
 export type QuizAnswer = {
   questionId: string | null;
   content: string;

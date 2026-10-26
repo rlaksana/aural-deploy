@@ -83,3 +83,34 @@ test("parseQuestionsRequestSchema validates bounds", () => {
   assert.equal(parseQuestionsRequestSchema.safeParse({ text: "too short" }).success, false);
   assert.equal(parseQuestionsRequestSchema.safeParse({ text: "This is a long enough text to parse questions from." }).success, true);
 });
+
+test("answer key survives the parse transform", () => {
+  const raw = {
+    questions: [
+      {
+        text: "Pilih pernyataan yang tepat",
+        type: "MULTIPLE_CHOICE",
+        options: {
+          options: ["A text", "B text", "C text"],
+          allowMultiple: true,
+          correctIndices: [0, 2],
+        },
+      },
+      {
+        text: "Jelaskan perbedaan synchronous dan asynchronous.",
+        type: "OPEN_ENDED",
+        expectedAnswer: "Menyebut blocking/non-blocking dan contoh penggunaan.",
+      },
+    ],
+  };
+
+  const parsed = parseQuestionsResponseSchema.safeParse(raw);
+  assert.equal(parsed.success, true);
+  if (parsed.success) {
+    assert.deepEqual(parsed.data.questions[0].options?.correctIndices, [0, 2]);
+    assert.equal(
+      parsed.data.questions[1].expectedAnswer,
+      "Menyebut blocking/non-blocking dan contoh penggunaan.",
+    );
+  }
+});

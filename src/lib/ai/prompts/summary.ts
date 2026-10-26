@@ -17,7 +17,7 @@ export function buildSummaryPrompt(
   messages: { role: string; content: string }[],
   objective?: string | null,
   assessmentCriteria?: { name: string; description: string }[] | null,
-  questions?: { text: string; order: number; type?: string }[] | null,
+  questions?: { text: string; order: number; type?: string; expectedAnswer?: string | null }[] | null,
   language?: string | null,
   whiteboardDrawings?: WhiteboardDrawingInput[] | null,
   codeSnippets?: CodeSnippetInput[] | null,
@@ -41,7 +41,13 @@ export function buildSummaryPrompt(
   // ── Questions section ──────────────────────────────────────────
   const questionsSection =
     questions && questions.length > 0
-      ? `\n\nInterview Questions:\n${questions.map((q, i) => `${i + 1}. ${q.type ? `[${q.type}] ` : ""}${q.text}`).join("\n")}`
+      ? `\n\nInterview Questions:\n${questions
+          .map((q, i) => {
+            let line = `${i + 1}. ${q.type ? `[${q.type}] ` : ""}${q.text}`;
+            if (q.expectedAnswer) line += `\n   Expected answer/rubric: ${q.expectedAnswer}`;
+            return line;
+          })
+          .join("\n")}`
       : "";
 
   // ── Whiteboard drawings section (text context) ─────────────────
@@ -106,9 +112,13 @@ export function buildSummaryPrompt(
     : "";
 
   // ── Per-question evaluation section ────────────────────────────
+  const hasRubrics = questions?.some((q) => q.expectedAnswer) ?? false;
+  const rubricInstruction = hasRubrics
+    ? `   When a question lists an "Expected answer/rubric", grade the response against it as the authoritative grading guide.\n`
+    : "";
   const questionEvalInstruction =
     questions && questions.length > 0
-      ? `6. For EACH interview question, evaluate the participant's response: how well they addressed the question, key strengths, areas for improvement, and a score (1-10)\n   IMPORTANT: The transcript may also contain probing follow-up questions the interviewer asked after an answer. Follow-ups are NOT separate questions — their content belongs to the canonical interview question they probed. "questionEvaluations" must contain EXACTLY ONE entry per interview question listed above, in the same order, with "question" copied VERBATIM from the list. Never create entries for follow-up or probing questions.\n`
+      ? `6. For EACH interview question, evaluate the participant's response: how well they addressed the question, key strengths, areas for improvement, and a score (1-10)\n${rubricInstruction}   IMPORTANT: The transcript may also contain probing follow-up questions the interviewer asked after an answer. Follow-ups are NOT separate questions — their content belongs to the canonical interview question they probed. "questionEvaluations" must contain EXACTLY ONE entry per interview question listed above, in the same order, with "question" copied VERBATIM from the list. Never create entries for follow-up or probing questions.\n`
       : "";
 
   const questionEvalJsonField =
