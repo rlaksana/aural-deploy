@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { router, protectedProcedure } from "../trpc";
 import { TRPCError } from "@trpc/server";
-import { getOrgMembership, assertMinRole, filterAccessibleProjectIds } from "../trpc";
+import { getOrgMembership, assertMinRole, filterAccessibleProjectIds, hasProjectAccess } from "../trpc";
 
 export const projectRouter = router({
   list: protectedProcedure
@@ -67,6 +67,13 @@ export const projectRouter = router({
         ctx.user.id,
       );
       if (!membership) {
+        throw new TRPCError({ code: "FORBIDDEN" });
+      }
+
+      // Mirror project.list: a user excluded from the project must not be
+      // able to read its details by ID just because they share the org.
+      const projAccess = await hasProjectAccess(ctx.supabase, project.id, ctx.user.id);
+      if (!projAccess) {
         throw new TRPCError({ code: "FORBIDDEN" });
       }
 

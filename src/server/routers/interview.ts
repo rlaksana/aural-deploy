@@ -963,13 +963,6 @@ export const interviewRouter = router({
         throw new TRPCError({ code: "NOT_FOUND" });
       }
 
-      if (result.role === "MEMBER" && result.interview.userId !== ctx.user.id) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message:
-            "You can only edit interviews you created. Ask an admin for broader access.",
-        });
-      }
       assertMinRole(result.role, "MEMBER");
 
       const { id, ...data } = input;
@@ -1004,13 +997,6 @@ export const interviewRouter = router({
       }
 
       if (result.role === "MEMBER") {
-        if (result.interview.userId !== ctx.user.id) {
-          throw new TRPCError({
-            code: "FORBIDDEN",
-            message:
-              "You can only delete interviews you created. Ask an admin for broader access.",
-          });
-        }
         const { count } = await ctx.supabase
           .from("sessions")
           .select("*", { count: "exact", head: true })
@@ -1044,16 +1030,6 @@ export const interviewRouter = router({
           );
           if (!result) {
             throw new TRPCError({ code: "NOT_FOUND" });
-          }
-          if (
-            result.role === "MEMBER" &&
-            result.interview.userId !== ctx.user.id
-          ) {
-            throw new TRPCError({
-              code: "FORBIDDEN",
-              message:
-                "You can only delete interviews you created. Ask an admin for broader access.",
-            });
           }
           assertMinRole(result.role, "MEMBER");
         }),

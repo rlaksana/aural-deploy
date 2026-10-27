@@ -5,6 +5,7 @@ import {
   getOrgMembership,
   assertMinRole,
 } from "../trpc";
+import { supabaseAdmin } from "@/lib/supabase/admin";
 
 /**
  * Lazily populate project_members for all org members the first time
@@ -110,6 +111,31 @@ export const orgMemberRouter = router({
         .single();
 
       if (!profile) {
+        // No account yet — send a real invite email. The on_auth_user_created
+        // trigger (001) creates the profile row, so the re-lookup below finds
+        // it. "Already registered" means an auth user exists whose profile we
+        // still can't see; fall through to the NOT_FOUND.
+        const appUrl = process.env.NEXT_PUBLIC_APP_URL;
+        const { error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(
+          input.email,
+          appUrl ? { redirectTo: `${appUrl}/login` } : undefined,
+        );
+        if (inviteError && !/already/i.test(inviteError.message)) {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: inviteError.message,
+          });
+        }
+      }
+
+      const invited = profile
+        ?? (await ctx.supabase
+          .from("profiles")
+          .select("id")
+          .eq("email", input.email)
+          .single()).data;
+
+      if (!invited) {
         throw new TRPCError({
           code: "NOT_FOUND",
           message: "No user found with that email. They must sign up first.",
@@ -120,7 +146,7 @@ export const orgMemberRouter = router({
       const existing = await getOrgMembership(
         ctx.supabase,
         input.organizationId,
-        profile.id,
+        invited.id,
       );
       if (existing) {
         throw new TRPCError({
@@ -133,7 +159,7 @@ export const orgMemberRouter = router({
         .from("organization_members")
         .insert({
           workspaceId: input.organizationId,
-          userId: profile.id,
+          userId: invited.id,
           role: input.role,
         })
         .select()

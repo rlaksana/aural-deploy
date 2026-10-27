@@ -38,10 +38,10 @@ async function verifyInterviewAccess(
   supabase: Parameters<typeof getOrgMembership>[0],
   interviewId: string,
   userId: string,
-): Promise<{ role: MemberRole; interviewUserId: string }> {
+): Promise<{ role: MemberRole }> {
   const { data: interview } = await supabase
     .from("interviews")
-    .select("userId, projectId, project:projects!inner(organizationId)")
+    .select("projectId, project:projects!inner(organizationId)")
     .eq("id", interviewId)
     .single();
 
@@ -74,21 +74,18 @@ async function verifyInterviewAccess(
     membership.role,
   );
 
-  return { role: effectiveRole, interviewUserId: interview.userId };
+  return { role: effectiveRole };
 }
 
 export const questionRouter = router({
   create: protectedProcedure
     .input(z.object({ interviewId: z.string(), order: z.number().optional(), ...questionInput.shape }))
     .mutation(async ({ ctx, input }) => {
-      const { role, interviewUserId } = await verifyInterviewAccess(
+      const { role } = await verifyInterviewAccess(
         ctx.supabase,
         input.interviewId,
         ctx.user.id,
       );
-      if (role === "MEMBER" && interviewUserId !== ctx.user.id) {
-        throw new TRPCError({ code: "FORBIDDEN", message: "You can only modify questions on interviews you created" });
-      }
       assertMinRole(role, "MEMBER");
 
       let resolvedOrder: number;
@@ -145,14 +142,11 @@ export const questionRouter = router({
         throw new TRPCError({ code: "NOT_FOUND" });
       }
 
-      const { role, interviewUserId } = await verifyInterviewAccess(
+      const { role } = await verifyInterviewAccess(
         ctx.supabase,
         question.interviewId,
         ctx.user.id,
       );
-      if (role === "MEMBER" && interviewUserId !== ctx.user.id) {
-        throw new TRPCError({ code: "FORBIDDEN", message: "You can only modify questions on interviews you created" });
-      }
       assertMinRole(role, "MEMBER");
 
       const updateData: Record<string, unknown> = { ...rest };
@@ -189,14 +183,11 @@ export const questionRouter = router({
         throw new TRPCError({ code: "NOT_FOUND" });
       }
 
-      const { role, interviewUserId } = await verifyInterviewAccess(
+      const { role } = await verifyInterviewAccess(
         ctx.supabase,
         question.interviewId,
         ctx.user.id,
       );
-      if (role === "MEMBER" && interviewUserId !== ctx.user.id) {
-        throw new TRPCError({ code: "FORBIDDEN", message: "You can only delete questions on interviews you created" });
-      }
       assertMinRole(role, "MEMBER");
 
       await ctx.supabase.from("questions").delete().eq("id", input.id);
@@ -229,14 +220,11 @@ export const questionRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const { role, interviewUserId } = await verifyInterviewAccess(
+      const { role } = await verifyInterviewAccess(
         ctx.supabase,
         input.interviewId,
         ctx.user.id,
       );
-      if (role === "MEMBER" && interviewUserId !== ctx.user.id) {
-        throw new TRPCError({ code: "FORBIDDEN", message: "You can only reorder questions on interviews you created" });
-      }
       assertMinRole(role, "MEMBER");
 
       await Promise.all(

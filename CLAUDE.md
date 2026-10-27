@@ -74,6 +74,10 @@ npm run db:types                       # Regenerate Supabase TypeScript types
    - Tests use the native Node.js test runner (`node --import tsx --test`). Use `node --import tsx --test tests/<name>.test.ts` for targeted test execution.
    - The full suite (`npm run test:web`) runs many tests concurrently — for one-off debugging prefer single-file invocation.
 
+6. **Authorization (two layers that must stay in sync)**:
+   - App-level RBAC lives in `src/server/rbac.ts` (re-exported by `src/server/trpc.ts`): org membership (`organization_members`, roles OWNER > ADMIN > MEMBER > VIEWER) + project access (`project_members` — empty = open to all org members, populated = whitelist). Routers gate interview-scoped access via `verifyInterviewAccess` (question/candidate/report/position) or `getInterviewWithAccess` (interview). tRPC runs on the service-role client, so RLS is bypassed on the app path.
+   - DB-level RLS (`supabase/migrations/025_rls_multiuser_hardening.sql`) mirrors the same model through the `can_access_project()` helper and is the real boundary for direct REST access with the public anon key. Any new table holding org data gets org/project-aware policies — never owner-only (`"userId" = auth.uid()`) ones.
+
 ## Workflow (before commit)
 
 ```bash
