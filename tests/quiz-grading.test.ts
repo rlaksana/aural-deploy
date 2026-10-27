@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import { strict as assert } from "node:assert";
-import { gradeQuiz, gradeSelection } from "../src/lib/quiz-grading";
+import { gradeQuiz, gradeSelection, normalizeChoiceKeys } from "../src/lib/quiz-grading";
 import { getSessionOverallScore } from "../src/lib/session-score";
 
 const QUESTIONS = [
@@ -43,6 +43,26 @@ test("multiple choice gets proportional credit", () => {
 
 test("questions without an answer key are ungraded", () => {
   assert.equal(gradeSelection([0], QUESTIONS[2]), null);
+});
+
+test("normalizeChoiceKeys trims stray extra keys on SINGLE_CHOICE only", () => {
+  assert.deepEqual(
+    normalizeChoiceKeys("SINGLE_CHOICE", { correctIndices: [1, 2] }).correctIndices,
+    [1],
+  );
+  assert.deepEqual(
+    normalizeChoiceKeys("MULTIPLE_CHOICE", { correctIndices: [1, 2] }).correctIndices,
+    [1, 2],
+  );
+  assert.deepEqual(
+    normalizeChoiceKeys("SINGLE_CHOICE", { correctIndices: [0] }).correctIndices,
+    [0],
+  );
+  assert.deepEqual(
+    normalizeChoiceKeys<{ correctIndices?: number[] }>("SINGLE_CHOICE", {})
+      .correctIndices,
+    undefined,
+  );
 });
 
 test("gradeQuiz produces score-shaped evaluations compatible with session-score", () => {

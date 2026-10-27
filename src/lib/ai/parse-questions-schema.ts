@@ -51,7 +51,17 @@ export const parsedQuestionSchema = z
       expectedAnswer: q.expectedAnswer ?? undefined,
       timeLimitSeconds: q.timeLimitSeconds ?? null,
       isRequired: q.isRequired,
-      options: options ? { options: options.options, allowMultiple: options.allowMultiple, correctIndices: options.correctIndices } : undefined,
+      // SINGLE_CHOICE must carry exactly one key even if the LLM emitted more.
+      options: options
+        ? {
+            options: options.options,
+            allowMultiple: options.allowMultiple,
+            correctIndices:
+              type === "SINGLE_CHOICE"
+                ? options.correctIndices?.slice(0, 1)
+                : options.correctIndices,
+          }
+        : undefined,
       starterCode: q.starterCode ?? undefined,
     };
   });

@@ -1,6 +1,7 @@
 import { nanoid } from "@/lib/id";
 import { INTERVIEW_TEMPLATES } from "@/lib/interview-templates";
 import { buildCriteriaWeights, getSessionOverallScore } from "@/lib/session-score";
+import { normalizeChoiceKeys } from "@/lib/quiz-grading";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import {
@@ -695,6 +696,10 @@ export const interviewRouter = router({
             code: "BAD_REQUEST",
             message: `Question ${idx + 1} (${q.type}) must not include starterCode`,
           });
+        }
+        // SINGLE_CHOICE grades against exactly one key — clamp legacy/LLM extras.
+        if (q.options) {
+          q.options = normalizeChoiceKeys(q.type, q.options);
         }
       }
 

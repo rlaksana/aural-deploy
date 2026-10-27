@@ -51,6 +51,25 @@ export type QuizResult = {
 };
 
 /** Score one selection against the answer key. Empty key → null (ungraded). */
+/**
+ * SINGLE_CHOICE grades all-or-nothing against exactly one key, so stray extra
+ * keys (from the legacy multi-check editor bug or an LLM) are trimmed to the
+ * first wherever questions are written or loaded for editing.
+ */
+export function normalizeChoiceKeys<T extends { correctIndices?: number[] }>(
+  type: string,
+  options: T,
+): T {
+  if (
+    type === "SINGLE_CHOICE" &&
+    Array.isArray(options?.correctIndices) &&
+    options.correctIndices.length > 1
+  ) {
+    return { ...options, correctIndices: options.correctIndices.slice(0, 1) };
+  }
+  return options;
+}
+
 export function gradeSelection(
   selectedIndices: number[],
   question: Pick<QuizQuestion, "type" | "options">,

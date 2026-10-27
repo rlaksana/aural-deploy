@@ -2,6 +2,7 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { protectedProcedure, router } from "../trpc";
 import { getOrgMembership, assertMinRole, hasProjectAccess, filterAccessibleProjectIds, getEffectiveProjectRole, type MemberRole } from "../trpc";
+import { normalizeChoiceKeys } from "@/lib/quiz-grading";
 
 const questionInput = z.object({
   text: z.string().min(1),
@@ -106,6 +107,9 @@ export const questionRouter = router({
 
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { interviewId, starterCode, order: _order, ...rest } = input;
+      if (rest.options) {
+        rest.options = normalizeChoiceKeys(input.type, rest.options);
+      }
 
       const { data: question, error } = await ctx.supabase
         .from("questions")
@@ -133,7 +137,7 @@ export const questionRouter = router({
 
       const { data: question } = await ctx.supabase
         .from("questions")
-        .select("id, interviewId")
+        .select("id, interviewId, type")
         .eq("id", id)
         .single();
 
@@ -152,6 +156,12 @@ export const questionRouter = router({
       assertMinRole(role, "MEMBER");
 
       const updateData: Record<string, unknown> = { ...rest };
+      if (updateData.options !== undefined && updateData.options !== null) {
+        updateData.options = normalizeChoiceKeys(
+          input.type ?? question.type,
+          updateData.options,
+        );
+      }
       if (starterCode !== undefined) {
         updateData.starterCode = starterCode;
       }

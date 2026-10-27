@@ -29,6 +29,7 @@ import { CodeBlock } from "@/components/code-editor/code-block";
 import { CodeEditorCanvas } from "@/components/code-editor/code-editor-canvas";
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
+import { normalizeChoiceKeys } from "@/lib/quiz-grading";
 import {
   Check,
   CircleDot,
@@ -205,7 +206,12 @@ export function QuestionCard({
   // Re-clone from parent when entering edit mode
   useEffect(() => {
     if (editing) {
-      setLocal(structuredClone(data));
+      const clone = structuredClone(data);
+      // Repair legacy questions stored with more than one single-choice key.
+      if (clone.options) {
+        clone.options = normalizeChoiceKeys(clone.type, clone.options);
+      }
+      setLocal(clone);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editing]);
