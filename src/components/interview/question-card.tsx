@@ -272,7 +272,12 @@ export function QuestionCard({
                         };
                       }
                       if (v === "SINGLE_CHOICE" && local.options) {
-                        updates.options = { ...local.options, allowMultiple: false };
+                        updates.options = {
+                          ...local.options,
+                          allowMultiple: false,
+                          // Downgrading from multiple keys keeps only the first.
+                          correctIndices: (local.options.correctIndices as number[] | undefined)?.slice(0, 1),
+                        };
                       }
                       if (v === "MULTIPLE_CHOICE" && local.options) {
                         updates.options = { ...local.options, allowMultiple: true };
@@ -328,6 +333,8 @@ export function QuestionCard({
                               checked={(local.options?.correctIndices ?? []).includes(oi)}
                               onCheckedChange={(checked) => {
                                 const current = new Set<number>(local.options?.correctIndices ?? []);
+                                // SINGLE_CHOICE keeps exactly one key: a new check replaces the previous one.
+                                if (checked && local.type === "SINGLE_CHOICE") current.clear();
                                 if (checked) current.add(oi);
                                 else current.delete(oi);
                                 update({
