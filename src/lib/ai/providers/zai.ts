@@ -45,8 +45,9 @@ export class ZaiProvider implements LLMProvider {
       messages: this.toOpenAIMessages(params.messages),
       temperature: params.temperature ?? 0.7,
       max_tokens: params.maxTokens ?? 2048,
-      // GLM-5.3-Flash always thinks; effort high per product decision.
-      ...({ thinking: { type: "enabled" }, reasoning_effort: "high" }),
+      // GLM-5.3-Flash always thinks; effort high per product decision,
+      // overridable per call (live-chat uses "low" for latency).
+      ...({ thinking: { type: "enabled" }, reasoning_effort: params.reasoningEffort ?? "high" }),
     }, {
       signal: params.signal,
     });

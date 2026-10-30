@@ -13,6 +13,8 @@ export interface GenerationParams {
   temperature?: number;
   maxTokens?: number;
   stream?: boolean;
+  /** GLM reasoning depth override — default "high" in ZaiProvider. */
+  reasoningEffort?: "low" | "high";
   /** Cooperative hard-stop for batch jobs (AI operating window deadline). */
   signal?: AbortSignal;
 }

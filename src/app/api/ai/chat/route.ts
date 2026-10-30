@@ -149,6 +149,7 @@ export async function POST(req: Request) {
           }),
           temperature: 0.7,
           maxTokens: 1024,
+          reasoningEffort: "low",
         });
 
     const responseContent = detFlow?.content ?? choiceFlow?.content ?? response?.content ?? "";
