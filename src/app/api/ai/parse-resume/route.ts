@@ -1,4 +1,4 @@
-import OpenAI from "openai";
+import { getProvider } from "@/lib/ai/registry";
 import { getAuthUser } from "@/lib/auth";
 import { createLogger } from "@/lib/logger";
 const log = createLogger("api/ai/parse-resume");
@@ -29,19 +29,8 @@ Rules:
 - Extract ALL contact info including email and phone carefully
 - Return ONLY the JSON object, no markdown fences, no explanation`;
 
-function getClient(): { client: OpenAI; model: string } {
-  if (!process.env.AI_API_KEY) {
-    throw new Error("No LLM provider configured");
-  }
-  return {
-    client: new OpenAI({
-      apiKey: process.env.AI_API_KEY,
-      baseURL: process.env.AI_BASE_URL ?? "",
-    }),
-    model: process.env.AI_MODEL ?? "minimax-m3.1",
-  };
-}
-
+// Resume parsing runs on the Z.AI GLM Coding Plan like every other text-LLM
+// route — the old gateway env (AI_BASE_URL/AI_MODEL/AI_API_KEY) is dormant.
 export async function POST(req: Request) {
   try {
     const user = await getAuthUser();
@@ -73,11 +62,10 @@ export async function POST(req: Request) {
       );
     }
 
-    const { client, model } = getClient();
+    const provider = getProvider("zai");
 
     // Stream the LLM response via SSE
-    const stream = await client.chat.completions.create({
-      model,
+    const stream = provider.streamResponse({
       messages: [
         {
           role: "system",
@@ -89,16 +77,14 @@ export async function POST(req: Request) {
         },
       ],
       temperature: 0.1,
-      max_tokens: 1024,
-      stream: true,
+      maxTokens: 1024,
     });
 
     const encoder = new TextEncoder();
     const readable = new ReadableStream({
       async start(controller) {
         try {
-          for await (const chunk of stream) {
-            const token = chunk.choices[0]?.delta?.content;
+          for await (const token of stream) {
             if (token) {
               controller.enqueue(
                 encoder.encode(`data: ${JSON.stringify({ token })}\n\n`),

@@ -1,5 +1,4 @@
 import { type LLMProvider } from "./types";
-import { LiteLLMProvider } from "./providers/litellm";
 import { OpenAIProvider } from "./providers/openai";
 import { GeminiProvider } from "./providers/gemini";
 import { KimiProvider } from "./providers/kimi";
@@ -13,9 +12,10 @@ function registerProvider(provider: LLMProvider) {
   providers.set(provider.id, provider);
 }
 
-// LiteLLM registers FIRST so its model name wins the getProvider scan order
-// (e.g. AI_MODEL matching another provider's listed model must route here).
-registerProvider(new LiteLLMProvider());
+// The LiteLLM gateway is deliberately NOT registered: it rejected every
+// datacenter IP (including Vercel's), so no route may resolve to it.
+// Routing rule since 2026-10-30: GLM for everything GLM can serve,
+// MiniMax directly for the rest — never through a gateway.
 registerProvider(new OpenAIProvider());
 registerProvider(new GeminiProvider());
 registerProvider(new KimiProvider());
@@ -48,12 +48,10 @@ export function listProviders(): LLMProvider[] {
 }
 
 /**
- * Primary text-LLM for the report/generator pipelines: Z.AI GLM Coding Plan
- * glm-5.3-flash (since 2026-10-22; measured 52s vs MiniMax 147s on a
- * generator-sized request). Do NOT set AI_MODEL to this value — the LiteLLM
- * provider registers first and would capture the routing.
- * The LiteLLM gateway (AI_MODEL) remains the transport for the
- * live-interviewer chat route.
+ * Primary text-LLM for ALL routes (generator pipelines, live-interviewer
+ * chat, report): Z.AI GLM Coding Plan glm-5.3-flash (measured 52s vs
+ * MiniMax 147s on a generator-sized request). The live chat overrides
+ * reasoning_effort to "low" for turn latency.
  */
 export const PRIMARY_TEXT_MODEL = "glm-5.3-flash";
 

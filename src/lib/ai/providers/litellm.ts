@@ -8,8 +8,9 @@ function stripThinking(text: string): string {
 }
 
 /**
- * LiteLLM gateway (OpenAI-compatible). ALL text-LLM traffic routes through
- * this provider; only the repair model intentionally bypasses it (OpenRouter).
+ * Dormant legacy LiteLLM gateway (OpenAI-compatible). NOT registered in the
+ * registry since 2026-10-30 — the gateway rejects datacenter IPs (incl.
+ * Vercel's), so nothing may route through it. Kept only for reference.
  */
 export class LiteLLMProvider implements LLMProvider {
   id = "litellm";

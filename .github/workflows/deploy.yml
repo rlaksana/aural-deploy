@@ -88,16 +88,9 @@ jobs:
           CRON_SECRET=${CRON_SECRET}
           EOF
 
-          # Route the voice relay's LLM through the shared gateway when the
-          # AI_* secrets are configured (MiniMax remains the ASR/TTS backend).
-          if [ -n "${AI_API_KEY}" ]; then
-            cat >> "${DEPLOY_DIR}/.env" <<EOF
-          RELAY_LLM_BASE_URL=${AI_BASE_URL}
-          RELAY_LLM_MODEL=${AI_MODEL:-minimax-m3.1}
-          RELAY_LLM_API_KEY=${AI_API_KEY}
-          EOF
-          fi
-
+          # The voice relay's LLM uses its own defaults (MiniMax direct at
+          # api.minimax.io + MINIMAX_API_KEY). Never point RELAY_LLM_* at the
+          # old AI_* gateway — it rejects datacenter/VPS IPs.
           chmod 0600 "${DEPLOY_DIR}/.env"
 
       - name: Sync application source

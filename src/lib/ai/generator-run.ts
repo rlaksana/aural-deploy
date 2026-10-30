@@ -9,9 +9,8 @@ import type { GenerationParams, LLMResponse } from "./types";
 const log = createLogger("ai/generator-run");
 
 /**
- * Generator model chain: LiteLLM gateway (AI_MODEL) primary, OpenRouter
- * transport fallback. The fallback only joins the chain when
- * OPENROUTER_API_KEY is configured.
+ * Generator model chain: Z.AI GLM primary, OpenRouter transport fallback.
+ * The fallback only joins the chain when OPENROUTER_API_KEY is configured.
  */
 export function getGeneratorModelChain(): string[] {
   if (!process.env.ZAI_API_KEY?.trim()) {
