@@ -76,8 +76,14 @@ export async function POST(req: Request) {
       );
     }
 
-    // All interviews run on the LiteLLM gateway model; stored llmProvider/llmModel are ignored.
-    const provider = getProvider("litellm");
+    // The live-interviewer chat runs on the Z.AI GLM Coding Plan — same
+    // primary as the generator pipelines. The old LiteLLM gateway
+    // (api-eng.andalsoftware.com) rejects datacenter IPs including Vercel's,
+    // which turned every LLM turn into a ~35s connection timeout since
+    // 2026-10-21; api.z.ai is a public endpoint reachable from Vercel.
+    // Anything GLM can't serve should go to MiniMax directly
+    // (getProvider("minimax"), Token Plan key) — never through the gateway.
+    const provider = getProvider("zai");
 
     const conversationHistory: LLMMessage[] = (messages ?? [])
       .filter(
