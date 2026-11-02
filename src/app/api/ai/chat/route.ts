@@ -194,11 +194,18 @@ export async function POST(req: Request) {
     // An empty reply carries no transcript value and would trip the
     // summary's non-empty-transcript guard.
     if (cleanContent && typeof sessionId === "string") {
+      // Bind the reply to its question (post-advance = the NEW question, so
+      // its ask and follow-ups all land on the same id) — transcript reads
+      // and the answered-question set depend on this linkage.
+      const activeQuestion = questionAdvanced
+        ? questions[questionIndex + 1]
+        : questions[questionIndex];
       await supabaseAdmin.from("messages").insert({
         sessionId,
         role: "ASSISTANT" as const,
         content: cleanContent,
         wordCount: cleanContent.split(/\s+/).length,
+        questionId: activeQuestion?.id ?? null,
       });
     }
 

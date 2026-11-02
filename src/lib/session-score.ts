@@ -17,6 +17,26 @@ const UNANSWERED_EVALUATION = {
   zh: "未回答",
 } as const;
 
+const PENDING_EVALUATION = {
+  en: "Not graded yet",
+  id: "Belum dinilai",
+  zh: "尚未评分",
+} as const;
+
+/** Every language variant of the unanswered fill label — legacy stored
+ *  entries are language-tagged, so the fill is detected across all of them. */
+const UNANSWERED_LABELS = new Set<string>(Object.values(UNANSWERED_EVALUATION));
+
+function isUnansweredFillAny(entry: unknown): boolean {
+  const e = entry as { score?: unknown; evaluation?: unknown } | null;
+  return (
+    !!e &&
+    Number(e.score) === 0 &&
+    typeof e.evaluation === "string" &&
+    UNANSWERED_LABELS.has(e.evaluation)
+  );
+}
+
 /**
  * The LLM only evaluates questions present in the transcript, but a fair
  * score must measure the candidate against ALL questions (unanswered = 0).
@@ -50,8 +70,12 @@ function buildEvalMatcher(evals: unknown[]) {
 
 export function completeQuestionEvaluations(
   evals: unknown[],
-  questions: { text: string }[],
+  questions: { text: string; id?: string }[],
   language: string | undefined,
+  /** Question ids with a stored candidate answer. When provided, an
+   * answered-but-unmatched question becomes a pending entry (score null)
+   * instead of a false "Not answered" zero — the AI grader just hasn't run. */
+  answeredIds?: Set<string> | null,
 ): Record<string, unknown>[] {
   const findMatch = buildEvalMatcher(evals);
   const hasDirectMatch = questions.some((q) => findMatch(q.text) !== undefined);
@@ -59,10 +83,29 @@ export function completeQuestionEvaluations(
     getLanguageKey(language),
     UNANSWERED_EVALUATION as BiText,
   );
+  const pendingLabel = bt(
+    getLanguageKey(language),
+    PENDING_EVALUATION as BiText,
+  );
 
   return questions.map((q, i) => {
     const e = hasDirectMatch ? findMatch(q.text) : evals[i];
     const score = (e as { score?: unknown } | undefined)?.score;
+    const answered = answeredIds?.has(q.id ?? "") ?? false;
+    if (answered) {
+      // An answered question is never "Not answered": keep a real evaluation,
+      // but a legacy zero-fill or a gap becomes a pending marker instead of a
+      // false 0 that drags the overall score down.
+      if (e && score != null && Number.isFinite(Number(score)) && !isUnansweredFillAny(e)) {
+        return { ...(e as Record<string, unknown>), question: q.text };
+      }
+      return {
+        question: q.text,
+        score: null,
+        evaluation: pendingLabel,
+        pendingGrading: true,
+      };
+    }
     if (e && score != null && Number.isFinite(Number(score))) {
       return { ...(e as Record<string, unknown>), question: q.text };
     }
@@ -94,10 +137,11 @@ export function isUnansweredFill(entry: unknown, language?: string): boolean {
 export function mergeDeterministicWithLlm(
   deterministic: unknown[],
   llmEvals: unknown[],
-  questions: { text: string }[],
+  questions: { text: string; id?: string }[],
   language: string | undefined,
+  answeredIds?: Set<string> | null,
 ): Record<string, unknown>[] {
-  const canonical = completeQuestionEvaluations(deterministic, questions, language);
+  const canonical = completeQuestionEvaluations(deterministic, questions, language, answeredIds);
   if (!Array.isArray(llmEvals) || llmEvals.length === 0) return canonical;
   const findLlm = buildEvalMatcher(llmEvals);
   return canonical.map((entry) => {
@@ -227,6 +271,12 @@ export function getSessionOverallScore(
   );
   if (weighted !== null) return weighted;
   const evals = effective?.questionEvaluations;
+  // An entry flagged pendingGrading (answered but the AI grader hasn't run)
+  // blocks the overall score: showing a computed number built around an
+  // ungraded question would misstate the candidate.
+  if (Array.isArray(evals) && evals.some((e) => (e as { pendingGrading?: unknown })?.pendingGrading === true)) {
+    return null;
+  }
   // Unanswered questions count as 0: divide by ALL interview questions, not
   // just the ones that were answered. Without a total, keep the legacy
   // average-of-answered behavior, including its criteria fallback when no

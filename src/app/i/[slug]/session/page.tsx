@@ -95,7 +95,8 @@ export default function SlugSessionPage() {
   }
 
   if (session.data.status === "COMPLETED" || completed) {
-    try { localStorage.removeItem(STORAGE_PREFIX + slug); } catch { /* noop */ }
+    // Keep the stored session id: the landing page clears it for non-running
+    // sessions, and keeping it lets a reopened session resume its transcript.
     return <SessionEndedScreen reason={completionReason} language={interview.data.language} />;
   }
 
@@ -104,10 +105,13 @@ export default function SlugSessionPage() {
       <IntervieweeOnboarding
         interviewTitle={interview.data.title}
         interviewDescription={interview.data.description}
+        jobDescription={interview.data.jobDescription}
         questionCount={interview.data.questions.length}
         timeLimitMinutes={interview.data.timeLimitMinutes}
         language={interview.data.language}
         antiCheatingEnabled={!!interview.data.antiCheatingEnabled}
+        proctoringEnabled={!!interview.data.proctoringEnabled}
+        videoEnabled={!!interview.data.videoEnabled}
         voiceEnabled={!!interview.data.voiceEnabled}
         chatEnabled={!!interview.data.chatEnabled}
         aiName={interview.data.aiName}
@@ -141,6 +145,15 @@ export default function SlugSessionPage() {
   // A refresh must not reset the departure warning counter — the count lives
   // on the session row, so seed the guard from the persisted log.
   const initialDepartureCount = countDepartures(session.data.antiCheatingLog);
+
+  // Questions with a stored USER answer — backs the finish-dialog warning.
+  const answeredQuestionIds = Array.from(
+    new Set(
+      ((session.data.messages ?? []) as { role?: string; questionId?: string | null }[])
+        .filter((m) => m.role === "USER" && m.questionId)
+        .map((m) => m.questionId as string),
+    ),
+  );
 
   // Show mock tour interface before loading the real session
   if (showPreviewTour) {
@@ -256,6 +269,7 @@ export default function SlugSessionPage() {
         durationMinutes={sessionDurationMinutes}
         initialMessages={resume.chatMessages}
         initialQuestionIndex={resume.hasQuestion ? resume.questionIndex : undefined}
+        answeredQuestionIds={answeredQuestionIds}
         onComplete={handleComplete}
       />
     </>

@@ -138,6 +138,7 @@ export function ReportView({
   regeneratingSessionId,
   onFinalize,
   finalizingSessionId,
+  assessmentCriteria,
 }: {
   data: InterviewReport;
   /** When set, clicking a row opens this path with ?session={id} */
@@ -148,6 +149,8 @@ export function ReportView({
   /** Dashboard-only: enables the per-candidate finalize action. */
   onFinalize?: (row: ReportRow) => void;
   finalizingSessionId?: string | null;
+  /** The interview's rubric (name + description) — rendered as its own panel. */
+  assessmentCriteria?: { name: string; description?: string; weight?: number }[] | null;
 }) {
   const { rows, questionLabels } = data;
   // Per-question columns only ("Q1".."Qn") — criteria-name columns made the
@@ -330,6 +333,50 @@ export function ReportView({
         )}
       </div>
 
+      {/* Rubric panel: the criteria the AI grades against, with the
+          cross-candidate average per criterion when evaluations exist. */}
+      {assessmentCriteria && assessmentCriteria.length > 0 && (
+        <div className="rounded-lg border p-4">
+          <h3 className="mb-1 text-sm font-semibold">
+            Assessment Criteria ({assessmentCriteria.length})
+          </h3>
+          <ul className="divide-y text-sm">
+            {assessmentCriteria.map((c) => {
+              const values = rows
+                .map((r) => r.criteria[c.name])
+                .filter((v): v is number => typeof v === "number");
+              const avg =
+                values.length > 0
+                  ? values.reduce((s, v) => s + v, 0) / values.length
+                  : null;
+              return (
+                <li key={c.name} className="flex items-start justify-between gap-4 py-2">
+                  <div className="min-w-0">
+                    <p className="font-medium">{c.name}</p>
+                    {c.description && (
+                      <p className="text-muted-foreground">{c.description}</p>
+                    )}
+                  </div>
+                  <span
+                    className={cn(
+                      "shrink-0 font-medium",
+                      avg !== null && scoreColor(avg),
+                    )}
+                    title={
+                      avg !== null
+                        ? `Average across ${values.length} graded candidate(s)`
+                        : "No graded evaluations yet"
+                    }
+                  >
+                    {avg !== null ? avg.toFixed(1) : "-"}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
+
       {/* Average score per question — shows which questions candidates found
           hardest; hover a chip for the full question text. */}
       {questionKeys.length > 0 && scored.length > 0 && (
@@ -445,7 +492,9 @@ function BodyRow({
             {typeof v === "number" ? (
               <span className={scoreColor(v)}>{v.toFixed(1)}</span>
             ) : (
-              <span className="text-muted-foreground">-</span>
+              <span className="text-muted-foreground" title="Not graded yet">
+                -
+              </span>
             )}
           </TableCell>
         );

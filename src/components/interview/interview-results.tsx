@@ -1635,6 +1635,7 @@ function SessionDetail({
                     <Badge variant="secondary" className="ml-1 font-normal">
                       {summary.data?.messages.filter(
                         (m: any) =>
+                          m.role !== "SYSTEM" &&
                           m.contentType !== "WHITEBOARD" &&
                           (m.contentType as string) !== "CODE",
                       ).length ?? 0}{" "}
@@ -1663,6 +1664,9 @@ function SessionDetail({
                           {summary.data?.messages
                             .filter(
                               (m: any) =>
+                                // Synthetic navigation markers are pipeline
+                                // control messages, not transcript speech.
+                                m.role !== "SYSTEM" &&
                                 m.contentType !== "WHITEBOARD" &&
                                 (m.contentType as string) !== "CODE",
                             )
@@ -1723,6 +1727,7 @@ function SessionDetail({
                         {summary.data?.messages
                           .filter(
                             (m: any) =>
+                              m.role !== "SYSTEM" &&
                               m.contentType !== "WHITEBOARD" &&
                               (m.contentType as string) !== "CODE",
                           )

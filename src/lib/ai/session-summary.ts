@@ -22,12 +22,20 @@ const inFlight = new Map<string, Promise<void>>();
  * generated for the same session, so multiple completion paths (voice save,
  * chat complete, safety-net) can all call it without double LLM runs.
  *
- * Outside the AI operating window the work is queued instead (dynamic import
+ * On Vercel the work is ALWAYS queued, never inline: Hobby functions die at
+ * 60s mid-LLM-call with no error marker, which silently ate every summary
+ * (2026-10/11 incident). The VPS compose drainer executes ai_jobs on the
+ * same database. Elsewhere the AI operating window decides (dynamic import
  * avoids a static cycle: ai-jobs imports generateSessionSummaryCore).
  */
 export async function generateSessionSummary(sessionId: string): Promise<void> {
-  const { aiWindowStatus } = await import("./ai-window");
-  if (!aiWindowStatus().open) {
+  const onVercel = process.env.VERCEL === "1";
+  let open = false;
+  if (!onVercel) {
+    const { aiWindowStatus } = await import("./ai-window");
+    open = aiWindowStatus().open;
+  }
+  if (onVercel || !open) {
     const { aiJobDedupeKey, enqueueAiJob } = await import("./ai-jobs");
     await enqueueAiJob({
       kind: "SUMMARY",
@@ -73,7 +81,7 @@ export async function generateSessionSummaryCore(
   const { data: interviewSession } = await supabaseAdmin
     .from("sessions")
     .select(
-      `summary, insights, interview:interviews!inner(title, objective, language, kind, assessmentCriteria, questions(text, order, type, expectedAnswer)), messages(*)`,
+      `summary, insights, interview:interviews!inner(title, objective, language, kind, assessmentCriteria, questions(id, text, order, type, expectedAnswer)), messages(*)`,
     )
     .eq("id", sessionId)
     .order("order", { referencedTable: "interviews.questions", ascending: true })
@@ -94,7 +102,7 @@ export async function generateSessionSummaryCore(
       language: string;
       kind?: string;
       assessmentCriteria: { name: string; description: string }[] | null;
-      questions: { text: string; order: number; type?: string; expectedAnswer?: string | null }[];
+      questions: { id: string; text: string; order: number; type?: string; expectedAnswer?: string | null }[];
     };
 
     const msgs = (interviewSession.messages ?? []) as {
@@ -103,6 +111,7 @@ export async function generateSessionSummaryCore(
       whiteboardImageUrl: string | null;
       role: string;
       content: string;
+      questionId?: string | null;
     }[];
 
     if (msgs.length === 0) {
@@ -136,8 +145,17 @@ export async function generateSessionSummaryCore(
       .filter((s) => s.code.trim().length > 0);
 
     const textMessages = msgs
-      .filter((m) => m.contentType === "TEXT")
+      // Synthetic navigation markers (role SYSTEM) are pipeline control
+      // messages, not transcript speech — the LLM must never see them.
+      .filter((m) => m.contentType === "TEXT" && m.role !== "SYSTEM")
       .map((m) => ({ role: m.role === "USER" ? "user" : "assistant", content: m.content }));
+    // Questions with a stored USER answer are "answered" even when the LLM
+    // never evaluated them: they become pending markers, not false zeros.
+    const answeredIds = new Set(
+      msgs
+        .filter((m) => m.role === "USER" && m.questionId)
+        .map((m) => m.questionId as string),
+    );
     const drawingsInput =
       whiteboardDrawings.length > 0 ? whiteboardDrawings : null;
     const codeInput = codeSnippetsInput.length > 0 ? codeSnippetsInput : null;
@@ -217,12 +235,14 @@ export async function generateSessionSummaryCore(
         Array.isArray(parsed.questionEvaluations) ? parsed.questionEvaluations : [],
         interview.questions,
         interview.language,
+        answeredIds,
       );
     } else if (Array.isArray(parsed.questionEvaluations)) {
       questionEvaluations = completeQuestionEvaluations(
         parsed.questionEvaluations,
         interview.questions,
         interview.language,
+        answeredIds,
       );
     }
     if (questionEvaluations) {

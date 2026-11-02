@@ -56,10 +56,15 @@ import { VoiceInterface } from "./voice-interface";
 interface IntervieweeOnboardingProps {
   interviewTitle: string;
   interviewDescription?: string | null;
+  /** Job description shown to the candidate when the recruiter wrote one. */
+  jobDescription?: string | null;
   questionCount: number;
   timeLimitMinutes?: number | null;
   language?: string;
   antiCheatingEnabled?: boolean;
+  /** Camera notices only apply when proctoring or video is actually on. */
+  proctoringEnabled?: boolean;
+  videoEnabled?: boolean;
   voiceEnabled?: boolean;
   chatEnabled?: boolean;
   aiName?: string;
@@ -1373,10 +1378,13 @@ function ScreenCheck({
 export function IntervieweeOnboarding({
   interviewTitle,
   interviewDescription,
+  jobDescription,
   questionCount,
   timeLimitMinutes,
   language,
   antiCheatingEnabled = false,
+  proctoringEnabled = false,
+  videoEnabled = false,
   voiceEnabled = false,
   chatEnabled = false,
   aiName = "AI Interviewer",
@@ -1386,6 +1394,9 @@ export function IntervieweeOnboarding({
   const [step, setStep] = useState<OnboardingStep>("info");
   const [agreed, setAgreed] = useState(false);
   const lang = getLanguageKey(language);
+  // Camera/screen notices must match the interview's actual capture config —
+  // a voice-only, non-proctored interview never asks for a camera.
+  const cameraRequired = proctoringEnabled || videoEnabled;
 
   const [cameraDone, setCameraDone] = useState(false);
   const [micDone, setMicDone] = useState(false);
@@ -1448,6 +1459,21 @@ export function IntervieweeOnboarding({
                   </p>
                 </div>
               </div>
+
+              {jobDescription && jobDescription.trim().length > 0 && (
+                <div className="mt-4 text-sm">
+                  <span className="font-medium">
+                    {bt(lang, {
+                      en: "Job Description",
+                      zh: "Job Description",
+                      id: "Deskripsi Pekerjaan",
+                    })}
+                  </span>
+                  <p className="mt-1 whitespace-pre-wrap text-muted-foreground">
+                    {jobDescription}
+                  </p>
+                </div>
+              )}
 
               <div className="mt-2 text-sm text-muted-foreground">
                 {bt(lang, {
@@ -1552,20 +1578,24 @@ export function IntervieweeOnboarding({
                         id: "sistem akan mendeteksi jika ada lebih dari satu monitor terhubung. Lepaskan atau matikan layar tambahan sebelum memulai.",
                       })}
                     </li>
-                    <li>
-                      {bt(lang, {
-                        en: "This interview requires a camera to collect your registration photo and capture your behavior. All photos are privacy protected.",
-                        zh: "This interview requires a camera to collect your registration photo and capture your behavior. All photos are privacy protected.",
-                        id: "Wawancara ini memerlukan kamera untuk mengambil foto pendaftaran dan merekam perilakumu. Semua foto dilindungi privasi.",
-                      })}
-                    </li>
-                    <li>
-                      {bt(lang, {
-                        en: "The interview will screen capture throughout. Screen capture requires authorization.",
-                        zh: "The interview will screen capture throughout. Screen capture requires authorization.",
-                        id: "Wawancara ini akan merekam layar selama sesi berlangsung. Perekaman layar memerlukan otorisasi.",
-                      })}
-                    </li>
+                    {cameraRequired && (
+                      <li>
+                        {bt(lang, {
+                          en: "This interview requires a camera to collect your registration photo and capture your behavior. All photos are privacy protected.",
+                          zh: "This interview requires a camera to collect your registration photo and capture your behavior. All photos are privacy protected.",
+                          id: "Wawancara ini memerlukan kamera untuk mengambil foto pendaftaran dan merekam perilakumu. Semua foto dilindungi privasi.",
+                        })}
+                      </li>
+                    )}
+                    {proctoringEnabled && (
+                      <li>
+                        {bt(lang, {
+                          en: "The interview will screen capture throughout. Screen capture requires authorization.",
+                          zh: "The interview will screen capture throughout. Screen capture requires authorization.",
+                          id: "Wawancara ini akan merekam layar selama sesi berlangsung. Perekaman layar memerlukan otorisasi.",
+                        })}
+                      </li>
+                    )}
                   </ol>
                 </>
               ) : (
@@ -1591,20 +1621,24 @@ export function IntervieweeOnboarding({
                       id: "Sebelum wawancara dimulai, matikan perangkat lunak atau halaman web yang menampilkan iklan atau pop-up pesan. Jangan meninggalkan halaman wawancara selama proses berlangsung.",
                     })}
                   </li>
-                  <li>
-                    {bt(lang, {
-                      en: "This interview requires a camera to collect your registration photo and capture your behavior. All photos are privacy protected.",
-                      zh: "This interview requires a camera to collect your registration photo and capture your behavior. All photos are privacy protected.",
-                      id: "Wawancara ini memerlukan kamera untuk mengambil foto pendaftaran dan merekam perilakumu. Semua foto dilindungi privasi.",
-                    })}
-                  </li>
-                  <li>
-                    {bt(lang, {
-                      en: "The interview will screen capture throughout. Screen capture requires authorization.",
-                      zh: "The interview will screen capture throughout. Screen capture requires authorization.",
-                      id: "Wawancara ini akan merekam layar selama sesi berlangsung. Perekaman layar memerlukan otorisasi.",
-                    })}
-                  </li>
+                  {cameraRequired && (
+                    <li>
+                      {bt(lang, {
+                        en: "This interview requires a camera to collect your registration photo and capture your behavior. All photos are privacy protected.",
+                        zh: "This interview requires a camera to collect your registration photo and capture your behavior. All photos are privacy protected.",
+                        id: "Wawancara ini memerlukan kamera untuk mengambil foto pendaftaran dan merekam perilakumu. Semua foto dilindungi privasi.",
+                      })}
+                    </li>
+                  )}
+                  {proctoringEnabled && (
+                    <li>
+                      {bt(lang, {
+                        en: "The interview will screen capture throughout. Screen capture requires authorization.",
+                        zh: "The interview will screen capture throughout. Screen capture requires authorization.",
+                        id: "Wawancara ini akan merekam layar selama sesi berlangsung. Perekaman layar memerlukan otorisasi.",
+                      })}
+                    </li>
+                  )}
                 </ol>
               )}
             </CardContent>

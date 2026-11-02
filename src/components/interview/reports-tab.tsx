@@ -444,6 +444,7 @@ export function ReportsTab({ interviewId }: { interviewId: string }) {
             regeneratingSessionId={regeneratingId}
             onFinalize={handleFinalizeOne}
             finalizingSessionId={finalizingId}
+            assessmentCriteria={report.data.assessmentCriteria}
           />
         </div>
       ) : null}

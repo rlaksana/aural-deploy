@@ -3,6 +3,7 @@ import { SurveyAggregateView } from "@/components/interview/survey-aggregate-vie
 import {
   buildReportRows,
   buildSurveyAggregate,
+  fetchAnsweredBySession,
   fetchReportEntries,
   filterFinalForAiKinds,
 } from "@/lib/interview-report";
@@ -68,11 +69,15 @@ export default async function PublicReportPage({
     }),
     row?.kind ?? "INTERVIEW",
   ).map((entry) => ({ ...entry, email: null, participantEmail: null }));
+  const answeredBySession = isInterviewKind
+    ? await fetchAnsweredBySession(supabaseAdmin, interviewId)
+    : undefined;
   const report = buildReportRows(
     interviewRow?.title ?? "Interview",
     entries,
     row?.questions,
     buildCriteriaWeights(row?.assessmentCriteria),
+    answeredBySession,
   );
 
   let aggregate = undefined;
@@ -115,6 +120,7 @@ export default async function PublicReportPage({
         <ReportView
           data={report}
           sessionBasePath={`/r/${token}/session`}
+          assessmentCriteria={row?.assessmentCriteria ?? null}
         />
       )}
       <p className="text-center text-xs text-muted-foreground">

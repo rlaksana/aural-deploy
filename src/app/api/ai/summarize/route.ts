@@ -1,3 +1,4 @@
+import { aiJobDedupeKey, enqueueAiJob } from "@/lib/ai/ai-jobs";
 import { generateSessionSummaryCore } from "@/lib/ai/session-summary";
 import { getAuthUser } from "@/lib/auth";
 import { createLogger } from "@/lib/logger";
@@ -57,6 +58,16 @@ export async function POST(req: Request) {
     }
 
     const forceRebuild = !!force || !skipExisting;
+    // Vercel functions die at 60s mid-LLM-call (Hobby cap) with no error
+    // marker — queue for the VPS drainer instead of running inline there.
+    if (process.env.VERCEL === "1") {
+      await enqueueAiJob({
+        kind: "SUMMARY",
+        dedupeKey: aiJobDedupeKey(["SUMMARY", sessionId, String(forceRebuild)]),
+        payload: { sessionId, force: forceRebuild },
+      });
+      return NextResponse.json({ queued: true });
+    }
     await generateSessionSummaryCore(sessionId, { force: forceRebuild });
     return NextResponse.json({ ok: true });
   } catch (error) {

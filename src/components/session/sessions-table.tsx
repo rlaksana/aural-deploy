@@ -50,6 +50,7 @@ import {
   ExternalLink,
   GripVertical,
   Loader2,
+  RotateCcw,
   Search,
   Settings,
   Trash2,
@@ -345,6 +346,13 @@ export function SessionsTable({
     onSuccess: ({ deleted }) => {
       toast({ title: `${deleted} session${deleted > 1 ? "s" : ""} deleted` });
       setSelectedIds(new Set());
+      onDeleteSuccess?.();
+    },
+  });
+
+  const reopenMutation = trpc.session.reopen.useMutation({
+    onSuccess: () => {
+      toast({ title: "Session reopened — candidate can continue answering" });
       onDeleteSuccess?.();
     },
   });
@@ -761,24 +769,47 @@ export function SessionsTable({
                         </TableCell>
                       ))}
 
-                      {/* Frozen right: action */}
+                      {/* Frozen right: actions */}
                       <TableCell
                         onClick={(e) => e.stopPropagation()}
-                        className="sticky right-0 z-10 w-10 bg-background shadow-[-2px_0_5px_-2px_rgba(0,0,0,0.1)]"
+                        className="sticky right-0 z-10 bg-background shadow-[-2px_0_5px_-2px_rgba(0,0,0,0.1)]"
                       >
-                        {rowClickable && session.status === "COMPLETED" ? (
-                          <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                        ) : (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7"
-                            title="View session details"
-                            onClick={() => onSessionClick(session)}
-                          >
-                            <ExternalLink className="h-3.5 w-3.5 text-muted-foreground" />
-                          </Button>
-                        )}
+                        <div className="flex items-center gap-0.5">
+                          {(session.status === "COMPLETED" ||
+                            session.status === "ABANDONED") && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7"
+                              title="Reopen session (candidate can continue answering)"
+                              disabled={reopenMutation.isPending}
+                              onClick={() =>
+                                reopenMutation.mutate({ sessionId: session.id })
+                              }
+                            >
+                              {reopenMutation.isPending &&
+                              reopenMutation.variables?.sessionId ===
+                                session.id ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+                              ) : (
+                                <RotateCcw className="h-3.5 w-3.5 text-muted-foreground" />
+                              )}
+                            </Button>
+                          )}
+                          {rowClickable && session.status === "COMPLETED" ? (
+                            <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                          ) : (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7"
+                              title="View session details"
+                              onClick={() => onSessionClick(session)}
+                            >
+                              <ExternalLink className="h-3.5 w-3.5 text-muted-foreground" />
+                            </Button>
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}

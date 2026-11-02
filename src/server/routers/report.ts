@@ -3,6 +3,7 @@ import { generateAndCacheSurveyAnalysis } from "@/lib/ai/aggregate-analysis";
 import {
   buildReportRows,
   buildSurveyAggregate,
+  fetchAnsweredBySession,
   fetchReportEntries,
   filterFinalForAiKinds,
   type InterviewReport,
@@ -62,17 +63,25 @@ export const reportRouter = router({
       const entries = await fetchReportEntries(ctx.supabase, input.interviewId, {
         includeMessages: (row?.kind ?? "INTERVIEW") !== "INTERVIEW",
       });
+      // Interview reads skip the messages embed, so the answered-question set
+      // arrives via a slim side query; other kinds derive it from messages.
+      const answeredBySession =
+        (row?.kind ?? "INTERVIEW") === "INTERVIEW"
+          ? await fetchAnsweredBySession(ctx.supabase, input.interviewId)
+          : undefined;
       const report = buildReportRows(
         row?.title ?? "Interview",
         entries,
         row?.questions,
         buildCriteriaWeights(row?.assessmentCriteria),
+        answeredBySession,
       );
 
       return {
         report,
         aggregate: buildAggregateIfNonInterview(row, entries),
         aiAnalysis: row?.aiAnalysis ?? null,
+        assessmentCriteria: row?.assessmentCriteria ?? null,
         linkToken: (link as { token: string } | null)?.token ?? null,
         role: interview.role,
       };
@@ -230,11 +239,15 @@ export const reportRouter = router({
         }),
         kind,
       );
+      const answeredBySession = isInterviewKind
+        ? await fetchAnsweredBySession(ctx.supabase, interviewId)
+        : undefined;
       const report: InterviewReport = buildReportRows(
         row?.title ?? "Interview",
         entries,
         row?.questions,
         buildCriteriaWeights(row?.assessmentCriteria),
+        answeredBySession,
       );
 
       // Non-interview kinds share a public-safe aggregate ONLY: no row table
@@ -243,6 +256,7 @@ export const reportRouter = router({
       const fullAggregate = buildAggregateIfNonInterview(row, entries);
       return {
         report: isInterviewKind ? report : { ...report, rows: [] },
+        assessmentCriteria: row?.assessmentCriteria ?? null,
         aggregate: fullAggregate
           ? {
               respondentCount: fullAggregate.respondentCount,

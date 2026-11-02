@@ -398,6 +398,22 @@ export const sessionRouter = router({
         .update({ lastActivityAt: new Date().toISOString() })
         .eq("id", input.sessionId);
 
+      // Chat sessions never open an activity segment themselves (only the
+      // leave beacon and voice saves close them) — open one on the first
+      // observed activity so the segments list isn't permanently empty.
+      const segments = (session.activitySegments ?? null) as
+        | { enteredAt: string; leftAt?: string | null }[]
+        | null;
+      const hasOpen = !!segments?.some((s) => !s.leftAt);
+      if (!hasOpen) {
+        const now = new Date().toISOString();
+        const next = [...(segments ?? []), { enteredAt: now, leftAt: null }];
+        await ctx.supabase
+          .from("sessions")
+          .update({ activitySegments: next })
+          .eq("id", input.sessionId);
+      }
+
       return { userMessage };
     }),
 
@@ -1009,6 +1025,75 @@ export const sessionRouter = router({
       await ctx.supabase.from("sessions").delete().in("id", input.ids);
 
       return { deleted: input.ids.length };
+    }),
+
+  /** Reopen a finished session: back to IN_PROGRESS so the candidate can
+   *  re-enter and continue answering (the stored session id in their browser
+   *  resumes the transcript). reportStatus is left untouched — review the
+   *  rebuilt report and finalize again if it was already FINAL. */
+  reopen: protectedProcedure
+    .input(
+      z.object({
+        sessionId: z.string(),
+        /** Resume the candidate at this question instead of the pinned one. */
+        questionId: z.string().optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const { data: session } = await ctx.supabase
+        .from("sessions")
+        .select(
+          "id, interview:interviews!inner(projectId, project:projects!inner(organizationId))",
+        )
+        .eq("id", input.sessionId)
+        .single();
+
+      const interviewData = session?.interview as unknown as
+        | { projectId: string; project: { organizationId: string } }
+        | undefined;
+      const orgId = interviewData?.project?.organizationId;
+      if (!orgId) {
+        throw new TRPCError({ code: "NOT_FOUND" });
+      }
+
+      const { data: membership } = await ctx.supabase
+        .from("organization_members")
+        .select("role")
+        .eq("workspaceId", orgId)
+        .eq("userId", ctx.user.id)
+        .single();
+      if (!membership) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Not authorized to reopen this session",
+        });
+      }
+
+      const projAccess = await hasProjectAccess(
+        ctx.supabase,
+        interviewData!.projectId,
+        ctx.user.id,
+      );
+      if (!projAccess) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Not authorized to reopen this session",
+        });
+      }
+
+      const { error } = await ctx.supabase
+        .from("sessions")
+        .update({
+          status: "IN_PROGRESS",
+          completedAt: null,
+          ...(input.questionId ? { currentQuestionId: input.questionId } : {}),
+        })
+        .eq("id", input.sessionId);
+
+      if (error) {
+        throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: error.message });
+      }
+      return { success: true };
     }),
 
   /** Recruiter score override: write the full adjustments object (null = clear). */

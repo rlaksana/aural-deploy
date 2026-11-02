@@ -134,14 +134,15 @@ function extractCriteria(
  */
 export function canonicalizeInsights(
   insights: unknown,
-  questions?: { text: string }[],
+  questions?: { text: string; id?: string }[],
+  answeredIds?: Set<string> | null,
 ): unknown {
   if (!questions || questions.length === 0) return insights;
   const evals = (insights as InsightsShape | null)?.questionEvaluations;
   if (!Array.isArray(evals) || evals.length === 0) return insights;
   return {
     ...(insights as Record<string, unknown>),
-    questionEvaluations: completeQuestionEvaluations(evals, questions, undefined),
+    questionEvaluations: completeQuestionEvaluations(evals, questions, undefined, answeredIds),
   };
 }
 
@@ -160,6 +161,41 @@ export type ReportEntry = {
   source: "Invited" | "Walk-in";
   session: SessionLike;
 };
+
+/**
+ * sessionId -> set of question ids the candidate answered (USER messages).
+ * Interview report reads skip the messages embed (megabytes on large
+ * interviews), so the answered set is fetched separately with two slim
+ * column queries instead.
+ */
+export async function fetchAnsweredBySession(
+  supabase: SupabaseClient,
+  interviewId: string,
+): Promise<Map<string, Set<string>>> {
+  const map = new Map<string, Set<string>>();
+  const { data: sessionRows } = await supabase
+    .from("sessions")
+    .select("id")
+    .eq("interviewId", interviewId);
+  const sessionIds = ((sessionRows ?? []) as { id: string }[]).map((r) => r.id);
+  if (sessionIds.length === 0) return map;
+
+  const { data: msgs } = await supabase
+    .from("messages")
+    .select("sessionId, questionId")
+    .in("sessionId", sessionIds)
+    .eq("role", "USER")
+    .not("questionId", "is", null);
+  for (const m of (msgs ?? []) as unknown as {
+    sessionId: string;
+    questionId: string;
+  }[]) {
+    let set = map.get(m.sessionId);
+    if (!set) map.set(m.sessionId, (set = new Set()));
+    set.add(m.questionId);
+  }
+  return map;
+}
 
 const AI_JUDGED_KINDS = new Set(["INTERVIEW", "ASSESSMENT"]);
 
@@ -187,6 +223,9 @@ export function buildReportRows(
   /** Criteria name -> weight (from buildCriteriaWeights); when any weight
    *  differs from 1 the overall becomes the weighted criteria average. */
   criteriaWeights?: Record<string, number>,
+  /** sessionId -> answered question ids. Falls back to deriving from the
+   *  embedded messages when a caller embeds them (non-interview paths). */
+  answeredBySession?: Map<string, Set<string>>,
 ): InterviewReport {
   const criteriaNames: string[] = [];
   const questionLabels: Record<string, string> = {};
@@ -221,7 +260,15 @@ export function buildReportRows(
       continue;
     }
 
-    const insights = canonicalizeInsights(session.insights, questions);
+    const answeredIds =
+      answeredBySession?.get(session.id) ??
+      new Set(
+        (session.messages ?? [])
+          .filter((m) => m.role === "USER" && m.questionId)
+          .map((m) => m.questionId as string),
+      );
+
+    const insights = canonicalizeInsights(session.insights, questions, answeredIds);
     const criteria = extractCriteria(insights, questionLabels);
     Object.keys(criteria).forEach(addCriteria);
 

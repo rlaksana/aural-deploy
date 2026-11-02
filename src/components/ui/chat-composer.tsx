@@ -466,8 +466,8 @@ export function ChatComposer({
             />
             <Button
               type="button"
-              size="icon"
-              className="h-8 w-8 shrink-0 rounded-full"
+              size="sm"
+              className="h-8 shrink-0 gap-1 px-2 text-xs"
               disabled={isGenerating ? !onStop : !canSubmit}
               onClick={handlePrimary}
               aria-label={isGenerating ? "Stop generation" : "Send message"}
@@ -475,8 +475,9 @@ export function ChatComposer({
               {isGenerating ? (
                 <Square className="h-3.5 w-3.5 fill-current" />
               ) : (
-                <ArrowUp className="h-4 w-4" />
+                <ArrowUp className="h-3.5 w-3.5" />
               )}
+              {isGenerating ? "Stop" : "Send"}
             </Button>
           </>
         ) : (
@@ -639,9 +640,9 @@ export function ChatComposer({
           ) : null}
           <Button
             type="button"
-            size="icon"
+            size="sm"
             className={cn(
-              "h-8 w-8 rounded-full",
+              "h-8 gap-1 px-2 text-xs",
               isGenerating
                 ? "bg-foreground text-background hover:bg-foreground/90"
                 : "",
@@ -653,8 +654,9 @@ export function ChatComposer({
             {isGenerating ? (
               <Square className="h-3.5 w-3.5 fill-current" />
             ) : (
-              <ArrowUp className="h-4 w-4" />
+              <ArrowUp className="h-3.5 w-3.5" />
             )}
+            {isGenerating ? "Stop" : "Send"}
           </Button>
         </div>
           </>

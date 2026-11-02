@@ -61,6 +61,7 @@ interface Message {
   role: "USER" | "ASSISTANT" | "SYSTEM";
   content: string;
   timestamp: string;
+  questionId?: string | null;
 }
 
 interface Interview {
@@ -77,6 +78,7 @@ interface Interview {
     description?: string | null;
     options?: { options: string[]; allowMultiple?: boolean } | null;
     starterCode?: { language: string; code: string } | null;
+    timeLimitSeconds?: number | null;
   }[];
 }
 
@@ -94,6 +96,7 @@ export function ChatInterface({
   durationMinutes,
   initialMessages,
   initialQuestionIndex,
+  answeredQuestionIds,
   onComplete,
   preview = false,
 }: {
@@ -103,6 +106,9 @@ export function ChatInterface({
   durationMinutes?: number;
   initialMessages?: Message[];
   initialQuestionIndex?: number;
+  /** Question ids already answered (from the stored transcript) — backs the
+   *  finish-dialog completeness warning. */
+  answeredQuestionIds?: string[];
   onComplete: (reason?: SessionEndReasonInput) => void;
   /** Render in static preview mode — shows full layout without API calls */
   preview?: boolean;
@@ -172,6 +178,30 @@ export function ChatInterface({
     }, 1000);
     return () => clearInterval(id);
   }, [remainingSeconds]);
+
+  // ── Per-question timer (timeLimitSeconds): expiring auto-advances to the
+  // next question, or auto-finishes on the last one ──
+  const [questionRemaining, setQuestionRemaining] = useState<number | null>(null);
+  const questionLimit = interview.questions[currentQuestion]?.timeLimitSeconds ?? null;
+  const qTimerExpiredRef = useRef(false);
+
+  useEffect(() => {
+    qTimerExpiredRef.current = false;
+    setQuestionRemaining(
+      typeof questionLimit === "number" && questionLimit > 0 ? questionLimit : null,
+    );
+  }, [currentQuestion, questionLimit]);
+
+  useEffect(() => {
+    if (questionRemaining === null || questionRemaining <= 0) return;
+    const id = setInterval(() => {
+      setQuestionRemaining((prev) => {
+        if (prev === null) return null;
+        return prev <= 1 ? 0 : prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(id);
+  }, [questionRemaining]);
 
   // ── Multiple drawings state ───────────────────────────────────
   interface Drawing {
@@ -256,6 +286,16 @@ export function ChatInterface({
           const blob = new Blob([JSON.stringify(payload)], { type: "application/json" });
           navigator.sendBeacon("/api/trpc/session.saveCode", blob);
         }
+      }
+      // Close any open activity segment so per-visit segments are recorded
+      // (server-side leave detection only closes segments; chat never opens
+      // them — the first sendMessage does, and this beacon closes it).
+      if (!preview) {
+        const leavePayload = { sessionId, sessionToken: sessionToken ?? undefined };
+        navigator.sendBeacon(
+          "/api/session/leave",
+          new Blob([JSON.stringify(leavePayload)], { type: "application/json" }),
+        );
       }
     };
 
@@ -1125,6 +1165,33 @@ export function ChatInterface({
     }
   }, [preview, finishing, saveAllDrawings, saveAllCodeSnippets, sessionId, sessionToken, onComplete]);
 
+  // Latest-transition ref: the expiry effect below calls the current handler
+  // without depending on its (render-unstable) identity.
+  const questionTransitionRef = useRef(handleQuestionTransition);
+  questionTransitionRef.current = handleQuestionTransition;
+
+  // ── Auto-advance when the per-question timer expires ──────────────
+  // Waits out an in-flight turn (sending/aiTyping) before advancing so the
+  // transition doesn't collide with an unanswered API call.
+  useEffect(() => {
+    if (questionRemaining !== 0 || qTimerExpiredRef.current) return;
+    if (preview || sending || aiTyping) return;
+    qTimerExpiredRef.current = true;
+    if (currentQuestion >= interview.questions.length - 1) {
+      void handleFinishInterview();
+    } else {
+      questionTransitionRef.current("next");
+    }
+  }, [
+    questionRemaining,
+    sending,
+    aiTyping,
+    currentQuestion,
+    preview,
+    handleFinishInterview,
+    interview.questions.length,
+  ]);
+
   async function handleQuestionTransition(direction: "next" | "previous") {
     if (preview || sending || aiTyping) return;
 
@@ -1229,6 +1296,7 @@ export function ChatInterface({
       role: "USER",
       content: trimmedContent,
       timestamp: new Date().toISOString(),
+      questionId: interview.questions[currentQuestion]?.id ?? null,
     };
 
     const updatedMessages = [...messages, userMessage];
@@ -1322,6 +1390,7 @@ export function ChatInterface({
     return `${m}:${s.toString().padStart(2, "0")}`;
   };
   const isTimeLow = remainingSeconds !== null && remainingSeconds <= 60;
+  const isQuestionTimeLow = questionRemaining !== null && questionRemaining <= 60;
 
   // ── Reusable sub-components ────────────────────────────────────
 
@@ -1455,16 +1524,36 @@ export function ChatInterface({
   };
 
   const composerTimer =
-    remainingSeconds !== null ? (
-      <div
-        className={cn(
-          "flex items-center gap-1.5 px-1 text-xs font-medium tabular-nums",
-          isTimeLow ? "text-destructive" : "text-muted-foreground",
+    questionRemaining !== null || remainingSeconds !== null ? (
+      <>
+        {questionRemaining !== null && (
+          <div
+            className={cn(
+              "flex items-center gap-1.5 px-1 text-xs font-medium tabular-nums",
+              isQuestionTimeLow ? "text-destructive" : "text-muted-foreground",
+            )}
+            title={bt(lang, {
+              en: "Time limit for this question",
+              zh: "Time limit for this question",
+              id: "Batas waktu untuk soal ini",
+            })}
+          >
+            <Clock className="h-3.5 w-3.5" />
+            <span>{formatTime(questionRemaining)}</span>
+          </div>
         )}
-      >
-        <Clock className="h-3.5 w-3.5" />
-        <span>{bt(lang, { en: `${formatTime(remainingSeconds)} left`, zh: `${formatTime(remainingSeconds)} left`, id: `${formatTime(remainingSeconds)} tersisa` })}</span>
-      </div>
+        {remainingSeconds !== null && (
+          <div
+            className={cn(
+              "flex items-center gap-1.5 px-1 text-xs font-medium tabular-nums",
+              isTimeLow ? "text-destructive" : "text-muted-foreground",
+            )}
+          >
+            <Clock className="h-3.5 w-3.5" />
+            <span>{bt(lang, { en: `${formatTime(remainingSeconds)} left`, zh: `${formatTime(remainingSeconds)} left`, id: `${formatTime(remainingSeconds)} tersisa` })}</span>
+          </div>
+        )}
+      </>
     ) : null;
 
   const renderSessionHeader = (fullWidth = false) => (
@@ -1575,6 +1664,16 @@ export function ChatInterface({
     </div>
   );
 
+  const answeredSet = new Set([
+    ...(answeredQuestionIds ?? []),
+    ...messages
+      .filter((m) => m.role === "USER" && m.questionId)
+      .map((m) => m.questionId as string),
+  ]);
+  const unansweredCount = interview.questions.filter(
+    (q) => !answeredSet.has(q.id),
+  ).length;
+
   const renderFinishDialog = () => (
     <AlertDialog open={finishDialogOpen} onOpenChange={setFinishDialogOpen}>
       <AlertDialogContent>
@@ -1593,6 +1692,15 @@ export function ChatInterface({
               id: "Jawabanmu akan disimpan dan dikirim. Kamu tidak bisa melanjutkan sesi ini setelahnya.",
             })}
           </AlertDialogDescription>
+          {unansweredCount > 0 && (
+            <div className="rounded-md border border-amber-500/50 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
+              {bt(lang, {
+                en: `${unansweredCount} question${unansweredCount > 1 ? "s" : ""} still unanswered. Unanswered questions score 0 — use Previous/Next to complete them first.`,
+                zh: `${unansweredCount} question${unansweredCount > 1 ? "s" : ""} still unanswered. Unanswered questions score 0 — use Previous/Next to complete them first.`,
+                id: `${unansweredCount} pertanyaan belum dijawab. Pertanyaan yang tidak dijawab bernilai 0 — gunakan Previous/Next untuk melengkapinya lebih dulu.`,
+              })}
+            </div>
+          )}
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel disabled={finishing}>

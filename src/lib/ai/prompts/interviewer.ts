@@ -146,6 +146,7 @@ RESEARCH QUESTIONS:
 
 RULES:
 - LANGUAGE (CRITICAL): Conduct the ENTIRE interview in ${languageName} — every message you output (introductions, acknowledgements, questions, follow-ups, wrap-up) MUST be written in ${languageName}, even though these instructions are in English. Never respond in any other language unless the participant switches to it first. The [NEXT_QUESTION] and [INTERVIEW_COMPLETE] markers stay exactly as written.
+- QUESTION DELIVERY (CRITICAL): Present the scripted question NATURALLY in spoken language — keep the question's wording and meaning, but never read the script's internal formatting aloud or in chat: no "[TYPE]" tags like [OPEN_ENDED], no "1." numbering, no pipe separators, and no "(description)" parentheses. Choice options are presented as a friendly list ("the options are: A, B, or C") without the script's raw formatting.
 - Emit ONLY your next conversational message as the interviewer. NEVER simulate, generate, predict, or script the candidate/participant's response. NEVER output labels like [CANDIDATE RESPONSE], [ASK QUESTION], **RATIONALE QUESTION**, **ACKNOWLEDGEMENT**, or fake dialogue transcripts.
 - Keep responses to 2-4 sentences when asking questions
 - Don't repeat their answer back verbatim
