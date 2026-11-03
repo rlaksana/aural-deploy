@@ -19,6 +19,12 @@ export type ChatAdvanceInput = {
   currentQuestionIndex: number | undefined;
   questions: { id: string; text: string }[];
   conversationHistory: LLMMessage[];
+  /** Hard follow-up budget for the current question (maxFollowUpsForDepth). */
+  followUpBudget?: number;
+  /** Assistant turns already attributed to the current question (transcript). */
+  assistantTurnsOnQuestion?: number;
+  /** Whether the transcript holds a USER answer for the current question. */
+  currentQuestionAnswered?: boolean;
 };
 
 export type ChatAdvanceResult = {
@@ -40,6 +46,9 @@ export function resolveChatAdvance({
   currentQuestionIndex,
   questions,
   conversationHistory,
+  followUpBudget,
+  assistantTurnsOnQuestion,
+  currentQuestionAnswered,
 }: ChatAdvanceInput): ChatAdvanceResult {
   const rawIsComplete =
     detFlow?.isComplete ??
@@ -119,6 +128,29 @@ export function resolveChatAdvance({
         }
       }
     }
+  }
+
+  // Budget force: the follow-up limit is a HARD limit in the prompt, but the
+  // only advancement trigger was the exact [NEXT_QUESTION] string — so a model
+  // that transitions verbally without it desyncs UI, per-question timer,
+  // sessions.currentQuestionId, and per-answer attribution (answers pile onto
+  // one question id, and finish reports "7/12 answered"). When the budget is
+  // spent and the current question has an answer on record, advance regardless
+  // of markers — the same guarantee the voice relays enforce with
+  // finalizeTurnBudgetResponse. The ask itself is one of the assistant turns,
+  // so follow-ups spent = assistantTurnsOnQuestion - 1.
+  if (
+    !manualNavigation &&
+    !detFlow &&
+    choiceFlow === null &&
+    !questionAdvanced &&
+    !isComplete &&
+    typeof followUpBudget === "number" &&
+    (currentQuestionIndex ?? 0) < questions.length - 1 &&
+    currentQuestionAnswered === true &&
+    Math.max(0, (assistantTurnsOnQuestion ?? 0) - 1) >= followUpBudget
+  ) {
+    questionAdvanced = true;
   }
 
   return {

@@ -195,3 +195,117 @@ test("empty provider response is a safe no-op", () => {
   assert.equal(r.isComplete, false);
   assert.equal(r.cleanContent, "");
 });
+
+// ── Follow-up budget force ───────────────────────────────────────
+// The budget lives in the prompt only; a model that transitions without the
+// exact [NEXT_QUESTION] marker desyncs UI/timer/attribution. When the budget
+// is spent and the question has an answer on record, advance regardless.
+
+test("budget force: exhausted budget + answered question advances without a marker", () => {
+  // MODERATE (budget 2): ask + 2 follow-ups = 3 assistant turns on q1.
+  const r = resolveChatAdvance({
+    ...llm("Great point. So, explain your database indexing strategy."),
+    followUpBudget: 2,
+    assistantTurnsOnQuestion: 3,
+    currentQuestionAnswered: true,
+  });
+  assert.equal(r.questionAdvanced, true);
+  assert.equal(r.isComplete, false);
+  assert.equal(r.advancedWithoutMarker, true);
+});
+
+test("budget force does not fire while the budget still has room", () => {
+  // Ask + 1 follow-up = 2 assistant turns; budget 2 not yet exhausted.
+  const r = resolveChatAdvance({
+    ...llm("Can you tell me more about that?"),
+    followUpBudget: 2,
+    assistantTurnsOnQuestion: 2,
+    currentQuestionAnswered: true,
+  });
+  assert.equal(r.questionAdvanced, false);
+});
+
+test("budget force does not fire when the question has no answer on record", () => {
+  const r = resolveChatAdvance({
+    ...llm("Are you still there?"),
+    followUpBudget: 2,
+    assistantTurnsOnQuestion: 3,
+    currentQuestionAnswered: false,
+  });
+  assert.equal(r.questionAdvanced, false);
+});
+
+test("budget force does not fire on the last question", () => {
+  // No next question to advance to; completion stays marker-guarded.
+  const r = resolveChatAdvance({
+    ...llm("Thanks, anything else to add?"),
+    currentQuestionIndex: 1,
+    followUpBudget: 2,
+    assistantTurnsOnQuestion: 3,
+    currentQuestionAnswered: true,
+  });
+  assert.equal(r.questionAdvanced, false);
+  assert.equal(r.isComplete, false);
+});
+
+test("budget force does not override manual navigation or the deterministic/choice flows", () => {
+  const manual = resolveChatAdvance({
+    ...llm("Moving along."),
+    manualNavigation: true,
+    followUpBudget: 2,
+    assistantTurnsOnQuestion: 3,
+    currentQuestionAnswered: true,
+  });
+  assert.equal(manual.questionAdvanced, false);
+
+  const det = resolveChatAdvance({
+    responseContent: "Terima kasih.",
+    detFlow: { content: "x", questionAdvanced: false, isComplete: false },
+    choiceFlow: null,
+    manualNavigation: false,
+    currentQuestionIndex: 0,
+    questions: QUESTIONS,
+    conversationHistory: midConversation,
+    followUpBudget: 2,
+    assistantTurnsOnQuestion: 3,
+    currentQuestionAnswered: true,
+  });
+  assert.equal(det.questionAdvanced, false);
+
+  const choice = resolveChatAdvance({
+    responseContent: "Baik. Kenapa kamu memilih opsi itu?",
+    detFlow: null,
+    choiceFlow: { content: "x", questionAdvanced: false, isComplete: false },
+    manualNavigation: false,
+    currentQuestionIndex: 0,
+    questions: QUESTIONS,
+    conversationHistory: midConversation,
+    followUpBudget: 2,
+    assistantTurnsOnQuestion: 3,
+    currentQuestionAnswered: true,
+  });
+  assert.equal(choice.questionAdvanced, false);
+});
+
+test("budget force honors LIGHT depth: first answer moves on immediately", () => {
+  // LIGHT (budget 0): ask = 1 assistant turn; answered → advance.
+  const r = resolveChatAdvance({
+    ...llm("Thanks. Next up: your database indexing strategy."),
+    followUpBudget: 0,
+    assistantTurnsOnQuestion: 1,
+    currentQuestionAnswered: true,
+  });
+  assert.equal(r.questionAdvanced, true);
+});
+
+test("budget force does not fire when the marker already advanced", () => {
+  // Marker path wins; advancedWithoutMarker must stay false for logging.
+  const r = resolveChatAdvance({
+    ...llm("Moving on. [NEXT_QUESTION] Next: indexing."),
+    followUpBudget: 2,
+    assistantTurnsOnQuestion: 3,
+    currentQuestionAnswered: true,
+  });
+  assert.equal(r.questionAdvanced, true);
+  assert.equal(r.advancedWithoutMarker, false);
+});

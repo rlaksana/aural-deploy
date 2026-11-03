@@ -4,6 +4,7 @@ import type { LLMMessage } from "@/lib/ai/types";
 import { resolveChatAdvance } from "@/lib/chat-advance";
 import { resolveChoiceQuestionFlow } from "@/lib/choice-question-flow";
 import { resolveDeterministicFlow } from "@/lib/deterministic-flow";
+import { maxFollowUpsForDepth } from "@/lib/follow-up-depth";
 import { createLogger } from "@/lib/logger";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { sessionTokenValid } from "@/lib/session-access";
@@ -133,6 +134,37 @@ export async function POST(req: Request) {
           language: interview.language,
         });
 
+    // Follow-up budget force inputs (chat-advance): count assistant turns and
+    // USER answers attributed to the current question from the persisted
+    // transcript, so a spent budget can force advancement even when the model
+    // omits the [NEXT_QUESTION] marker. Only the LLM path needs this — the
+    // deterministic and choice flows already advance on their own.
+    const followUpBudget =
+      detFlow || choiceFlow
+        ? undefined
+        : maxFollowUpsForDepth(
+            (interview as { followUpDepth?: string | null }).followUpDepth,
+            ((interview.questions ?? []) as { type?: string }[])[questionIndex]?.type,
+          );
+    let assistantTurnsOnQuestion: number | undefined;
+    let currentQuestionAnswered: boolean | undefined;
+    if (followUpBudget !== undefined) {
+      const currentQuestionId = questions[questionIndex]?.id;
+      if (currentQuestionId) {
+        const { data: questionRows } = await supabaseAdmin
+          .from("messages")
+          .select("role")
+          .eq("sessionId", sessionId)
+          .eq("questionId", currentQuestionId);
+        assistantTurnsOnQuestion = (questionRows ?? []).filter(
+          (row) => row.role === "ASSISTANT",
+        ).length;
+        currentQuestionAnswered = (questionRows ?? []).some(
+          (row) => row.role === "USER",
+        );
+      }
+    }
+
     const response =
       detFlow || choiceFlow
         ? null
@@ -164,6 +196,9 @@ export async function POST(req: Request) {
         currentQuestionIndex: questionIndex,
         questions,
         conversationHistory,
+        followUpBudget,
+        assistantTurnsOnQuestion,
+        currentQuestionAnswered,
       });
 
     if (markerComplete && !isComplete) {
