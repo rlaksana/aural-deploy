@@ -11,6 +11,9 @@ permissions:
 
 jobs:
   lint-and-test:
+    # Mirrored copies of this file must not run CI in rlaksana/aural-deploy —
+    # it duplicates the source repo's CI on every mirror push.
+    if: github.repository == 'rlaksana/aural-oss'
     runs-on: ubuntu-latest
 
     steps:

@@ -11,6 +11,9 @@ on:
 
 jobs:
   mirror:
+    # The mirrored commit carries this file into rlaksana/aural-deploy, whose
+    # push event would re-run it there without DEPLOY_TOKEN — guard to source only.
+    if: github.repository == 'rlaksana/aural-oss'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
