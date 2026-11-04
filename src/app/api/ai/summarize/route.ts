@@ -1,4 +1,3 @@
-import { aiJobDedupeKey, enqueueAiJob } from "@/lib/ai/ai-jobs";
 import { generateSessionSummaryCore } from "@/lib/ai/session-summary";
 import { getAuthUser } from "@/lib/auth";
 import { createLogger } from "@/lib/logger";
@@ -7,6 +6,9 @@ import { evaluationsAreCanonical } from "@/lib/session-score";
 import { NextResponse } from "next/server";
 
 const log = createLogger("api/ai/summarize");
+
+// One summary is a 30–60s GLM call; 300s is the Fluid compute Hobby ceiling.
+export const maxDuration = 300;
 
 /**
  * Summary generation for the reports-tab buttons (regenerate all / single
@@ -64,16 +66,6 @@ export async function POST(req: Request) {
     // already have a summary, so a partially graded report would never be
     // repaired otherwise.
     const forceRebuild = !!force || !skipExisting || !evaluationsHealthy;
-    // Vercel functions die at 60s mid-LLM-call (Hobby cap) with no error
-    // marker — queue for the VPS drainer instead of running inline there.
-    if (process.env.VERCEL === "1") {
-      await enqueueAiJob({
-        kind: "SUMMARY",
-        dedupeKey: aiJobDedupeKey(["SUMMARY", sessionId, String(forceRebuild)]),
-        payload: { sessionId, force: forceRebuild },
-      });
-      return NextResponse.json({ queued: true });
-    }
     await generateSessionSummaryCore(sessionId, { force: forceRebuild });
     return NextResponse.json({ ok: true });
   } catch (error) {

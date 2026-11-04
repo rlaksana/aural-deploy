@@ -22,29 +22,11 @@ const inFlight = new Map<string, Promise<void>>();
  * generated for the same session, so multiple completion paths (voice save,
  * chat complete, safety-net) can all call it without double LLM runs.
  *
- * On Vercel the work is ALWAYS queued, never inline: Hobby functions die at
- * 60s mid-LLM-call with no error marker, which silently ate every summary
- * (2026-10/11 incident). The VPS compose drainer executes ai_jobs on the
- * same database. Elsewhere the AI operating window decides (dynamic import
- * avoids a static cycle: ai-jobs imports generateSessionSummaryCore).
+ * Runs inline — callers schedule it through next/server after() so the
+ * invocation survives past the response. Callers must host this on a route
+ * whose maxDuration covers one LLM call (~30–60s on GLM).
  */
 export async function generateSessionSummary(sessionId: string): Promise<void> {
-  const onVercel = process.env.VERCEL === "1";
-  let open = false;
-  if (!onVercel) {
-    const { aiWindowStatus } = await import("./ai-window");
-    open = aiWindowStatus().open;
-  }
-  if (onVercel || !open) {
-    const { aiJobDedupeKey, enqueueAiJob } = await import("./ai-jobs");
-    await enqueueAiJob({
-      kind: "SUMMARY",
-      dedupeKey: aiJobDedupeKey(["SUMMARY", sessionId, "false"]),
-      payload: { sessionId, force: false },
-    });
-    return;
-  }
-
   const existing = inFlight.get(sessionId);
   if (existing) return existing;
 

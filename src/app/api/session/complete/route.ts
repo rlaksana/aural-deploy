@@ -12,6 +12,10 @@ import { NextResponse, after } from "next/server";
 
 const log = createLogger("api/session/complete");
 
+// The after() summary callback is a 30–60s GLM call; 300s is the Fluid
+// compute Hobby ceiling.
+export const maxDuration = 300;
+
 export async function POST(req: Request) {
   try {
     const body = await req.json().catch(() => null);

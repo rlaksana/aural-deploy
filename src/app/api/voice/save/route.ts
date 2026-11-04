@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { createLogger } from "@/lib/logger";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { sessionTokenValid } from "@/lib/session-access";
@@ -13,6 +13,10 @@ import {
 } from "./logic";
 
 const log = createLogger("api/voice/save");
+
+// One summary is a 30–60s GLM call; 300s is the Fluid compute Hobby ceiling.
+export const maxDuration = 300;
+
 const voiceSaveOps: VoiceSaveOps = {
   async insertMessages(sessionId, messages) {
     await supabaseAdmin.from("messages").insert(
@@ -91,7 +95,16 @@ const voiceSaveOps: VoiceSaveOps = {
   async updateSession(sessionId, payload) {
     await supabaseAdmin.from("sessions").update(payload).eq("id", sessionId);
   },
-  generateSummary: (sessionId: string) => generateSessionSummary(sessionId),
+  generateSummary: (sessionId: string) => {
+    // after() keeps the serverless invocation alive past the response — a bare
+    // fire-and-forget promise is frozen once the body is flushed.
+    after(() =>
+      generateSessionSummary(sessionId).catch((err) =>
+        log.error("Background summary generation failed:", err),
+      ),
+    );
+    return Promise.resolve();
+  },
   log,
   now: () => new Date(),
 };
