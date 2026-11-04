@@ -64,3 +64,21 @@ test("invalid scores are replaced with zero", () => {
   assert.equal(result[0].score, 0);
   assert.equal(result[1].score, 0);
 });
+
+test("an answered question with no evaluation becomes a pending marker, not a false zero", () => {
+  const questions = [
+    { text: "What is your stack?", id: "q1" },
+    { text: "Describe a bug you fixed", id: "q2" },
+  ];
+  const result = completeQuestionEvaluations(
+    [{ question: "What is your stack?", score: 8, evaluation: "good" }],
+    questions,
+    "en",
+    new Set(["q1", "q2"]),
+  );
+
+  // Answered but not graded yet: score null + pendingGrading, never a false 0.
+  assert.equal(result[1].score, null);
+  assert.equal(result[1].pendingGrading, true);
+  assert.equal(result[1].evaluation, "Not graded yet");
+});

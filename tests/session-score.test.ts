@@ -159,3 +159,88 @@ test("mergeDeterministicWithLlm keeps the Not-answered fill when the LLM has not
     { question: "Explain indexes.", score: 0, evaluation: "Not answered" },
   ]);
 });
+
+test("mergeDeterministicWithLlm grades an answered open-ended question that is still pending", () => {
+  const questions = [
+    { text: "Pick a framework", id: "q1" },
+    { text: "Explain indexes.", id: "q2" },
+  ];
+  // Only the keyed choice question carries a deterministic grade.
+  const deterministic = [{ question: "Pick a framework", score: 10, correct: true }];
+  const llm = [
+    { question: "Pick a framework", score: 4, evaluation: "weak pick" },
+    { question: "Explain indexes.", score: 7, evaluation: "solid answer" },
+  ];
+
+  // The candidate answered both questions. The open-ended one has no
+  // deterministic grade, so it is a pending marker until the AI grades it.
+  const merged = mergeDeterministicWithLlm(
+    deterministic,
+    llm,
+    questions,
+    "en",
+    new Set(["q1", "q2"]),
+  );
+
+  // Keyed: the deterministic grade still wins.
+  assert.deepEqual(merged[0], { question: "Pick a framework", score: 10, correct: true });
+  // Answered open-ended: the AI score must replace the pending marker —
+  // otherwise the report shows "-" for it forever.
+  assert.equal(merged[1].score, 7);
+  assert.equal(merged[1].evaluation, "solid answer");
+  assert.equal(merged[1].pendingGrading, undefined);
+});
+
+test("evaluationsAreCanonical rejects a canonical list whose entries are still ungraded", () => {
+  const questions = [{ text: "What is REST?" }, { text: "Explain indexes." }];
+
+  // Right count, right texts — but the second question is answered and still
+  // waiting for the AI grader, so the report is not finished.
+  assert.equal(
+    evaluationsAreCanonical(
+      [
+        { question: "What is REST?", score: 8 },
+        { question: "Explain indexes.", score: null, pendingGrading: true },
+      ],
+      questions,
+    ),
+    false,
+  );
+  // A missing score is equally ungraded.
+  assert.equal(
+    evaluationsAreCanonical(
+      [
+        { question: "What is REST?", score: 8 },
+        { question: "Explain indexes.", score: null },
+      ],
+      questions,
+    ),
+    false,
+  );
+});
+
+test("mergeDeterministicWithLlm keeps the gap when the LLM entry has no usable score", () => {
+  const questions = [
+    { text: "Pick a framework", id: "q1" },
+    { text: "Explain indexes.", id: "q2" },
+  ];
+  const deterministic = [{ question: "Pick a framework", score: 10, correct: true }];
+  // The LLM matched the question by text but returned no score.
+  const llm = [
+    { question: "Pick a framework", score: 4, evaluation: "weak pick" },
+    { question: "Explain indexes.", evaluation: "no score returned" },
+  ];
+
+  const merged = mergeDeterministicWithLlm(
+    deterministic,
+    llm,
+    questions,
+    "en",
+    new Set(["q1", "q2"]),
+  );
+
+  // A score-less LLM entry is not an evaluation: the question stays pending
+  // instead of storing a broken value.
+  assert.equal(merged[1].score, null);
+  assert.equal(merged[1].pendingGrading, true);
+});

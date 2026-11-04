@@ -39,25 +39,31 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
+    const questions =
+      (session.interview as unknown as { questions?: { text: string }[] })
+        .questions ?? [];
+    const evals = (
+      session.insights as { questionEvaluations?: unknown } | null
+    )?.questionEvaluations;
+    // A report is finished when its evaluation list is the canonical
+    // one-per-question list AND every entry carries a score — a list of the
+    // right shape whose questions are still ungraded is not finished.
+    const evaluationsHealthy =
+      questions.length === 0 || evaluationsAreCanonical(evals, questions);
+
     // Batch callers set skipExisting so a run never pays for reports that are
     // already correct: skip when a summary exists AND the stored evaluations
-    // are the canonical one-per-question list (broken or missing evaluations
-    // are repaired even without force). force overrides everything — used by
-    // the single-candidate regenerate action for a deliberate full rebuild.
-    if (skipExisting && !force) {
-      const questions =
-        (session.interview as unknown as { questions?: { text: string }[] })
-          .questions ?? [];
-      const evals = (
-        session.insights as { questionEvaluations?: unknown } | null
-      )?.questionEvaluations;
-      const healthy =
-        !!session.summary &&
-        (questions.length === 0 || evaluationsAreCanonical(evals, questions));
-      if (healthy) return NextResponse.json({ skipped: true });
+    // are healthy. force overrides everything — used by the single-candidate
+    // regenerate action for a deliberate full rebuild.
+    if (skipExisting && !force && !!session.summary && evaluationsHealthy) {
+      return NextResponse.json({ skipped: true });
     }
 
-    const forceRebuild = !!force || !skipExisting;
+    // A broken or missing evaluation list must be rebuilt even when the
+    // caller did not ask for a force: the summary writer skips sessions that
+    // already have a summary, so a partially graded report would never be
+    // repaired otherwise.
+    const forceRebuild = !!force || !skipExisting || !evaluationsHealthy;
     // Vercel functions die at 60s mid-LLM-call (Hobby cap) with no error
     // marker — queue for the VPS drainer instead of running inline there.
     if (process.env.VERCEL === "1") {

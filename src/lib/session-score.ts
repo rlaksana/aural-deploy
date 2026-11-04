@@ -128,6 +128,17 @@ export function isUnansweredFill(entry: unknown, language?: string): boolean {
 }
 
 /**
+ * Whether an entry is a grading gap the AI grader is meant to fill: an
+ * answered question still waiting for its evaluation (pendingGrading), or
+ * the "Not answered" zero-fill. Deterministic keyed scores are neither —
+ * they are already scored and always win.
+ */
+function isGradingGap(entry: unknown, language?: string): boolean {
+  if (isUnansweredFill(entry, language)) return true;
+  return (entry as { pendingGrading?: unknown } | null)?.pendingGrading === true;
+}
+
+/**
  * Quiz/assessment grades are deterministic only for keyed choice questions;
  * unkeyed questions (open-ended, short text) are absent from that list even
  * when the candidate answered them. Deterministic entries win; the LLM's
@@ -145,9 +156,13 @@ export function mergeDeterministicWithLlm(
   if (!Array.isArray(llmEvals) || llmEvals.length === 0) return canonical;
   const findLlm = buildEvalMatcher(llmEvals);
   return canonical.map((entry) => {
-    if (!isUnansweredFill(entry, language)) return entry;
+    if (!isGradingGap(entry, language)) return entry;
     const llm = findLlm(String((entry as { question?: unknown }).question ?? ""));
     if (!llm) return entry;
+    const llmScore = (llm as { score?: unknown }).score;
+    // An entry without a usable score is not an evaluation — keep the gap so
+    // the report shows "not graded" instead of storing a broken value.
+    if (llmScore == null || !Number.isFinite(Number(llmScore))) return entry;
     return {
       ...(llm as Record<string, unknown>),
       question: (entry as { question: string }).question,
@@ -158,8 +173,10 @@ export function mergeDeterministicWithLlm(
 /**
  * Whether stored evaluations are already the canonical one-per-question list
  * (right count, every entry matching its positional question by the same
- * text-match rules as completeQuestionEvaluations). Batch regeneration uses
- * this to skip the AI call for sessions whose report is already correct.
+ * text-match rules as completeQuestionEvaluations, and carrying a real
+ * score). Batch regeneration uses this to skip the AI call for sessions whose
+ * report is already correct — a list of the right shape whose entries are
+ * still ungraded is not correct and must be rebuilt.
  */
 export function evaluationsAreCanonical(
   evals: unknown,
@@ -172,7 +189,17 @@ export function evaluationsAreCanonical(
       .replace(/\s+/g, " ")
       .trim();
   return questions.every((q, i) => {
-    const stored = normalize((evals[i] as { question?: unknown })?.question);
+    const entry = evals[i] as {
+      question?: unknown;
+      score?: unknown;
+      pendingGrading?: unknown;
+    } | undefined;
+    // An answered question that is still ungraded is not a finished report:
+    // the list has the right shape but carries no score for it.
+    if (entry?.pendingGrading === true) return false;
+    const score = entry?.score;
+    if (score == null || !Number.isFinite(Number(score))) return false;
+    const stored = normalize(entry.question);
     const canonical = normalize(q.text);
     if (!stored || !canonical) return false;
     return (
