@@ -196,8 +196,9 @@ export function evaluationsAreCanonical(
     } | undefined;
     // An answered question that is still ungraded is not a finished report:
     // the list has the right shape but carries no score for it.
-    if (entry?.pendingGrading === true) return false;
-    const score = entry?.score;
+    if (!entry) return false;
+    if (entry.pendingGrading === true) return false;
+    const score = entry.score;
     if (score == null || !Number.isFinite(Number(score))) return false;
     const stored = normalize(entry.question);
     const canonical = normalize(q.text);
