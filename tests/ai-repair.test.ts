@@ -4,6 +4,7 @@ import { z } from "zod";
 
 import { repairStructured, AiRepairError } from "../src/lib/ai/repair";
 import { REPAIR_MODEL } from "../src/lib/ai/registry";
+import { buildSummaryReportSchema } from "../src/lib/ai/generated-schema";
 import type { LLMMessage } from "../src/lib/ai/types";
 
 const schema = z.object({ name: z.string() });
@@ -171,4 +172,74 @@ test("truncated raw with an invalid escape recovers with ZERO repair calls", asy
  test("REPAIR_MODEL is the OpenRouter slug, not the Z.AI look-alike", () => {
   assert.equal(REPAIR_MODEL, "z-ai/glm-5.3-flash");
   assert.notEqual(REPAIR_MODEL, "glm-5.3-flash");
+});
+
+// ── Summary report schema (the repairStructured contract for /api/ai/summarize)
+
+const healthySummary = JSON.stringify({
+  summary: "Kandidat menjawab terstruktur.",
+  themes: ["kepemimpinan"],
+  sentiment: { overall: "positive", details: "terlibat" },
+  keyInsights: ["pernah memimpin tim kecil"],
+  questionEvaluations: [
+    { index: 1, question: "Ceritakan proyek", score: 8, evaluation: "jelas", highlights: ["detail"], improvements: ["kedalaman"] },
+    { index: 2, question: "Konflik dengan rekan", score: null, evaluation: "belum dinilai" },
+  ],
+});
+
+test("summary report: healthy output (including a null score) passes with zero repair calls", async () => {
+  const { calls, generate } = spyGenerate([]);
+  const result = await repairStructured({
+    raw: healthySummary,
+    schema: buildSummaryReportSchema(2),
+    label: "summary-report",
+    generate,
+  });
+  assert.equal(calls.length, 0);
+  // Loose passthrough keeps the UI fields validation does not declare.
+  assert.equal(result.questionEvaluations?.[0]?.improvements?.[0], "kedalaman");
+});
+
+test("summary report: malformed score type goes to the OpenRouter repair model", async () => {
+  const { calls, generate } = spyGenerate([healthySummary]);
+  const result = await repairStructured({
+    raw: '{"summary":"x","questionEvaluations":[{"index":1,"question":"Q","score":{"value":8}},{"index":2,"question":"Q2","score":7}]}',
+    schema: buildSummaryReportSchema(2),
+    label: "summary-report",
+    generate,
+  });
+  assert.equal(calls.length, 1, "format repair, never a main-model re-run");
+  assert.equal(result.questionEvaluations?.[0]?.score, 8);
+});
+
+test("summary report: evaluation count must equal the question count", async () => {
+  const oneEntry = JSON.stringify({
+    summary: "x",
+    questionEvaluations: [{ index: 1, question: "Q1", score: 8 }],
+  });
+  const { calls, generate } = spyGenerate([healthySummary]);
+  const result = await repairStructured({
+    raw: oneEntry,
+    schema: buildSummaryReportSchema(2),
+    label: "summary-report",
+    generate,
+  });
+  assert.equal(calls.length, 1);
+  assert.ok(
+    JSON.stringify(calls[0]).includes("2"),
+    "validation issues must tell the repair model the expected count",
+  );
+  assert.equal(result.questionEvaluations?.length, 2);
+});
+
+test("summary report: questionless session accepts any evaluation list shape", async () => {
+  const { calls, generate } = spyGenerate([]);
+  const result = await repairStructured({
+    raw: '{"summary":"x","questionEvaluations":[]}',
+    schema: buildSummaryReportSchema(0),
+    label: "summary-report",
+    generate,
+  });
+  assert.equal(calls.length, 0);
+  assert.deepEqual(result.questionEvaluations, []);
 });

@@ -101,6 +101,57 @@ export const GENERATED_INTERVIEW_SHAPE_HINT = `Required top-level fields: "title
 export type GeneratedInterviewValidated = z.infer<typeof generatedInterviewSchema>;
 export type GeneratedQuestionValidated = z.infer<typeof generatedQuestionSchema>;
 
+/** One questionEvaluation entry. Loose on purpose: unknown fields (extra UI
+ *  fields like highlights/improvements wording) must survive validation, and a
+ *  null/absent score is LEGAL here — it means "not graded" and is rejected by
+ *  the merge + pendingGrading gate, never fabricated by the repair model. */
+const summaryEvalEntry = z.looseObject({
+  index: z.number().optional(),
+  question: z.string().optional(),
+  score: z.union([z.number(), z.string()]).nullish(),
+  evaluation: z.string().optional(),
+  highlights: z.array(z.string()).optional(),
+  improvements: z.array(z.string()).optional(),
+});
+
+const summaryCriteriaEntry = z.looseObject({
+  name: z.string().optional(),
+  score: z.union([z.number(), z.string()]).nullish(),
+});
+
+/**
+ * Session summary/report structure. Strict ONLY on the load-bearing format
+ * contract (exactly one evaluation per interview question); loose everywhere
+ * else so healthy output passes with zero repair calls. Handed to
+ * repairStructured: a parse/validation failure sends the raw model output to
+ * the OpenRouter repair model for FORMAT-ONLY repair — never a main-model
+ * re-run, never fabricated scores. The evaluation count must equal
+ * `questionCount` because that is exactly what the prompt instructs; any
+ * other count is a format violation a repair model can see.
+ */
+export function buildSummaryReportSchema(questionCount: number) {
+  return z.looseObject({
+    summary: z.string().optional(),
+    themes: z.array(z.string()).optional(),
+    sentiment: z.record(z.string(), z.unknown()).optional(),
+    keyInsights: z.array(z.string()).optional(),
+    notableQuotes: z.array(z.string()).optional(),
+    toneAnalysis: z.record(z.string(), z.unknown()).optional(),
+    questionEvaluations:
+      questionCount > 0
+        ? z.array(summaryEvalEntry).length(questionCount)
+        : z.array(summaryEvalEntry).optional(),
+    criteriaEvaluations: z.array(summaryCriteriaEntry).optional(),
+    researchFindings: z.array(z.record(z.string(), z.unknown())).optional(),
+  });
+}
+
+/**
+ * Compact required-shape description handed to the repair model alongside
+ * summary output so it can fix structure without inventing content.
+ */
+export const SUMMARY_REPORT_SHAPE_HINT = `Required top-level fields: "summary" (string), "themes" (string[]), "sentiment" ({overall: "positive"|"neutral"|"negative", details: string}), "keyInsights" (string[]), "questionEvaluations" (array with EXACTLY ONE entry per interview question, in question order) — plus optional "notableQuotes" (string[]), "toneAnalysis" ({overall, details, segments}), "criteriaEvaluations" (array of {name: string, score: number, reasoning: string}), "researchFindings". Each questionEvaluations entry: {"index": that question's 1-based number (integer), "question": the question text, "score": number 1-10, "evaluation": string, "highlights": string[], "improvements": string[]}. NEVER invent or alter scores and never add entries beyond what the raw output contains — fix structure and syntax only, and complete a cut-off last entry from its own fragments.`;
+
 /** Request body accepted by /api/ai/generate and /api/ai/refine. */
 export const generateRequestSchema = z.object({
   description: z.string().trim().min(1).max(2_000),

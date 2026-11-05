@@ -1,5 +1,8 @@
 import { svgDataUrlToPng } from "@/lib/ai/convert-svg";
-import { extractJson } from "@/lib/ai/extract-json";
+import {
+  buildSummaryReportSchema,
+  SUMMARY_REPORT_SHAPE_HINT,
+} from "@/lib/ai/generated-schema";
 import { createLogger } from "@/lib/logger";
 import { buildSummaryPrompt } from "@/lib/ai/prompts/summary";
 import { REPORT_MODEL } from "@/lib/ai/registry";
@@ -9,6 +12,7 @@ import {
   completeQuestionEvaluations,
   mergeDeterministicWithLlm,
 } from "@/lib/session-score";
+import { repairStructured } from "@/lib/ai/repair";
 
 const log = createLogger("ai/session-summary");
 
@@ -196,7 +200,16 @@ export async function generateSessionSummaryCore(
       }
     }
 
-    const parsed = extractJson(response.content);
+    // A parse/validation failure is a FORMAT error, not a content error: the
+    // raw output goes to the OpenRouter repair model (format only, never a
+    // main-model re-run). Unsalvageable output throws and the gate below
+    // keeps a partial result from ever being persisted.
+    const parsed = await repairStructured({
+      raw: response.content,
+      schema: buildSummaryReportSchema(interview.questions.length),
+      label: "summary-report",
+      shapeHint: SUMMARY_REPORT_SHAPE_HINT,
+    });
 
     const insightsData: Record<string, unknown> = {
       keyInsights: parsed.keyInsights ?? [],
