@@ -5,7 +5,7 @@ import {
   buildSurveyAggregate,
   fetchAnsweredBySession,
   fetchReportEntries,
-  filterFinalForAiKinds,
+  filterScoreReadyEntries,
   type InterviewReport,
   type SurveyAggregate,
 } from "@/lib/interview-report";
@@ -149,62 +149,6 @@ export const reportRouter = router({
       return { success: true };
     }),
 
-  /** Draft→finalize: mark sessions FINAL so they appear on the share link. */
-  finalizeSessions: protectedProcedure
-    .input(
-      z.object({
-        interviewId: z.string(),
-        sessionIds: z.array(z.string()).min(1),
-      }),
-    )
-    .mutation(async ({ ctx, input }) => {
-      await verifyInterviewAccess(ctx.supabase, input.interviewId, ctx.user.id);
-
-      const { error } = await ctx.supabase
-        .from("sessions")
-        .update({
-          reportStatus: "FINAL",
-          finalizedAt: new Date().toISOString(),
-          finalizedBy: ctx.user.id,
-        })
-        .in("id", input.sessionIds)
-        .eq("interviewId", input.interviewId);
-
-      if (error) {
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: error.message,
-        });
-      }
-      return { success: true };
-    }),
-
-  /** Draft→finalize: mark every completed session of the interview FINAL. */
-  finalizeAll: protectedProcedure
-    .input(z.object({ interviewId: z.string() }))
-    .mutation(async ({ ctx, input }) => {
-      await verifyInterviewAccess(ctx.supabase, input.interviewId, ctx.user.id);
-
-      const { error } = await ctx.supabase
-        .from("sessions")
-        .update({
-          reportStatus: "FINAL",
-          finalizedAt: new Date().toISOString(),
-          finalizedBy: ctx.user.id,
-        })
-        .eq("interviewId", input.interviewId)
-        .eq("status", "COMPLETED")
-        .eq("reportStatus", "DRAFT");
-
-      if (error) {
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: error.message,
-        });
-      }
-      return { success: true };
-    }),
-
   /** Public: resolve a share token to the aggregate report. */
   getByToken: publicProcedure
     .input(z.object({ token: z.string() }))
@@ -231,17 +175,23 @@ export const reportRouter = router({
       const row = interviewRow as unknown as InterviewKindRow | null;
       const kind = row?.kind ?? "INTERVIEW";
       const isInterviewKind = kind === "INTERVIEW";
-      // Draft→finalize gate: AI-judged kinds only show finalized sessions
-      // through a public token.
-      const entries = filterFinalForAiKinds(
+      const answeredBySession = isInterviewKind
+        ? await fetchAnsweredBySession(ctx.supabase, interviewId)
+        : undefined;
+      // Score-ready gate: AI-judged sessions appear publicly once COMPLETED
+      // with a finite score; still-grading or failed-pipeline sessions stay
+      // hidden (see filterScoreReadyEntries).
+      const entries = filterScoreReadyEntries(
         await fetchReportEntries(ctx.supabase, interviewId, {
           includeMessages: !isInterviewKind,
         }),
         kind,
+        {
+          questions: row?.questions,
+          criteriaWeights: buildCriteriaWeights(row?.assessmentCriteria),
+          answeredBySession,
+        },
       );
-      const answeredBySession = isInterviewKind
-        ? await fetchAnsweredBySession(ctx.supabase, interviewId)
-        : undefined;
       const report: InterviewReport = buildReportRows(
         row?.title ?? "Interview",
         entries,

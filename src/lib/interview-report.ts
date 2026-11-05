@@ -27,8 +27,6 @@ export type ReportRow = {
   bands?: Record<string, string>;
   summary: string | null;
   completedAt: string | null;
-  /** Draft→finalize state; null = no session yet (invited roster row). */
-  reportStatus: string | null;
 };
 
 export type InterviewReport = {
@@ -87,8 +85,6 @@ type SessionLike = {
   participantName?: string | null;
   participantEmail?: string | null;
   completedAt?: string | null;
-  /** Draft→finalize gate; only meaningful for AI-judged kinds. */
-  reportStatus?: string | null;
   messages?: SessionMessage[] | null;
 } | null;
 
@@ -200,17 +196,45 @@ export async function fetchAnsweredBySession(
 const AI_JUDGED_KINDS = new Set(["INTERVIEW", "ASSESSMENT"]);
 
 /**
- * Public-read gate for the draft→finalize workflow: sessions of AI-judged
- * kinds (INTERVIEW, ASSESSMENT) stay hidden from share links until the
- * recruiter finalizes them. Invited candidates without a session remain
- * visible roster rows, and objective kinds pass through untouched.
+ * Public-read gate: sessions of AI-judged kinds (INTERVIEW, ASSESSMENT)
+ * appear on share links only once their score is ready — COMPLETED with a
+ * finite overall score. Still-running and failed-pipeline sessions stay
+ * hidden automatically (admin banners surface them for regeneration);
+ * invited candidates without a session remain visible roster rows, and
+ * objective kinds pass through untouched. Applied to entries so both the
+ * report rows AND the ASSESSMENT aggregate see the same population.
  */
-export function filterFinalForAiKinds(
+export function filterScoreReadyEntries(
   entries: ReportEntry[],
   kind: string,
+  opts: {
+    questions?: { text: string; id?: string }[];
+    criteriaWeights?: Record<string, number>;
+    answeredBySession?: Map<string, Set<string>>;
+  } = {},
 ): ReportEntry[] {
   if (!AI_JUDGED_KINDS.has(kind)) return entries;
-  return entries.filter((e) => !e.session || e.session.reportStatus !== "DRAFT");
+  return entries.filter((e) => {
+    const session = e.session;
+    if (!session) return true;
+    if (session.status !== "COMPLETED") return false;
+    // Mirror buildReportRows' answered derivation so the readiness check
+    // computes the exact same score the row will display.
+    const answeredIds =
+      opts.answeredBySession?.get(session.id) ??
+      new Set(
+        (session.messages ?? [])
+          .filter((m) => m.role === "USER" && m.questionId)
+          .map((m) => m.questionId as string),
+      );
+    const insights = canonicalizeInsights(session.insights, opts.questions, answeredIds);
+    const score = getSessionOverallScore(
+      insights as Parameters<typeof getSessionOverallScore>[0],
+      opts.questions?.length,
+      opts.criteriaWeights,
+    );
+    return typeof score === "number" && Number.isFinite(score);
+  });
 }
 
 /** Build ranked report rows from invited candidates + walk-in sessions. */
@@ -254,7 +278,6 @@ export function buildReportRows(
           criteria: {},
           summary: null,
           completedAt: null,
-          reportStatus: null,
         });
       }
       continue;
@@ -293,7 +316,6 @@ export function buildReportRows(
       ...extractDimensions(insights),
       summary: extractSummary(session, insights),
       completedAt: session.completedAt ?? null,
-      reportStatus: session.reportStatus ?? null,
     });
   }
 

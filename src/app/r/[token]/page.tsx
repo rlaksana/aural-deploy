@@ -5,7 +5,7 @@ import {
   buildSurveyAggregate,
   fetchAnsweredBySession,
   fetchReportEntries,
-  filterFinalForAiKinds,
+  filterScoreReadyEntries,
 } from "@/lib/interview-report";
 import { AutoRefresh } from "./auto-refresh";
 import { supabaseAdmin } from "@/lib/supabase/admin";
@@ -62,16 +62,22 @@ export default async function PublicReportPage({
     | (InterviewKindRow & { aiAnalysis?: { text: string; generatedAt: string } | null })
     | null;
   const isInterviewKind = (row?.kind ?? "INTERVIEW") === "INTERVIEW";
-  // Draft→finalize gate: AI-judged kinds only show finalized sessions publicly.
-  const entries = filterFinalForAiKinds(
+  const answeredBySession = isInterviewKind
+    ? await fetchAnsweredBySession(supabaseAdmin, interviewId)
+    : undefined;
+  // Score-ready gate: AI-judged sessions appear publicly once COMPLETED with
+  // a finite score (see filterScoreReadyEntries).
+  const entries = filterScoreReadyEntries(
     await fetchReportEntries(supabaseAdmin, interviewId, {
       includeMessages: !isInterviewKind,
     }),
     row?.kind ?? "INTERVIEW",
+    {
+      questions: row?.questions,
+      criteriaWeights: buildCriteriaWeights(row?.assessmentCriteria),
+      answeredBySession,
+    },
   ).map((entry) => ({ ...entry, email: null, participantEmail: null }));
-  const answeredBySession = isInterviewKind
-    ? await fetchAnsweredBySession(supabaseAdmin, interviewId)
-    : undefined;
   const report = buildReportRows(
     interviewRow?.title ?? "Interview",
     entries,

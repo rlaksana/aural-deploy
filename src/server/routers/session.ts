@@ -698,11 +698,7 @@ export const sessionRouter = router({
         });
         await ctx.supabase
           .from("sessions")
-          .update({
-            summary: result.summary,
-            reportStatus: "FINAL",
-            finalizedAt: now.toISOString(),
-          })
+          .update({ summary: result.summary })
           .eq("id", input.id);
 
         return { success: true };
@@ -1029,8 +1025,8 @@ export const sessionRouter = router({
 
   /** Reopen a finished session: back to IN_PROGRESS so the candidate can
    *  re-enter and continue answering (the stored session id in their browser
-   *  resumes the transcript). reportStatus is left untouched — review the
-   *  rebuilt report and finalize again if it was already FINAL. */
+   *  resumes the transcript). The rebuilt report republishes automatically
+   *  once its score is ready again. */
   reopen: protectedProcedure
     .input(
       z.object({

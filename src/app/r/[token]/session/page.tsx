@@ -102,25 +102,35 @@ export default async function PublicSessionReportPage({
   const { data: session } = await supabaseAdmin
     .from("sessions")
     .select(
-      "id, status, participantName, participantEmail, summary, insights, totalDurationSeconds, \"reportStatus\", interview:interviews!inner(title, kind, assessmentCriteria, questions(text))",
+      "id, status, participantName, participantEmail, summary, insights, totalDurationSeconds, interview:interviews!inner(title, kind, assessmentCriteria, questions(text))",
     )
     .eq("id", sessionId)
     .eq("interviewId", interviewId)
     .maybeSingle();
   if (!session) notFound();
 
-  // Draft→finalize gate: AI-judged kinds are hidden until the recruiter
-  // finalizes them — a DRAFT session must not be reachable by URL guessing.
+  // Score-ready gate (mirrors the roster): AI-judged sessions become publicly
+  // reachable once COMPLETED with a finite overall score — a still-running or
+  // failed-pipeline session must not be visible by URL guessing.
   const s = session as unknown as {
-    reportStatus?: string | null;
-    interview: { kind?: string } | null;
+    status?: string | null;
+    insights?: unknown;
+    interview: {
+      kind?: string;
+      assessmentCriteria?: { name: string; description: string; weight?: number }[] | null;
+      questions?: { text: string }[];
+    } | null;
   };
   const kind = s.interview?.kind ?? "INTERVIEW";
-  if (
-    (kind === "INTERVIEW" || kind === "ASSESSMENT") &&
-    s.reportStatus === "DRAFT"
-  ) {
-    notFound();
+  if (kind === "INTERVIEW" || kind === "ASSESSMENT") {
+    const score = getSessionOverallScore(
+      (s.insights ?? null) as Parameters<typeof getSessionOverallScore>[0],
+      s.interview?.questions?.length,
+      buildCriteriaWeights(s.interview?.assessmentCriteria ?? null),
+    );
+    if (s.status !== "COMPLETED" || score === null || !Number.isFinite(score)) {
+      notFound();
+    }
   }
 
   const interview = session.interview as unknown as
