@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { createHmac } from "crypto";
 
 import {
     activeSpeechHoldAction,
@@ -16,6 +17,7 @@ import {
     responseInvitesUserReply,
     shouldSuppressAnsweredAsrFinal,
     trimCrossTurnOverlap,
+    verifyRelayTicket,
 } from "../server/voice-relay-helpers";
 import { maxFollowUpsForDepth } from "../src/lib/follow-up-depth";
 
@@ -575,4 +577,62 @@ test("trimCrossTurnOverlap preserves non-overlapping text", () => {
   const prev = "I worked on reducing latency in the system.";
   const incoming = "The second challenge was improving audio quality.";
   assert.equal(trimCrossTurnOverlap(prev, incoming), incoming);
+});
+
+// ── verifyRelayTicket: HMAC relay tickets (extracted from voice-relay.ts,
+//    secret is now a parameter so the pure helpers stay testable) ──
+
+const TICKET_SECRET = "unit-test-relay-secret";
+
+function mintTicket(id = "conn-1", expMs = Date.now() + 60_000, secret = TICKET_SECRET): string {
+  const sig = createHmac("sha256", secret).update(`${id}.${expMs}`).digest("hex");
+  return `${id}.${expMs}.${sig}`;
+}
+
+test("verifyRelayTicket accepts a freshly minted ticket", () => {
+  assert.equal(verifyRelayTicket(mintTicket(), TICKET_SECRET), true);
+});
+
+test("verifyRelayTicket keeps the open posture when the secret is empty", () => {
+  assert.equal(verifyRelayTicket("garbage-not-a-ticket", ""), true);
+});
+
+test("verifyRelayTicket rejects non-string tickets", () => {
+  assert.equal(verifyRelayTicket(undefined, TICKET_SECRET), false);
+  assert.equal(verifyRelayTicket(123, TICKET_SECRET), false);
+  assert.equal(verifyRelayTicket({}, TICKET_SECRET), false);
+});
+
+test("verifyRelayTicket rejects malformed tickets with fewer than two dots", () => {
+  assert.equal(verifyRelayTicket("nodots", TICKET_SECRET), false);
+  assert.equal(verifyRelayTicket("only.onedot", TICKET_SECRET), false);
+  assert.equal(verifyRelayTicket(".1634000000000.abc", TICKET_SECRET), false, "empty id (idEnd <= 0)");
+});
+
+test("verifyRelayTicket accepts ids that themselves contain dots", () => {
+  // Parsing walks backwards from the signature, so dotted connection ids survive.
+  assert.equal(verifyRelayTicket(mintTicket("user.conn.42"), TICKET_SECRET), true);
+});
+
+test("verifyRelayTicket rejects a wrong signature", () => {
+  assert.equal(verifyRelayTicket(mintTicket("conn-1", Date.now() + 60_000, "other-secret"), TICKET_SECRET), false);
+});
+
+test("verifyRelayTicket rejects a signature with the wrong length", () => {
+  const short = mintTicket().slice(0, -1); // 63 hex chars
+  assert.equal(verifyRelayTicket(short, TICKET_SECRET), false);
+});
+
+test("verifyRelayTicket rejects expired tickets", () => {
+  assert.equal(verifyRelayTicket(mintTicket("conn-1", Date.now() - 1000), TICKET_SECRET), false);
+});
+
+test("verifyRelayTicket rejects a non-numeric expiry", () => {
+  const expMs = "not-a-number";
+  const sig = createHmac("sha256", TICKET_SECRET).update(`conn-1.${expMs}`).digest("hex");
+  assert.equal(verifyRelayTicket(`conn-1.${expMs}.${sig}`, TICKET_SECRET), false, "Number(...) is NaN");
+});
+
+test("verifyRelayTicket rejects a non-hex signature", () => {
+  assert.equal(verifyRelayTicket(`conn-1.${Date.now() + 60_000}.${"z".repeat(64)}`, TICKET_SECRET), false);
 });

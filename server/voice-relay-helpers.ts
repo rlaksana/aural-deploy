@@ -1,3 +1,25 @@
+import { createHmac, timingSafeEqual } from "crypto";
+
+/** Verify "<id>.<expMs>.<hmacsha256>" tickets minted by /api/voice/relay-ticket.
+ *  An empty secret keeps the legacy open posture (true) — deployments reachable
+ *  from the internet must set VOICE_RELAY_SECRET. */
+export function verifyRelayTicket(ticket: unknown, secret: string): boolean {
+  if (!secret) return true;
+  if (typeof ticket !== "string") return false;
+  const sigStart = ticket.lastIndexOf(".");
+  const idEnd = ticket.lastIndexOf(".", sigStart - 1);
+  if (idEnd <= 0) return false;
+  const id = ticket.slice(0, idEnd);
+  const expMs = Number(ticket.slice(idEnd + 1, sigStart));
+  const sig = ticket.slice(sigStart + 1);
+  if (!Number.isSafeInteger(expMs) || expMs < Date.now() || !/^[0-9a-f]{64}$/.test(sig)) {
+    return false;
+  }
+  const expected = createHmac("sha256", secret).update(`${id}.${expMs}`).digest();
+  const given = Buffer.from(sig, "hex");
+  return given.length === expected.length && timingSafeEqual(given, expected);
+}
+
 // Strong: self-referencing commands unlikely to appear as topic descriptions.
 const STRONG_END_PATTERNS = [
   /(?:please|let'?s|I\s+want\s+to|can\s+we)\s+end(?:\s+(?:the\s+)?interview)?/i,

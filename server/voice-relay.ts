@@ -19,7 +19,7 @@
  *
  * Usage:  npx tsx server/voice-relay.ts
  */
-import { createHmac, randomUUID, timingSafeEqual } from "crypto";
+import { randomUUID } from "crypto";
 import { config } from "dotenv";
 import { WebSocket, WebSocketServer } from "ws";
 import { maxFollowUpsForDepth } from "../src/lib/follow-up-depth";
@@ -48,6 +48,7 @@ import {
     shouldSuppressAnsweredAsrFinal,
     shouldSuppressRecentAsrFinal,
     trimCrossTurnOverlap,
+    verifyRelayTicket,
     type RecentAsrFinal,
 } from "./voice-relay-helpers";
 import { PROMPTS, SPOKEN } from "./voice-relay-prompts";
@@ -72,23 +73,6 @@ const RELAY_PORT = Number(process.env.VOICE_RELAY_PORT) || 8766;
 // internet or the relay is a free billable ASR/TTS/LLM oracle.
 const RELAY_TICKET_SECRET = process.env.VOICE_RELAY_SECRET?.trim() || "";
 
-/** Verify "<id>.<expMs>.<hmacsha256>" tickets minted by /api/voice/relay-ticket. */
-function verifyRelayTicket(ticket: unknown): boolean {
-  if (!RELAY_TICKET_SECRET) return true;
-  if (typeof ticket !== "string") return false;
-  const sigStart = ticket.lastIndexOf(".");
-  const idEnd = ticket.lastIndexOf(".", sigStart - 1);
-  if (idEnd <= 0) return false;
-  const id = ticket.slice(0, idEnd);
-  const expMs = Number(ticket.slice(idEnd + 1, sigStart));
-  const sig = ticket.slice(sigStart + 1);
-  if (!Number.isSafeInteger(expMs) || expMs < Date.now() || !/^[0-9a-f]{64}$/.test(sig)) {
-    return false;
-  }
-  const expected = createHmac("sha256", RELAY_TICKET_SECRET).update(`${id}.${expMs}`).digest();
-  const given = Buffer.from(sig, "hex");
-  return given.length === expected.length && timingSafeEqual(given, expected);
-}
 
 // ASR config — MiniMax one-shot speech_to_text (local VAD endpointing)
 const MINIMAX_VOICE = resolveMiniMaxVoiceConfig();
@@ -770,7 +754,7 @@ wss.on("connection", (browserWs) => {
     try {
       const msg = JSON.parse(data.toString());
       if (msg.type === "mic_test") {
-        if (!verifyRelayTicket(msg.relayTicket)) {
+        if (!verifyRelayTicket(msg.relayTicket, RELAY_TICKET_SECRET)) {
           clearTimeout(timeout);
           log.warn("mic_test rejected: invalid relay ticket");
           browserWs.close();
@@ -780,7 +764,7 @@ wss.on("connection", (browserWs) => {
         browserWs.removeListener("message", handler);
         handleMicTestConnection(browserWs, typeof msg.language === "string" ? msg.language : undefined);
       } else if (msg.type === "init" && msg.context) {
-        if (!verifyRelayTicket((msg.context as { relayTicket?: unknown }).relayTicket)) {
+        if (!verifyRelayTicket((msg.context as { relayTicket?: unknown }).relayTicket, RELAY_TICKET_SECRET)) {
           clearTimeout(timeout);
           log.warn("init rejected: invalid relay ticket");
           browserWs.close();
