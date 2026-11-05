@@ -21,6 +21,22 @@ const log = createLogger("ai/session-summary");
 const inFlight = new Map<string, Promise<void>>();
 
 /**
+ * Injectable dependencies (test seam, VoiceSaveOps precedent): production
+ * callers use the default and never pass anything.
+ */
+export type SummaryDeps = {
+  supabase: typeof supabaseAdmin;
+  generate: typeof generateChatWithFallback;
+  repair: typeof repairStructured;
+};
+
+const defaultDeps: SummaryDeps = {
+  supabase: supabaseAdmin,
+  generate: generateChatWithFallback,
+  repair: repairStructured,
+};
+
+/**
  * Generate and persist the AI summary/insights for a session. Idempotent:
  * returns immediately when a summary already exists or one is currently being
  * generated for the same session, so multiple completion paths (voice save,
@@ -30,18 +46,21 @@ const inFlight = new Map<string, Promise<void>>();
  * invocation survives past the response. Callers must host this on a route
  * whose maxDuration covers one LLM call (~30–60s on GLM).
  */
-export async function generateSessionSummary(sessionId: string): Promise<void> {
+export async function generateSessionSummary(
+  sessionId: string,
+  deps: SummaryDeps = defaultDeps,
+): Promise<void> {
   const existing = inFlight.get(sessionId);
   if (existing) return existing;
 
-  const job = generateSessionSummaryCore(sessionId)
+  const job = generateSessionSummaryCore(sessionId, {}, deps)
     .then(() => undefined)
     .catch(async (error) => {
       log.error(`Summary generation failed for session ${sessionId}:`, error);
       // Best-effort marker so a backfill can find permanently failed
       // summaries; a failure here must not mask the original error path.
       try {
-        await supabaseAdmin.rpc("merge_session_insights", {
+        await deps.supabase.rpc("merge_session_insights", {
           p_session_id: sessionId,
           p_insights: { summaryFailedAt: new Date().toISOString() },
         });
@@ -63,8 +82,9 @@ export async function generateSessionSummary(sessionId: string): Promise<void> {
 export async function generateSessionSummaryCore(
   sessionId: string,
   opts: { force?: boolean } = {},
+  deps: SummaryDeps = defaultDeps,
 ): Promise<{ status: "generated" | "skipped" }> {
-  const { data: interviewSession } = await supabaseAdmin
+  const { data: interviewSession } = await deps.supabase
     .from("sessions")
     .select(
       `summary, insights, interview:interviews!inner(title, objective, language, kind, assessmentCriteria, questions(id, text, order, type, expectedAnswer)), messages(*)`,
@@ -160,7 +180,7 @@ export async function generateSessionSummaryCore(
 
     let response;
     try {
-      response = await generateChatWithFallback({
+      response = await deps.generate({
         messages,
         temperature: 0.3,
         maxTokens: 16384,
@@ -189,7 +209,7 @@ export async function generateSessionSummaryCore(
           codeInput,
           interview.kind,
         );
-        response = await generateChatWithFallback({
+        response = await deps.generate({
           messages: fallbackMessages,
           temperature: 0.3,
           maxTokens: 16384,
@@ -204,7 +224,7 @@ export async function generateSessionSummaryCore(
     // raw output goes to the OpenRouter repair model (format only, never a
     // main-model re-run). Unsalvageable output throws and the gate below
     // keeps a partial result from ever being persisted.
-    const parsed = await repairStructured({
+    const parsed = await deps.repair({
       raw: response.content,
       schema: buildSummaryReportSchema(interview.questions.length),
       label: "summary-report",
@@ -268,7 +288,7 @@ export async function generateSessionSummaryCore(
       );
     }
 
-    await supabaseAdmin
+    await deps.supabase
       .from("sessions")
       .update({
         summary: String(parsed.summary ?? ""),
@@ -279,7 +299,7 @@ export async function generateSessionSummaryCore(
 
     // Merge (not overwrite) so quiz grades written by another serverless
     // instance during the LLM call are not silently dropped.
-    await supabaseAdmin.rpc("merge_session_insights", {
+    await deps.supabase.rpc("merge_session_insights", {
       p_session_id: sessionId,
       p_insights: insightsData,
     });
