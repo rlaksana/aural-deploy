@@ -144,8 +144,11 @@ export function fakeDb(
           filters?: Record<string, unknown>;
         },
         then: (
-          resolve: (v: { data: FakeRow[]; error: null; count: number }) => void,
+          resolve?: (v: { data: FakeRow[]; error: null; count: number }) => void,
         ) => {
+          // Real supabase builders accept a callback-less .then() for
+          // fire-and-forget chains (api-key-auth lastUsedAt) — mirror that.
+          if (typeof resolve !== "function") return;
           if (b._pending.insert) {
             const insertError = opts.insertErrors?.[table];
             const rows = (

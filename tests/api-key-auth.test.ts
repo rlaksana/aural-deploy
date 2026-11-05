@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import { before, describe, it } from "node:test";
+import { createHash } from "crypto";
 
 import type { ApiKeyAuth } from "@/lib/api-key-auth";
+import { fakeDb, withAdminPatches } from "./helpers";
 
 let apiError: (typeof import("@/lib/api-key-auth"))["apiError"];
 let isAuthError: (typeof import("@/lib/api-key-auth"))["isAuthError"];
@@ -88,5 +90,153 @@ describe("validateApiKey (early validation)", () => {
     assert.equal(result.status, 401);
     const body = (await result.json()) as { error: { message: string } };
     assert.ok(body.error.message.includes("dlv_"));
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/*  DB lookup: hash matching, org pick, project filter, rate limit.    */
+/*  validateApiKey reaches supabaseAdmin directly, so the instance     */
+/*  method is patched via withAdminPatches.                            */
+/* ------------------------------------------------------------------ */
+
+function keyRow(rawKey: string, overrides: Record<string, unknown> = {}) {
+  return {
+    key: createHash("sha256").update(rawKey).digest("hex"),
+    userId: "u-key",
+    isActive: true,
+    expiresAt: null,
+    ...overrides,
+  };
+}
+
+function authedReq(rawKey: string) {
+  return req({ authorization: `Bearer ${rawKey}` });
+}
+
+/** Auth fixture: one key user in two orgs, one open + one whitelisted project. */
+function authTables(rawKey: string, overrides: Record<string, unknown> = {}) {
+  return {
+    api_keys: [keyRow(rawKey, overrides)],
+    organization_members: [
+      { workspaceId: "org-b", userId: "u-key" },
+      { workspaceId: "org-a", userId: "u-key" },
+    ],
+    projects: [
+      { id: "p-wl", organizationId: "org-a" },
+      { id: "p-open", organizationId: "org-a" },
+    ],
+    project_members: [{ projectId: "p-wl", userId: "u-key" }],
+  };
+}
+
+describe("validateApiKey (DB lookup)", () => {
+  it("resolves the stored digest to the smallest workspaceId and accessible projects", async () => {
+    const raw = "dlv_auth_ok_happy";
+    const db = fakeDb(authTables(raw, { expiresAt: "2027-01-01T00:00:00Z" }));
+    const result = await withAdminPatches({ from: db.client.from }, () =>
+      validateApiKey(authedReq(raw)),
+    );
+    assert.ok(!(result instanceof Response));
+    // org pick is `.order("workspaceId").limit(1)` — the smallest id wins.
+    // Future expiresAt stays valid; only past dates reject.
+    assert.deepEqual(result, {
+      userId: "u-key",
+      organizationId: "org-a",
+      projectIds: ["p-wl", "p-open"],
+    } satisfies ApiKeyAuth);
+  });
+
+  it("excludes whitelisted projects that do not list the key's user", async () => {
+    const raw = "dlv_auth_wl_excluded";
+    const tables = authTables(raw);
+    tables.project_members = [{ projectId: "p-wl", userId: "u-someone" }];
+    const db = fakeDb(tables);
+    const result = await withAdminPatches({ from: db.client.from }, () =>
+      validateApiKey(authedReq(raw)),
+    );
+    assert.ok(!(result instanceof Response));
+    assert.deepEqual(result.projectIds, ["p-open"], "whitelisted project needs the user listed");
+  });
+
+  it("matches only the stored SHA-256 digest — a plaintext key row never authenticates", async () => {
+    const raw = "dlv_auth_plaintext_probe";
+    const db = fakeDb({
+      api_keys: [
+        {
+          key: raw, // wrong on purpose: the column must hold the digest
+          userId: "u-key",
+          isActive: true,
+          expiresAt: null,
+        },
+      ],
+      organization_members: [{ workspaceId: "org-a", userId: "u-key" }],
+    });
+    const result = await withAdminPatches({ from: db.client.from }, () =>
+      validateApiKey(authedReq(raw)),
+    );
+    assert.ok(result instanceof Response);
+    assert.equal(result.status, 401);
+  });
+
+  it("returns 401 for an inactive (revoked) key and for an expired key", async () => {
+    for (const overrides of [{ isActive: false }, { expiresAt: "2026-01-01T00:00:00Z" }]) {
+      const raw = "dlv_auth_dead_probe";
+      const db = fakeDb(authTables(raw, overrides));
+      const result = await withAdminPatches({ from: db.client.from }, () =>
+        validateApiKey(authedReq(raw)),
+      );
+      assert.ok(result instanceof Response);
+      assert.equal(result.status, 401, JSON.stringify(overrides));
+      const body = (await result.json()) as { error: { code: string } };
+      assert.equal(body.error.code, "UNAUTHORIZED");
+    }
+  });
+
+  it("returns 403 when the key user belongs to no organization", async () => {
+    const raw = "dlv_auth_no_org_probe";
+    const db = fakeDb({
+      api_keys: [keyRow(raw)],
+      organization_members: [],
+    });
+    const result = await withAdminPatches({ from: db.client.from }, () =>
+      validateApiKey(authedReq(raw)),
+    );
+    assert.ok(result instanceof Response);
+    assert.equal(result.status, 403);
+    const body = (await result.json()) as { error: { code: string } };
+    assert.equal(body.error.code, "FORBIDDEN");
+  });
+
+  it("records lastUsedAt on the key row (fire-and-forget update)", async () => {
+    const raw = "dlv_auth_lastused_probe";
+    const db = fakeDb(authTables(raw));
+    await withAdminPatches({ from: db.client.from }, () =>
+      validateApiKey(authedReq(raw)),
+    );
+    const update = db.writes.find(
+      (w) => w.op === "update" && w.table === "api_keys",
+    );
+    assert.ok(update, "lastUsedAt write recorded");
+    assert.equal(typeof (update!.payload as { lastUsedAt: string }).lastUsedAt, "string");
+    assert.equal(db.tables.api_keys[0].userId, "u-key", "row mutated in place");
+    assert.notEqual(db.tables.api_keys[0].lastUsedAt, null);
+  });
+
+  it("returns 429 with Retry-After on the 61st request inside the window", async () => {
+    const raw = "dlv_rl_61st_window_probe";
+    const db = fakeDb({ api_keys: [keyRow(raw)], organization_members: [] });
+    await withAdminPatches({ from: db.client.from }, async () => {
+      for (let i = 1; i <= 60; i++) {
+        const r = await validateApiKey(authedReq(raw));
+        assert.ok(r instanceof Response);
+        assert.equal(r.status, 403, `call ${i} passes the limiter but has no org`);
+      }
+      const limited = await validateApiKey(authedReq(raw));
+      assert.ok(limited instanceof Response);
+      assert.equal(limited.status, 429);
+      assert.ok(limited.headers.get("Retry-After"));
+      const body = (await limited.json()) as { error: { code: string } };
+      assert.equal(body.error.code, "RATE_LIMITED");
+    });
   });
 });
