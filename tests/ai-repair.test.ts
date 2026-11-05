@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { z } from "zod";
 
-import { repairStructured, AiRepairError } from "../src/lib/ai/repair";
+import { repairStructured, AiRepairError, autoCloseJson, recoverTruncated } from "../src/lib/ai/repair";
 import { REPAIR_MODEL } from "../src/lib/ai/registry";
 import { buildSummaryReportSchema } from "../src/lib/ai/generated-schema";
 import type { LLMMessage } from "../src/lib/ai/types";
@@ -242,4 +242,58 @@ test("summary report: questionless session accepts any evaluation list shape", a
   });
   assert.equal(calls.length, 0);
   assert.deepEqual(result.questionEvaluations, []);
+});
+
+// ── autoCloseJson unit behavior (the deterministic closer recoverTruncated leans on)
+
+test("autoCloseJson preserves a valid \\uXXXX escape byte-for-byte", () => {
+  const closed = autoCloseJson('{"a":"\\u0041');
+  assert.equal(JSON.parse(closed!).a, "A");
+});
+
+test("autoCloseJson doubles a broken \\u escape instead of dropping bytes", () => {
+  // "\u00" lacks the required 4 hex digits — the backslash is doubled so the
+  // original characters survive as literal text.
+  const closed = autoCloseJson('{"a":"x\\u00');
+  assert.equal(JSON.parse(closed!).a, "x\\u00");
+});
+
+test("autoCloseJson drops a lone trailing backslash and closes the string", () => {
+  const closed = autoCloseJson('{"a":"x\\');
+  assert.deepEqual(JSON.parse(closed!), { a: "x" });
+});
+
+test("autoCloseJson closes a string cut off mid-value", () => {
+  assert.equal(autoCloseJson('{"a":"open strin'), '{"a":"open strin"}');
+});
+
+test("autoCloseJson strips a dangling trailing comma", () => {
+  assert.equal(autoCloseJson('{"a":"x",'), '{"a":"x"}');
+});
+
+test("autoCloseJson strips a dangling colon with no value", () => {
+  assert.equal(autoCloseJson('{"a":"x":'), '{"a":"x"}');
+});
+
+test("autoCloseJson drops a dangling key left without its value", () => {
+  assert.equal(autoCloseJson('{"a":"x","b":'), '{"a":"x"}');
+});
+
+test("autoCloseJson reduces a first-key-without-value to an empty object", () => {
+  assert.deepEqual(JSON.parse(autoCloseJson('{"b":')!), {});
+});
+
+test("autoCloseJson closes nested brackets in reverse order", () => {
+  // Trailing comma and both open containers: the exact shape of a mid-array cut.
+  assert.deepEqual(JSON.parse(autoCloseJson('[{"a":[1,')!), [{ a: [1] }]);
+});
+
+test("autoCloseJson returns null on a bracket mismatch it cannot close as-is", () => {
+  assert.equal(autoCloseJson("[}"), null);
+});
+
+test("recoverTruncated returns null when no prefix can satisfy the schema", () => {
+  // Fully parseable but wrong type: no cut point can produce a valid object.
+  assert.equal(recoverTruncated('{"name":123}', schema), null);
+  assert.equal(recoverTruncated("no object at all", schema), null);
 });

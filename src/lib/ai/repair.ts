@@ -190,7 +190,12 @@ export function autoCloseJson(prefix: string): string | null {
     }
     const danglingKey = out.match(/,\s*"[^"]*"\s*:\s*$/) ?? out.match(/^\{\s*"[^"]*"\s*:\s*$/);
     if (out.endsWith(":")) {
-      if (danglingKey) out = out.slice(0, danglingKey.index).trimEnd();
+      if (danglingKey) {
+        out = out.slice(0, danglingKey.index).trimEnd();
+        // A dangling FIRST key emptied the object — keep the opening bracket
+        // so the result closes to "{}" instead of a bare "}".
+        if (out === "" && stack.length > 0) out = stack[0] === "}" ? "{" : "[";
+      }
       else out = out.slice(0, -1);
       continue;
     }
