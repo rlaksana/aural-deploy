@@ -41,7 +41,6 @@ export function fakeDb(
   const client = {
     from(table: string) {
       const working = [...(tables[table] ?? [])];
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const b: any = {
         select: () => b,
         eq: (col: string, val: unknown) => {

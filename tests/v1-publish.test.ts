@@ -8,8 +8,6 @@ process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-service-role-key";
 // Trailing slash on purpose: the route must strip it before joining /i/<slug>.
 process.env.NEXT_PUBLIC_APP_URL ??= "https://api.example.test/";
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
-
 type PublishMod = typeof import("../src/app/api/v1/interviews/[id]/publish/route");
 type DetailMod = typeof import("../src/app/api/v1/interviews/[id]/route");
 let publishPost: PublishMod["POST"];
