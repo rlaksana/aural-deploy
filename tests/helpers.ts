@@ -103,8 +103,28 @@ export function fakeDb(
           working.length = Math.min(working.length, n);
           return b;
         },
-        single: () => Promise.resolve({ data: working[0] ?? null, error: null }),
-        maybeSingle: () => Promise.resolve({ data: working[0] ?? null, error: null }),
+        single: () => {
+          // insert/delete chains resolve through then() — commit first so
+          // .insert(...).select("id").single() sees the persisted row.
+          if (b._pending.insert || b._pending.del) {
+            return new Promise((resolve) => {
+              b.then((res: { data: FakeRow[]; error: unknown; count: number }) =>
+                resolve({ data: res.data[0] ?? null, error: res.error, count: res.count }),
+              );
+            });
+          }
+          return Promise.resolve({ data: working[0] ?? null, error: null });
+        },
+        maybeSingle: () => {
+          if (b._pending.insert || b._pending.del) {
+            return new Promise((resolve) => {
+              b.then((res: { data: FakeRow[]; error: unknown; count: number }) =>
+                resolve({ data: res.data[0] ?? null, error: res.error, count: res.count }),
+              );
+            });
+          }
+          return Promise.resolve({ data: working[0] ?? null, error: null });
+        },
         update: (payload: Record<string, unknown>) => {
           b._pending.update = payload;
           return b;
