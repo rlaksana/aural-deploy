@@ -118,7 +118,7 @@ export function buildSummaryPrompt(
     : "";
   const questionEvalInstruction =
     questions && questions.length > 0
-      ? `6. For EACH interview question, evaluate the participant's response: how well they addressed the question, key strengths, areas for improvement, and a score (1-10)\n${rubricInstruction}   IMPORTANT: The transcript may also contain probing follow-up questions the interviewer asked after an answer. Follow-ups are NOT separate questions — their content belongs to the canonical interview question they probed. "questionEvaluations" must contain EXACTLY ONE entry per interview question listed above, in the same order, with "question" copied VERBATIM from the list. Never create entries for follow-up or probing questions.\n`
+      ? `6. For EACH interview question, evaluate the participant's response: how well they addressed the question, key strengths, areas for improvement, and a score (1-10)\n${rubricInstruction}   IMPORTANT: The transcript may also contain probing follow-up questions the interviewer asked after an answer. Follow-ups are NOT separate questions — their content belongs to the canonical interview question they probed. "questionEvaluations" must contain EXACTLY ONE entry per interview question listed above, in the same order, with "question" copied VERBATIM from the list. Each entry must also carry "index": that question's number in the Interview Questions list (1-based). Match entries to questions by index — the index must be exact even if the question text is shortened. Never create entries for follow-up or probing questions.\n`
       : "";
 
   const questionEvalJsonField =
@@ -126,6 +126,7 @@ export function buildSummaryPrompt(
       ? `,
   "questionEvaluations": [
     {
+      "index": 1,
       "question": "the interview question text",
       "score": 8,
       "evaluation": "detailed evaluation of the participant's response to this question",

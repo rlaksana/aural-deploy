@@ -41,12 +41,19 @@ function isUnansweredFillAny(entry: unknown): boolean {
  * The LLM only evaluates questions present in the transcript, but a fair
  * score must measure the candidate against ALL questions (unanswered = 0).
  * Rebuild the evaluation list in interview-question order: keep matched LLM
- * evaluations (canonical text), fill the gaps with zero scores, and drop
- * evaluations of follow-up questions so the report never gains phantom
- * Q-columns. When nothing text-matches (all paraphrased), fall back to the
- * old positional clamp so real scores are not lost.
+ * evaluations (joined by the echoed question index, else by text), fill the
+ * gaps with zero scores, and drop evaluations of follow-up questions so the
+ * report never gains phantom Q-columns. When nothing matches at all, fall
+ * back to the old positional clamp so real scores are not lost.
  */
-/** Text matcher over stored evaluations — shared by canonicalization and merging. */
+/**
+ * Index + text matcher over stored evaluations — shared by canonicalization
+ * and merging. The summary prompt numbers each question and requires an
+ * integer "index" per evaluation; joining by that index survives fallback
+ * models that paraphrase the question text instead of copying it verbatim.
+ * Duplicate or invalid index claims are dropped as ambiguous, so matching
+ * falls back to the normalized-text rules for those entries.
+ */
 function buildEvalMatcher(evals: unknown[]) {
   const normalize = (s: unknown) =>
     String(s ?? "")
@@ -54,11 +61,25 @@ function buildEvalMatcher(evals: unknown[]) {
       .replace(/\s+/g, " ")
       .trim();
   const byText = new Map<string, unknown>();
+  const byIndex = new Map<number, unknown>();
+  const ambiguous = new Set<number>();
   for (const e of evals) {
     const text = normalize((e as { question?: unknown })?.question);
     if (text) byText.set(text, e);
+    const raw = (e as { index?: unknown })?.index;
+    const idx = Number(raw);
+    if (raw != null && Number.isInteger(idx) && idx >= 1) {
+      if (byIndex.has(idx)) ambiguous.add(idx);
+      else byIndex.set(idx, e);
+    }
   }
-  return (questionText: string): unknown | undefined => {
+  for (const idx of ambiguous) byIndex.delete(idx);
+  return (questionText: string, position?: number): unknown | undefined => {
+    // Index first: a paraphrased question text must not orphan a scored entry.
+    if (position != null) {
+      const byIdx = byIndex.get(position + 1);
+      if (byIdx !== undefined) return byIdx;
+    }
     const key = normalize(questionText);
     if (byText.has(key)) return byText.get(key);
     for (const [text, e] of byText) {
@@ -78,7 +99,9 @@ export function completeQuestionEvaluations(
   answeredIds?: Set<string> | null,
 ): Record<string, unknown>[] {
   const findMatch = buildEvalMatcher(evals);
-  const hasDirectMatch = questions.some((q) => findMatch(q.text) !== undefined);
+  const hasDirectMatch = questions.some(
+    (q, i) => findMatch(q.text, i) !== undefined,
+  );
   const unansweredLabel = bt(
     getLanguageKey(language),
     UNANSWERED_EVALUATION as BiText,
@@ -89,7 +112,7 @@ export function completeQuestionEvaluations(
   );
 
   return questions.map((q, i) => {
-    const e = hasDirectMatch ? findMatch(q.text) : evals[i];
+    const e = hasDirectMatch ? findMatch(q.text, i) : evals[i];
     const score = (e as { score?: unknown } | undefined)?.score;
     const answered = answeredIds?.has(q.id ?? "") ?? false;
     if (answered) {
@@ -155,9 +178,12 @@ export function mergeDeterministicWithLlm(
   const canonical = completeQuestionEvaluations(deterministic, questions, language, answeredIds);
   if (!Array.isArray(llmEvals) || llmEvals.length === 0) return canonical;
   const findLlm = buildEvalMatcher(llmEvals);
-  return canonical.map((entry) => {
+  return canonical.map((entry, i) => {
     if (!isGradingGap(entry, language)) return entry;
-    const llm = findLlm(String((entry as { question?: unknown }).question ?? ""));
+    const llm = findLlm(
+      String((entry as { question?: unknown }).question ?? ""),
+      i,
+    );
     if (!llm) return entry;
     const llmScore = (llm as { score?: unknown }).score;
     // An entry without a usable score is not an evaluation — keep the gap so

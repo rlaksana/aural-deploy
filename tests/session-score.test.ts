@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  completeQuestionEvaluations,
   evaluationsAreCanonical,
   getSessionOverallScore,
   mergeDeterministicWithLlm,
@@ -243,4 +244,68 @@ test("mergeDeterministicWithLlm keeps the gap when the LLM entry has no usable s
   // instead of storing a broken value.
   assert.equal(merged[1].score, null);
   assert.equal(merged[1].pendingGrading, true);
+});
+
+test("mergeDeterministicWithLlm joins by question index when the LLM paraphrases text", () => {
+  const questions = [
+    { text: "Pick a framework", id: "q1" },
+    { text: "Explain database indexes.", id: "q2" },
+  ];
+  const deterministic = [{ question: "Pick a framework", score: 10, correct: true }];
+  const llm = [
+    // Fallback model paraphrased the open-ended text but echoed the right
+    // index — the join must not depend on the verbatim text.
+    { index: 2, question: "Discuss indexing strategies for databases", score: 7, evaluation: "solid" },
+    { index: 1, question: "Pick a framework", score: 4, evaluation: "weak" },
+  ];
+
+  const merged = mergeDeterministicWithLlm(
+    deterministic,
+    llm,
+    questions,
+    "en",
+    new Set(["q1", "q2"]),
+  );
+
+  // Keyed stays deterministic; answered open-ended fills via index.
+  assert.equal(merged[0].score, 10);
+  assert.equal(merged[1].score, 7);
+  assert.equal(merged[1].evaluation, "solid");
+  assert.equal(merged[1].pendingGrading, undefined);
+});
+
+test("an out-of-range index falls back to text matching", () => {
+  const questions = [{ text: "Explain indexes." }];
+  const merged = mergeDeterministicWithLlm(
+    [],
+    [{ index: 9, question: "Explain indexes.", score: 8 }],
+    questions,
+    "en",
+  );
+  assert.equal(merged[0].score, 8);
+});
+
+test("duplicate index claims are ambiguous and fall back to text matching", () => {
+  const questions = [{ text: "Explain indexes." }];
+  const merged = mergeDeterministicWithLlm(
+    [],
+    [
+      { index: 1, question: "Explain indexes.", score: 6 },
+      { index: 1, question: "Explain indexes.", score: 9 },
+    ],
+    questions,
+    "en",
+  );
+  // Neither entry may win by index; the text map resolves to the last entry.
+  assert.equal(merged[0].score, 9);
+});
+
+test("completeQuestionEvaluations fills an answered question via index despite paraphrase", () => {
+  const questions = [{ text: "Explain database indexes.", id: "q2" }];
+  const evals = [
+    { index: 1, question: "A discussion of database indexing", score: 8, evaluation: "good" },
+  ];
+  const out = completeQuestionEvaluations(evals, questions, "en", new Set(["q2"]));
+  assert.equal(out[0].score, 8);
+  assert.equal(out[0].pendingGrading, undefined);
 });

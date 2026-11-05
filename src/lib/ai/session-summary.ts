@@ -240,6 +240,21 @@ export async function generateSessionSummaryCore(
       insightsData.toneAnalysis = parsed.toneAnalysis;
     }
 
+    // Root-cause gate: a persisted report never carries grading gaps. Writing
+    // a partial merge and returning "generated" is what left answered
+    // questions stuck as "-" in Reports. A run that cannot grade every
+    // answered question fails loudly (the wrapper marks summaryFailedAt, the
+    // route returns 500) instead of saving a result the skip-valid logic then
+    // treats as finished.
+    const pendingCount = (questionEvaluations ?? []).filter(
+      (e) => (e as { pendingGrading?: unknown })?.pendingGrading === true,
+    ).length;
+    if (pendingCount > 0) {
+      throw new Error(
+        `Summary incomplete for session ${sessionId}: ${pendingCount} answered question(s) still ungraded after merge — refusing to persist`,
+      );
+    }
+
     await supabaseAdmin
       .from("sessions")
       .update({
