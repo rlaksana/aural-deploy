@@ -5,11 +5,11 @@
 # Runs weekly via Task Scheduler ("Vercel deploy prune"); safe to run manually anytime.
 $ErrorActionPreference = "Continue"
 $log = Join-Path $env:TEMP "vercel-prune.log"
-function Log($m) { $m | Tee-Object -FilePath $log -Append }
+function Log($m) { ("[{0}] {1}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $m) | Tee-Object -FilePath $log -Append }
 
 $rows = @()
 # vercel CLI (and its session wrappers) may print the listing on stderr, so merge streams.
-$listing = (npx vercel ls aural-deploy --limit 100 2>&1 | ForEach-Object { "$_" })
+$listing = (npx --yes vercel ls aural-deploy --limit 100 2>&1 | ForEach-Object { "$_" })
 foreach ($line in $listing) {
   if ($line -match "aural-deploy-([a-z0-9]+)-rlaksanas-projects\.vercel\.app\s+\S") {
     $id = $Matches[1]
@@ -32,7 +32,7 @@ $targets = $rows |
 
 Log ("prune: keeping {0}; {1} to delete" -f $keeper.Id, @($targets).Count)
 foreach ($u in $targets) {
-  npx vercel rm $u --yes 2>&1 | Out-Null
+  npx --yes vercel rm $u --yes 2>&1 | Out-Null
   if ($LASTEXITCODE -eq 0) { Log "deleted $u" } else { Log "FAILED $u" }
   Start-Sleep -Seconds 1
 }
