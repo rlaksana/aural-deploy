@@ -24,7 +24,7 @@ const sinceSeconds = sinceArg >= 0 ? Number(process.argv[sinceArg + 1]) || 900 :
 const sinceMs = Date.now() - sinceSeconds * 1000;
 
 function listProductionDeployments() {
-  const r = spawnSync("npx", ["vercel", "ls", project, "--json"], {
+  const r = spawnSync("npx", ["--yes", "vercel", "ls", project, "--json"], {
     encoding: "utf8",
     shell: process.platform === "win32",
   });
