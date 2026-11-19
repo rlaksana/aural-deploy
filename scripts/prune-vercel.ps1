@@ -2,7 +2,8 @@
 # Keeps only the newest Ready Production deployment; deletes every older one.
 # In-flight builds (Building/Queued/Initializing) are never touched.
 # ASCII-only regex: the .ps1 must parse correctly even as ANSI (no BOM).
-# Runs weekly via Task Scheduler ("Vercel deploy prune"); safe to run manually anytime.
+# Runs weekly via Task Scheduler ("Vercel deploy prune"), launched hidden via hstart64 /NOCONSOLE
+# (Windows Terminal ignores -WindowStyle Hidden); safe to run manually anytime.
 $ErrorActionPreference = "Continue"
 $log = Join-Path $env:TEMP "vercel-prune.log"
 function Log($m) { ("[{0}] {1}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $m) | Tee-Object -FilePath $log -Append }
