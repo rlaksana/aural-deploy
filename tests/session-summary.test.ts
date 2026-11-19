@@ -94,6 +94,12 @@ function makeDeps(
   return { deps, calls };
 }
 
+/** Last merge_session_insights write — §5.3 start/failure markers precede it. */
+function lastInsightsRpc(db: FakeDb) {
+  const hits = db.writes.filter((w) => w.op === "rpc" && w.fn === "merge_session_insights");
+  return hits[hits.length - 1];
+}
+
 test("a missing session is skipped with zero writes", async () => {
   const db = fakeDb({ sessions: [] });
   const { deps } = makeDeps(db);
@@ -133,7 +139,7 @@ test("missing insights are completed: matched score kept, unanswered zero-filled
   assert.equal((update!.payload as any).summary, "Ringkasan kandidat.");
   assert.deepEqual((update!.payload as any).themes, ["komunikasi"]);
 
-  const rpc = db.writes.find((w) => w.op === "rpc" && w.fn === "merge_session_insights");
+  const rpc = lastInsightsRpc(db);
   assert.ok(rpc, "merge_session_insights recorded");
   assert.equal((rpc!.payload as any).p_session_id, "s1");
   const evals = (rpc!.payload as any).p_insights.questionEvaluations;
@@ -160,7 +166,13 @@ test("an answered question the LLM did not evaluate blocks persistence entirely"
     generateSessionSummaryCore("s1", {}, deps),
     /refusing to persist/,
   );
-  assert.equal(db.writes.length, 0, "no partial persistence");
+  // No partial persistence into sessions — §5.3 diagnostic markers
+  // (merge_session_insights rpc) are allowed, final insights are not.
+  assert.equal(
+    db.writes.filter((w) => w.op === "update" && w.table === "sessions").length,
+    0,
+    "no partial persistence",
+  );
 });
 
 test("deterministic quiz scores win and the LLM fills open gaps joined by echoed index", async () => {
@@ -193,7 +205,7 @@ test("deterministic quiz scores win and the LLM fills open gaps joined by echoed
   });
   await generateSessionSummaryCore("s1", {}, deps);
 
-  const rpc = db.writes.find((w) => w.op === "rpc" && w.fn === "merge_session_insights");
+  const rpc = lastInsightsRpc(db);
   assert.ok(rpc);
   const evals = (rpc!.payload as any).p_insights.questionEvaluations;
   assert.equal(evals.length, 2);
@@ -232,7 +244,10 @@ test("duplicate index claims orphan the paraphrased eval and the gate refuses pe
     generateSessionSummaryCore("s1", {}, deps),
     /refusing to persist/,
   );
-  assert.equal(db.writes.length, 0);
+  assert.equal(
+    db.writes.filter((w) => w.op === "update" && w.table === "sessions").length,
+    0,
+  );
 });
 
 test("a vision error retries twice with the image dropped from the second prompt", async () => {
@@ -314,10 +329,62 @@ test("a failed summary resolves the wrapper and records the summaryFailedAt mark
     throw new Error("boom");
   });
   await generateSessionSummary("s-fail", deps); // must resolve, not reject
-  const rpc = db.writes.find((w) => w.op === "rpc" && w.fn === "merge_session_insights");
+  const rpc = lastInsightsRpc(db);
   assert.ok(rpc, "failure marker written");
   const marker = (rpc!.payload as any).p_insights.summaryFailedAt;
   assert.ok(typeof marker === "string" && !Number.isNaN(Date.parse(marker)));
+});
+
+test("§5.3: a slow LLM call hits the internal deadline and the failure reaches the DB", async () => {
+  const db = fakeDb({ sessions: [baseRow()] });
+  // Resolve (never reject) after the deadline — the deadline must win.
+  const { deps } = makeDeps(
+    db,
+    okParsed(),
+    () =>
+      new Promise((resolve) =>
+        setTimeout(() => resolve({ content: JSON.stringify(okParsed()) }), 50),
+      ),
+  );
+  await assert.rejects(
+    generateSessionSummaryCore("s1", { timeoutMs: 5 }, deps),
+    /internal summary deadline/,
+  );
+  const insightsWrites = db.writes
+    .filter((w) => w.op === "rpc" && w.fn === "merge_session_insights")
+    .map((w) => (w.payload as any).p_insights as Record<string, unknown>);
+  assert.ok(
+    insightsWrites.some((p) => typeof p.summaryStartedAt === "string"),
+    "start marker persisted before the LLM call",
+  );
+  const failed = insightsWrites.find((p) => p.summaryFailedAt);
+  assert.ok(failed, "failure marker persisted after the deadline");
+  assert.match(String(failed!.summaryFailedReason), /internal summary deadline/);
+  assert.equal(
+    db.writes.filter((w) => w.op === "update" && w.table === "sessions").length,
+    0,
+    "no summary row written after a deadline kill",
+  );
+});
+
+test("§5.3: an LLM call finishing inside the deadline still generates normally", async () => {
+  const db = fakeDb({ sessions: [baseRow()] });
+  const { deps, calls } = makeDeps(
+    db,
+    okParsed(),
+    () =>
+      new Promise((resolve) =>
+        setTimeout(() => resolve({ content: JSON.stringify(okParsed()) }), 20),
+      ),
+  );
+  const result = await generateSessionSummaryCore("s1", { timeoutMs: 2000 }, deps);
+  assert.equal(result.status, "generated");
+  assert.equal(calls.length, 1);
+  const failed = db.writes.find(
+    (w) => w.op === "rpc" && w.fn === "merge_session_insights" &&
+      (w.payload as any).p_insights.summaryFailedAt,
+  );
+  assert.equal(failed, undefined, "no failure marker on a healthy run");
 });
 
 test("after an in-flight run finishes, a new call generates again", async () => {

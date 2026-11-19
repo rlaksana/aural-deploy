@@ -4,6 +4,7 @@ import {
   SUMMARY_REPORT_SHAPE_HINT,
 } from "@/lib/ai/generated-schema";
 import { createLogger } from "@/lib/logger";
+import { withAnswerKeys } from "@/lib/answer-keys";
 import { buildSummaryPrompt } from "@/lib/ai/prompts/summary";
 import { REPORT_MODEL } from "@/lib/ai/registry";
 import { generateChatWithFallback } from "@/lib/ai/generator-run";
@@ -37,6 +38,54 @@ const defaultDeps: SummaryDeps = {
 };
 
 /**
+ * §5.3 (2026-11-19 incident): Vercel's hard 300s kill left nothing persisted
+ * — no summary, no failure marker, so a dead run was indistinguishable from a
+ * running one. An internal deadline that fires BEFORE the platform kill lets
+ * the failure state reach the DB (summaryStartedAt / summaryFailedAt); the
+ * 30s of headroom covers the final sessions-row update under the 300s Fluid
+ * ceiling.
+ */
+const SUMMARY_INTERNAL_DEADLINE_MS = 270_000;
+
+async function persistInsightsMarker(
+  deps: SummaryDeps,
+  sessionId: string,
+  insights: Record<string, unknown>,
+): Promise<void> {
+  try {
+    await deps.supabase.rpc("merge_session_insights", {
+      p_session_id: sessionId,
+      p_insights: insights,
+    });
+  } catch {
+    // The marker is diagnostic only — never mask the original error path.
+  }
+}
+
+function withDeadline<T>(
+  promise: Promise<T>,
+  deadlineAt: number,
+  label: string,
+): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(
+      () => reject(new Error(`${label} exceeded the internal summary deadline`)),
+      Math.max(0, deadlineAt - Date.now()),
+    );
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (err) => {
+        clearTimeout(timer);
+        reject(err);
+      },
+    );
+  });
+}
+
+/**
  * Generate and persist the AI summary/insights for a session. Idempotent:
  * returns immediately when a summary already exists or one is currently being
  * generated for the same session, so multiple completion paths (voice save,
@@ -59,10 +108,16 @@ export async function generateSessionSummary(
       log.error(`Summary generation failed for session ${sessionId}:`, error);
       // Best-effort marker so a backfill can find permanently failed
       // summaries; a failure here must not mask the original error path.
+      // (generateSessionSummaryCore persists its own markers — this catch is
+      // the safety net for errors raised outside its deadline-guarded calls.)
       try {
         await deps.supabase.rpc("merge_session_insights", {
           p_session_id: sessionId,
-          p_insights: { summaryFailedAt: new Date().toISOString() },
+          p_insights: {
+            summaryFailedAt: new Date().toISOString(),
+            summaryFailedReason:
+              error instanceof Error ? error.message.slice(0, 300) : "unknown error",
+          },
         });
       } catch {
         // ignore — the marker is diagnostic only
@@ -81,13 +136,15 @@ export async function generateSessionSummary(
  */
 export async function generateSessionSummaryCore(
   sessionId: string,
-  opts: { force?: boolean } = {},
+  opts: { force?: boolean; timeoutMs?: number } = {},
   deps: SummaryDeps = defaultDeps,
 ): Promise<{ status: "generated" | "skipped" }> {
   const { data: interviewSession } = await deps.supabase
     .from("sessions")
     .select(
-      `summary, insights, interview:interviews!inner(title, objective, language, kind, assessmentCriteria, questions(id, text, order, type, expectedAnswer)), messages(*)`,
+      // expectedAnswer stays out of the questions select — keys are merged
+      // from the RLS-deny key table right after the row cast below.
+      `summary, insights, interview:interviews!inner(title, objective, language, kind, assessmentCriteria, questions(id, text, order, type)), messages(*)`,
     )
     .eq("id", sessionId)
     .order("order", { referencedTable: "interviews.questions", ascending: true })
@@ -110,6 +167,9 @@ export async function generateSessionSummaryCore(
       assessmentCriteria: { name: string; description: string }[] | null;
       questions: { id: string; text: string; order: number; type?: string; expectedAnswer?: string | null }[];
     };
+
+    // Merge answer keys so the grading prompt still receives the rubric.
+    interview.questions = await withAnswerKeys(interview.questions, deps.supabase);
 
     const msgs = (interviewSession.messages ?? []) as {
       contentType: string;
@@ -178,9 +238,31 @@ export async function generateSessionSummaryCore(
       interview.kind,
     );
 
+    const deadlineAt = Date.now() + (opts.timeoutMs ?? SUMMARY_INTERNAL_DEADLINE_MS);
+    // Record the attempt BEFORE the LLM call so even a hard platform kill
+    // leaves a start trace in insights (§5.3).
+    await persistInsightsMarker(deps, sessionId, {
+      summaryStartedAt: new Date().toISOString(),
+    });
+    const persistFailure = async (err: unknown) => {
+      await persistInsightsMarker(deps, sessionId, {
+        summaryFailedAt: new Date().toISOString(),
+        summaryFailedReason:
+          err instanceof Error ? err.message.slice(0, 300) : "unknown error",
+      });
+    };
+    const deadlineGenerate = async (args: Parameters<SummaryDeps["generate"]>[0]) => {
+      try {
+        return await withDeadline(deps.generate(args), deadlineAt, "Report LLM call");
+      } catch (err) {
+        await persistFailure(err);
+        throw err;
+      }
+    };
+
     let response;
     try {
-      response = await deps.generate({
+      response = await deadlineGenerate({
         messages,
         temperature: 0.3,
         maxTokens: 16384,
@@ -214,7 +296,7 @@ export async function generateSessionSummaryCore(
           codeInput,
           interview.kind,
         );
-        response = await deps.generate({
+        response = await deadlineGenerate({
           messages: fallbackMessages,
           temperature: 0.3,
           maxTokens: 16384,
@@ -230,12 +312,22 @@ export async function generateSessionSummaryCore(
     // raw output goes to the OpenRouter repair model (format only, never a
     // main-model re-run). Unsalvageable output throws and the gate below
     // keeps a partial result from ever being persisted.
-    const parsed = await deps.repair({
-      raw: response.content,
-      schema: buildSummaryReportSchema(interview.questions.length),
-      label: "summary-report",
-      shapeHint: SUMMARY_REPORT_SHAPE_HINT,
-    });
+    let parsed;
+    try {
+      parsed = await withDeadline(
+        deps.repair({
+          raw: response.content,
+          schema: buildSummaryReportSchema(interview.questions.length),
+          label: "summary-report",
+          shapeHint: SUMMARY_REPORT_SHAPE_HINT,
+        }),
+        deadlineAt,
+        "Repair call",
+      );
+    } catch (err) {
+      await persistFailure(err);
+      throw err;
+    }
 
     const insightsData: Record<string, unknown> = {
       keyInsights: parsed.keyInsights ?? [],
