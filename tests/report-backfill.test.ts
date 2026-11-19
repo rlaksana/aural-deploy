@@ -46,6 +46,7 @@ test("runBatchSummaries caps concurrency at 5 and refills slots dynamically", as
   assert.equal(maxActive, 5, "concurrency pool filled all 5 slots");
   assert.equal(result.done, 7, "every item was processed");
   assert.equal(result.failed, 0);
+  assert.deepEqual(result.failures, [], "successes are not recorded as failures");
   assert.deepEqual(
     new Set(processed),
     new Set(sessions.map((s) => s.sessionId)),
@@ -75,6 +76,34 @@ test("runBatchSummaries isolates failures while others continue", async () => {
   assert.equal(result.failed, 1);
 });
 
+test("runBatchSummaries records HTTP status and duration per failure", async () => {
+  const fetchImpl: FetchCall = async (_input, init) => {
+    const body = JSON.parse(init!.body as string) as { sessionId: string };
+    if (body.sessionId === "s-bad") return new Response("boom", { status: 503 });
+    if (body.sessionId === "s-dead") throw new Error("network down");
+    return new Response(JSON.stringify({ ok: true }), { status: 200 });
+  };
+
+  const result = await runBatchSummaries(
+    [
+      { sessionId: "s-bad", name: "B" },
+      { sessionId: "s-dead", name: "D" },
+      { sessionId: "s-ok", name: "O" },
+    ],
+    { concurrency: 3, fetchImpl: fetchImpl as typeof fetch },
+  );
+
+  assert.equal(result.done, 1);
+  assert.equal(result.failed, 2);
+  const byId = Object.fromEntries(result.failures.map((f) => [f.sessionId, f]));
+  assert.equal(byId["s-bad"].status, 503, "HTTP status is preserved for triage");
+  assert.equal(byId["s-bad"].error, null, "server-answered failures carry no client error");
+  assert.ok(byId["s-bad"].durationMs >= 0, "duration is recorded");
+  assert.equal(byId["s-dead"].status, null, "network-level failures record no status");
+  assert.equal(byId["s-dead"].error, "network down", "client-side cause is preserved");
+  assert.ok(!result.failures.some((f) => f.sessionId === "s-ok"));
+});
+
 test("runBatchSummaries sends skipExisting on every request", async () => {
   const seen: unknown[] = [];
   const fetchImpl: FetchCall = async (_input, init) => {
@@ -98,7 +127,7 @@ test("runBatchSummaries handles empty input gracefully", async () => {
     fetchImpl: async () => new Response("{}", { status: 200 }),
   });
 
-  assert.deepEqual(result, { done: 0, failed: 0 });
+  assert.deepEqual(result, { done: 0, failed: 0, failures: [] });
 });
 
 test("runBatchSummaries respects lower custom concurrency", async () => {

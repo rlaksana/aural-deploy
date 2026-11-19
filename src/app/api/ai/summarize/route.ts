@@ -4,6 +4,7 @@ import { createLogger } from "@/lib/logger";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 import { evaluationsAreCanonical } from "@/lib/session-score";
 import { NextResponse } from "next/server";
+import { authorizeSummarizeForSession } from "./logic";
 
 const log = createLogger("api/ai/summarize");
 
@@ -25,19 +26,31 @@ export async function POST(req: Request) {
   const { sessionId, skipExisting, force } = await req.json();
 
   try {
-    const { data: session } = await supabaseAdmin
+    // Report management via the shared org/project RBAC, derived from the
+    // session's own interview (MEMBER+ required; grant denials keep a
+    // uniform 404, role shortfalls return an informative 403). Authorized on
+    // the light lookup first so denied callers never pay the questions join.
+    const access = await authorizeSummarizeForSession(supabaseAdmin, sessionId, user.id);
+    if (!access.ok) {
+      return NextResponse.json(
+        { error: access.error },
+        { status: access.status },
+      );
+    }
+
+    const { data: session, error: sessionError } = await supabaseAdmin
       .from("sessions")
       .select(
-        "id, summary, insights, interview:interviews!inner(userId, questions(text, order))",
+        "id, summary, insights, interview:interviews!inner(questions(text, order))",
       )
       .eq("id", sessionId)
       .order("order", { referencedTable: "interviews.questions", ascending: true })
       .single();
+    // Fail-closed on lookup errors, but never let a transient DB failure
+    // masquerade silently as a missing session.
+    if (sessionError) log.error("Session lookup failed:", sessionError);
 
-    if (
-      !session ||
-      (session.interview as unknown as { userId: string }).userId !== user.id
-    ) {
+    if (!session) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
