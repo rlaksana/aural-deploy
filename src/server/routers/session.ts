@@ -1,4 +1,5 @@
 import { generateSessionSummary } from "@/lib/ai/session-summary";
+import { withAnswerKeys } from "@/lib/answer-keys";
 import { gradeQuiz, stripAnswerKey } from "@/lib/quiz-grading";
 import { getPsychometricBank } from "@/lib/psychometric/banks";
 import { scorePsychometric, selectionsFromAnswers } from "@/lib/psychometric/scoring";
@@ -667,6 +668,15 @@ export const sessionRouter = router({
         | undefined;
       const kind = interview?.kind ?? "INTERVIEW";
       const aiSummaryEnabled = interview?.aiSummaryEnabled !== false;
+
+      // Answer keys live in the RLS-deny question_answer_keys table; merge
+      // them so deterministic quiz grading still sees the rubric.
+      if (interview?.questions) {
+        interview.questions = (await withAnswerKeys(
+          interview.questions,
+          ctx.supabase,
+        )) as typeof interview.questions;
+      }
 
       // Psychometric instruments score deterministically and complete as
       // FINAL: the objective-kind rule — nothing AI-generated to approve.

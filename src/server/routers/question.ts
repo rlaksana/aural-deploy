@@ -3,6 +3,7 @@ import { z } from "zod";
 import { protectedProcedure, router } from "../trpc";
 import { getOrgMembership, assertMinRole, hasProjectAccess, filterAccessibleProjectIds, getEffectiveProjectRole, type MemberRole } from "../trpc";
 import { normalizeChoiceKeys } from "@/lib/quiz-grading";
+import { splitChoiceKey, upsertAnswerKeys, withAnswerKeys, type KeyedQuestion } from "@/lib/answer-keys";
 
 const questionInput = z.object({
   text: z.string().min(1),
@@ -103,10 +104,17 @@ export const questionRouter = router({
       }
 
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { interviewId, starterCode, order: _order, ...rest } = input;
+      const { interviewId, starterCode, order: _order, expectedAnswer, ...rest } = input;
       if (rest.options) {
         rest.options = normalizeChoiceKeys(input.type, rest.options);
       }
+      // Keys never persist on the questions row — split them into the
+      // RLS-deny question_answer_keys table instead.
+      const { options: cleanOptions, correctIndices } =
+        rest.options != null
+          ? splitChoiceKey(rest.options as KeyedQuestion["options"])
+          : { options: rest.options, correctIndices: null as number[] | null };
+      rest.options = cleanOptions;
 
       const { data: question, error } = await ctx.supabase
         .from("questions")
@@ -124,13 +132,29 @@ export const questionRouter = router({
           code: "INTERNAL_SERVER_ERROR",
           message: error.message,
         });
-      return question;
+
+      await upsertAnswerKeys(
+        [
+          {
+            questionId: question.id,
+            expectedAnswer:
+              expectedAnswer != null && expectedAnswer.trim().length > 0
+                ? expectedAnswer
+                : null,
+            correctIndices,
+          },
+        ],
+        ctx.supabase,
+      );
+
+      // Rehydrate so the editor payload keeps carrying the authored keys.
+      return (await withAnswerKeys([question], ctx.supabase))[0] as unknown as typeof question;
     }),
 
   update: protectedProcedure
     .input(z.object({ id: z.string(), ...questionInput.partial().shape }))
     .mutation(async ({ ctx, input }) => {
-      const { id, starterCode, ...rest } = input;
+      const { id, starterCode, expectedAnswer, ...rest } = input;
 
       const { data: question } = await ctx.supabase
         .from("questions")
@@ -150,11 +174,17 @@ export const questionRouter = router({
       assertMinRole(role, "MEMBER");
 
       const updateData: Record<string, unknown> = { ...rest };
+      let correctIndices: number[] | null | undefined;
       if (updateData.options !== undefined && updateData.options !== null) {
-        updateData.options = normalizeChoiceKeys(
+        const normalized = normalizeChoiceKeys(
           input.type ?? question.type,
           updateData.options,
         );
+        const { options, correctIndices: ci } = splitChoiceKey(
+          normalized as KeyedQuestion["options"],
+        );
+        updateData.options = options;
+        correctIndices = ci;
       }
       if (starterCode !== undefined) {
         updateData.starterCode = starterCode;
@@ -167,7 +197,26 @@ export const questionRouter = router({
         .select()
         .single();
 
-      return updated;
+      // Persist keys in the private table. Only fields the caller sent are
+      // written (undefined leaves the stored value untouched).
+      const keyUpdate: {
+        questionId: string;
+        expectedAnswer?: string | null;
+        correctIndices?: number[] | null;
+      } = { questionId: id };
+      if (expectedAnswer !== undefined) {
+        keyUpdate.expectedAnswer =
+          expectedAnswer != null && expectedAnswer.trim().length > 0 ? expectedAnswer : null;
+      }
+      if (correctIndices !== undefined) {
+        keyUpdate.correctIndices = correctIndices;
+      }
+      await upsertAnswerKeys([keyUpdate], ctx.supabase);
+
+      const rehydrated = updated
+        ? (await withAnswerKeys([updated], ctx.supabase))[0]
+        : null;
+      return rehydrated as unknown as typeof updated;
     }),
 
   delete: protectedProcedure
@@ -313,6 +362,9 @@ export const questionRouter = router({
       }
 
       const { data: questions } = await query;
-      return { questions: questions ?? [] };
+      // Question-bank rows are key-free after the migration — rehydrate so
+      // the payload matches the pre-migration shape.
+      const keyed = await withAnswerKeys((questions ?? []) as unknown as KeyedQuestion[]);
+      return { questions: keyed as unknown as typeof questions };
     }),
 });

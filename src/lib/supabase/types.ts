@@ -368,6 +368,27 @@ export type Database = {
         };
         Relationships: [];
       };
+      question_answer_keys: {
+        Row: {
+          questionId: string;
+          expectedAnswer: string | null;
+          correctIndices: Json | null;
+          updatedAt: string;
+        };
+        Insert: {
+          questionId: string;
+          expectedAnswer?: string | null;
+          correctIndices?: Json | null;
+          updatedAt?: string;
+        };
+        Update: {
+          questionId?: string;
+          expectedAnswer?: string | null;
+          correctIndices?: Json | null;
+          updatedAt?: string;
+        };
+        Relationships: [];
+      };
       sessions: {
         Row: {
           id: string;

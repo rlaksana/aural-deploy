@@ -1,5 +1,6 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
+import { withAnswerKeys, type KeyedQuestion } from "@/lib/answer-keys";
 import { getOrgMembership, hasProjectAccess, protectedProcedure, router } from "../trpc";
 
 /**
@@ -116,6 +117,14 @@ export const customTemplateRouter = router({
         questions: Record<string, unknown>[];
       };
 
+      // Snapshot the rubric into the template: after the key migration the
+      // questions row is key-free, so an unrehydrated snapshot would create
+      // rubric-less interviews later.
+      const keyedQuestions = (await withAnswerKeys(
+        iv.questions as unknown as KeyedQuestion[],
+        ctx.supabase,
+      )) as unknown as Record<string, unknown>[];
+
       const { error } = await ctx.supabase.from("custom_templates").insert({
         organizationId: project.organizationId,
         createdBy: ctx.user.id,
@@ -131,7 +140,7 @@ export const customTemplateRouter = router({
           videoEnabled: iv.videoEnabled,
           timeLimitMinutes: iv.timeLimitMinutes,
           language: iv.language,
-          questions: iv.questions,
+          questions: keyedQuestions,
         },
       });
 

@@ -1,4 +1,5 @@
 import { nanoid } from "@/lib/id";
+import { stripAnswerKey } from "@/lib/quiz-grading";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import {
@@ -473,6 +474,12 @@ export const candidateRouter = router({
           message: "Interview is no longer available",
         });
       }
+
+      // Invite holders get the same key-free question payload as every other
+      // candidate surface — the grading rubric never travels to the candidate.
+      interview.questions = (
+        (interview.questions ?? []) as { id: string }[]
+      ).map(stripAnswerKey);
 
       return candidate;
     }),

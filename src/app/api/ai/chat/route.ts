@@ -1,4 +1,5 @@
 import { buildInterviewerPrompt } from "@/lib/ai/prompts/interviewer";
+import { withAnswerKeys, type KeyedQuestion } from "@/lib/answer-keys";
 import { getProvider } from "@/lib/ai/registry";
 import type { LLMMessage } from "@/lib/ai/types";
 import { resolveChatAdvance } from "@/lib/chat-advance";
@@ -76,6 +77,12 @@ export async function POST(req: Request) {
         { status: 404 },
       );
     }
+
+    // On-the-spot quiz feedback needs the rubric: merge answer keys from the
+    // RLS-deny key table (candidate-facing payloads elsewhere stay key-free).
+    interview.questions = (await withAnswerKeys(
+      (interview.questions ?? []) as KeyedQuestion[],
+    )) as typeof interview.questions;
 
     // The live-interviewer chat runs on the Z.AI GLM Coding Plan — same
     // primary as the generator pipelines. The old LiteLLM gateway

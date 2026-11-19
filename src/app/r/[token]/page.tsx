@@ -9,6 +9,7 @@ import {
 } from "@/lib/interview-report";
 import { AutoRefresh } from "./auto-refresh";
 import { supabaseAdmin } from "@/lib/supabase/admin";
+import { withAnswerKeys } from "@/lib/answer-keys";
 import { buildCriteriaWeights } from "@/lib/session-score";
 import { CircleDot } from "lucide-react";
 import Link from "next/link";
@@ -61,6 +62,11 @@ export default async function PublicReportPage({
   const row = interviewRow as unknown as
     | (InterviewKindRow & { aiAnalysis?: { text: string; generatedAt: string } | null })
     | null;
+  // Correct rates need correctIndices — merge keys from the RLS-deny table;
+  // only computed tallies are rendered, never the raw keys.
+  if (row?.questions) {
+    row.questions = (await withAnswerKeys(row.questions)) as typeof row.questions;
+  }
   const isInterviewKind = (row?.kind ?? "INTERVIEW") === "INTERVIEW";
   const answeredBySession = isInterviewKind
     ? await fetchAnsweredBySession(supabaseAdmin, interviewId)

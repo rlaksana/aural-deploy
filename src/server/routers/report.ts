@@ -10,6 +10,7 @@ import {
   type SurveyAggregate,
 } from "@/lib/interview-report";
 import { buildCriteriaWeights } from "@/lib/session-score";
+import { withAnswerKeys } from "@/lib/answer-keys";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { protectedProcedure, publicProcedure, router } from "../trpc";
@@ -60,6 +61,11 @@ export const reportRouter = router({
       const row = interviewRow as unknown as
         | (InterviewKindRow & { aiAnalysis?: { text: string; generatedAt: string } | null })
         | null;
+      // correctRate/score rows need correctIndices — merge keys from the
+      // RLS-deny table server-side; raw questions are never returned here.
+      if (row?.questions) {
+        row.questions = (await withAnswerKeys(row.questions, ctx.supabase)) as typeof row.questions;
+      }
       const entries = await fetchReportEntries(ctx.supabase, input.interviewId, {
         includeMessages: (row?.kind ?? "INTERVIEW") !== "INTERVIEW",
       });
@@ -173,6 +179,11 @@ export const reportRouter = router({
         .single();
 
       const row = interviewRow as unknown as InterviewKindRow | null;
+      // Anonymous ctx client cannot read the key table (RLS-deny) — merge via
+      // service role; only computed tallies/correct rates leave the server.
+      if (row?.questions) {
+        row.questions = (await withAnswerKeys(row.questions)) as typeof row.questions;
+      }
       const kind = row?.kind ?? "INTERVIEW";
       const isInterviewKind = kind === "INTERVIEW";
       const answeredBySession = isInterviewKind

@@ -128,6 +128,12 @@ export function fakeDb(
           b._pending.update = payload;
           return b;
         },
+        // Upserts resolve through the insert path; the onConflict target the
+        // caller passes is simply not declared here (fixtures key rows uniquely).
+        upsert: (payload: Record<string, unknown> | Record<string, unknown>[]) => {
+          b._pending.insert = payload;
+          return b;
+        },
         insert: (payload: Record<string, unknown> | Record<string, unknown>[]) => {
           b._pending.insert = payload;
           return b;

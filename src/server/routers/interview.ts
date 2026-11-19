@@ -1,7 +1,8 @@
 import { nanoid } from "@/lib/id";
 import { INTERVIEW_TEMPLATES } from "@/lib/interview-templates";
 import { buildCriteriaWeights, getSessionOverallScore } from "@/lib/session-score";
-import { normalizeChoiceKeys } from "@/lib/quiz-grading";
+import { normalizeChoiceKeys, stripAnswerKey } from "@/lib/quiz-grading";
+import { splitChoiceKey, upsertAnswerKeys, withAnswerKeys, type KeyedQuestion } from "@/lib/answer-keys";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import {
@@ -352,6 +353,13 @@ export const interviewRouter = router({
         throw new TRPCError({ code: "NOT_FOUND" });
       }
 
+      // Editor payload: rehydrate answer keys from the RLS-deny key table —
+      // only authenticated editor reads see them again here.
+      interview.questions = (await withAnswerKeys(
+        (interview.questions ?? []) as KeyedQuestion[],
+        ctx.supabase,
+      )) as typeof interview.questions;
+
       return {
         ...interview,
         _count: {
@@ -377,6 +385,12 @@ export const interviewRouter = router({
           message: "Interview not found",
         });
       }
+
+      // Candidate payload stays key-free even while migration 026 dual-writes
+      // keys onto questions rows; after 027 strips them this is a no-op.
+      interview.questions = (
+        (interview.questions ?? []) as { id: string }[]
+      ).map(stripAnswerKey) as typeof interview.questions;
 
       return interview;
     }),
@@ -893,18 +907,39 @@ export const interviewRouter = router({
       }
 
       if (template.questions.length > 0) {
-        const questionRows = template.questions.map((q) => ({
-          interviewId: interview.id,
-          text: q.text,
-          type: q.type,
-          order: q.order,
-          isRequired: q.isRequired ?? true,
-          probeOnShort: q.probeOnShort ?? true,
-          options: q.options ?? null,
-          description: q.description ?? null,
-        }));
-
-        await ctx.supabase.from("questions").insert(questionRows);
+        // Template options may carry correctIndices — strip them into the
+        // RLS-deny key table instead of persisting them on the question row.
+        const splits = template.questions.map((q) =>
+          splitChoiceKey(q.options as KeyedQuestion["options"]),
+        );
+        const { data: insertedQuestions, error: questionInsertError } = await ctx.supabase
+          .from("questions")
+          .insert(
+            template.questions.map((q, i) => ({
+              interviewId: interview.id,
+              text: q.text,
+              type: q.type,
+              order: q.order,
+              isRequired: q.isRequired ?? true,
+              probeOnShort: q.probeOnShort ?? true,
+              options: splits[i].options,
+              description: q.description ?? null,
+            })),
+          )
+          .select("id");
+        if (questionInsertError) {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: questionInsertError.message,
+          });
+        }
+        await upsertAnswerKeys(
+          (insertedQuestions ?? []).map((row, i) => ({
+            questionId: (row as { id: string }).id,
+            correctIndices: splits[i].correctIndices,
+          })),
+          ctx.supabase,
+        );
       }
 
       return interview;
@@ -1163,27 +1198,50 @@ export const interviewRouter = router({
       }
 
       if (sourceQuestions.length > 0) {
-        await ctx.supabase.from("questions").insert(
-          sourceQuestions.map((q) => ({
-            interviewId: newInterview.id,
-            order: q.order,
-            text: q.text,
-            description: q.description,
-            expectedAnswer: q.expectedAnswer,
-            type: q.type,
-            options: q.options,
-            starterCode: q.starterCode,
-            validationRules: q.validationRules,
-            followUpPrompts: q.followUpPrompts,
-            probeOnShort: q.probeOnShort,
-            probeThreshold: q.probeThreshold,
-            showIf: q.showIf,
-            skipIf: q.skipIf,
-            timeLimitSeconds: q.timeLimitSeconds,
-            isRequired: q.isRequired,
-            allowFileUpload: q.allowFileUpload,
-            allowedFileTypes: q.allowedFileTypes,
+        // Keys live in the RLS-deny table — merge them for the copy, then
+        // insert key-free question rows and persist keys under the new ids.
+        const keyedSource = (await withAnswerKeys(
+          sourceQuestions as unknown as KeyedQuestion[],
+          ctx.supabase,
+        )) as KeyedQuestion[];
+        const splits = keyedSource.map((q) => splitChoiceKey(q.options));
+        const { data: insertedQuestions, error: questionInsertError } = await ctx.supabase
+          .from("questions")
+          .insert(
+            sourceQuestions.map((q, i) => ({
+              interviewId: newInterview.id,
+              order: q.order,
+              text: q.text,
+              description: q.description,
+              type: q.type,
+              options: splits[i].options,
+              starterCode: q.starterCode,
+              validationRules: q.validationRules,
+              followUpPrompts: q.followUpPrompts,
+              probeOnShort: q.probeOnShort,
+              probeThreshold: q.probeThreshold,
+              showIf: q.showIf,
+              skipIf: q.skipIf,
+              timeLimitSeconds: q.timeLimitSeconds,
+              isRequired: q.isRequired,
+              allowFileUpload: q.allowFileUpload,
+              allowedFileTypes: q.allowedFileTypes,
+            })),
+          )
+          .select("id");
+        if (questionInsertError) {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: questionInsertError.message,
+          });
+        }
+        await upsertAnswerKeys(
+          (insertedQuestions ?? []).map((row, i) => ({
+            questionId: (row as { id: string }).id,
+            expectedAnswer: keyedSource[i]?.expectedAnswer ?? null,
+            correctIndices: splits[i].correctIndices,
           })),
+          ctx.supabase,
         );
       }
 
@@ -1194,6 +1252,13 @@ export const interviewRouter = router({
         .order("order", { referencedTable: "questions", ascending: true })
         .single();
 
+      // Same editor shape as getById — keys rehydrated from the key table.
+      if (result2) {
+        result2.questions = (await withAnswerKeys(
+          (result2.questions ?? []) as KeyedQuestion[],
+          ctx.supabase,
+        )) as typeof result2.questions;
+      }
       return result2;
     }),
 

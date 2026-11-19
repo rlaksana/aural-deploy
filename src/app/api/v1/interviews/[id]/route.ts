@@ -3,6 +3,7 @@ import {
   isAuthError,
   validateApiKey,
 } from "@/lib/api-key-auth";
+import { stripAnswerKey } from "@/lib/quiz-grading";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 
 export async function GET(
@@ -36,11 +37,9 @@ export async function GET(
   const copy = { ...(interview as Record<string, unknown>) };
   const sessions = copy.sessions as { id: string }[] | null | undefined;
   delete copy.sessions;
-  // Partner payload: expectedAnswer is the evaluator's grading rubric, not part of the public contract.
-  copy.questions = ((copy.questions ?? []) as Record<string, unknown>[]).map(
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    ({ expectedAnswer: _dropped, ...q }) => q,
-  );
+  // Partner payload: the grading rubric (expectedAnswer + correctIndices) is
+  // never part of the public contract — not even during the dual-write window.
+  copy.questions = ((copy.questions ?? []) as Record<string, unknown>[]).map(stripAnswerKey);
 
   return Response.json({
     data: {

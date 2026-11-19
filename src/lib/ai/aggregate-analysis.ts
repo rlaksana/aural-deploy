@@ -1,4 +1,5 @@
 import { generateChatWithFallback } from "@/lib/ai/generator-run";
+import { withAnswerKeys } from "@/lib/answer-keys";
 import { REPORT_MODEL } from "@/lib/ai/registry";
 import { getPromptLanguageName } from "@/lib/ai/language-name";
 import { supabaseAdmin } from "@/lib/supabase/admin";
@@ -108,6 +109,10 @@ export async function generateAndCacheSurveyAnalysis(
   const row = interviewRow as unknown as
     | (InterviewKindRow & { language?: string })
     | null;
+  // Correct rates need correctIndices — merge keys from the RLS-deny table.
+  if (row?.questions) {
+    row.questions = (await withAnswerKeys(row.questions)) as typeof row.questions;
+  }
   const kind = row?.kind ?? "INTERVIEW";
   if (kind === "INTERVIEW") {
     throw new Error("AI analysis is only available for survey/quiz/form kinds");
