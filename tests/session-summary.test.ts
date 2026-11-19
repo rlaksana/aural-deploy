@@ -335,3 +335,27 @@ test("after an in-flight run finishes, a new call generates again", async () => 
   await generateSessionSummary("s-again", deps);
   assert.equal(calls, 2, "the in-flight entry is cleared after completion");
 });
+
+test("report generate calls request low reasoning effort (the 300s Fluid ceiling)", async () => {
+  const row = baseRow();
+  row.messages.push({
+    role: "USER",
+    contentType: "WHITEBOARD",
+    content: "",
+    questionId: null,
+    whiteboardData: { label: "sketsa" },
+    whiteboardImageUrl: "data:image/png;base64,iVBORw0KGgo=",
+  });
+  const db = fakeDb({ sessions: [row] });
+  const prompts: string[] = [];
+  const { deps, calls } = makeDeps(db, okParsed(), async (args) => {
+    prompts.push(JSON.stringify(args.messages));
+    if (prompts.length === 1) throw new Error("this model does not support images");
+    return { content: JSON.stringify(okParsed()) };
+  });
+  const result = await generateSessionSummaryCore("s1", {}, deps);
+  assert.equal(result.status, "generated");
+  assert.equal(calls.length, 2, "primary + vision-fallback generate both ran");
+  assert.equal(calls[0].reasoningEffort, "low", "primary report call caps reasoning effort");
+  assert.equal(calls[1].reasoningEffort, "low", "vision fallback caps reasoning effort too");
+});

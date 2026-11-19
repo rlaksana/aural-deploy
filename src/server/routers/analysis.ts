@@ -106,6 +106,14 @@ export const analysisRouter = router({
         );
       }
 
+      // Questions with a stored USER answer are "answered" even when the LLM
+      // never evaluated them: they become pending markers, not false zeros.
+      const answeredIds = new Set(
+        ((session.messages as { role: string; questionId?: string | null }[] | null) ?? [])
+          .filter((m) => m.role === "USER" && m.questionId)
+          .map((m) => m.questionId as string),
+      );
+
       return {
         interviewTitle: interview.title,
         interviewObjective: interview.objective,
@@ -131,8 +139,9 @@ export const analysisRouter = router({
         insights: canonicalizeInsights(
           session.insights,
           (
-            session.interview as unknown as { questions?: { text: string }[] }
+            session.interview as unknown as { questions?: { id: string; text: string }[] }
           ).questions,
+          answeredIds,
         ),
         themes: session.themes,
         sentiment: session.sentiment,

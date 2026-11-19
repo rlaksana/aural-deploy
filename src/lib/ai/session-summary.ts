@@ -185,6 +185,11 @@ export async function generateSessionSummaryCore(
         temperature: 0.3,
         maxTokens: 16384,
         model: REPORT_MODEL,
+        // reasoning_effort "high" (the provider default) blows past the 300s
+        // Fluid compute ceiling on long transcripts — the call gets killed
+        // and the session silently never gets a summary. "low" keeps the
+        // report call inside the budget (same override the live chat uses).
+        reasoningEffort: "low",
       });
     } catch (err) {
       const isVisionError =
@@ -214,6 +219,7 @@ export async function generateSessionSummaryCore(
           temperature: 0.3,
           maxTokens: 16384,
           model: REPORT_MODEL,
+          reasoningEffort: "low",
         });
       } else {
         throw err;
